@@ -1,5 +1,7 @@
 # DicomExport
-A tool for exporting dicom plans (RN* or RP*) to various formats.
+A tool for exporting DICOM proton therapy studies.
+- So far only TOPAS input files are supported
+- Phasespace .MCPL can be added, as well as Racehorse .CSV.
 
 ## Developer notes
 ### Getting started:
