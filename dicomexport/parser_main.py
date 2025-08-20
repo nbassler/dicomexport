@@ -17,7 +17,7 @@ def create_parser():
                         " d) at least one DICOM RTDOSE file (RD*.dcm) where the resulting dose distribution will be stored.")
 
     parser.add_argument('output_base_path', nargs='?', type=Path, default="topas.txt",
-                        help="Output TOPAS geometry file (default: topas.txt). \
+                        help="Export file (default: topas.txt). \
                             Field number will be appended automatically to the name before the extension.")
 
     parser.add_argument('-b', '--beam-model', type=Path, dest='bm',
@@ -34,6 +34,12 @@ def create_parser():
 
     parser.add_argument('-N', '--nstat', type=int, dest='nstat',
                         help="Target protons for simulation", default=int(1e6))
+
+    parser.add_argument(
+        '--export-fmt', dest='export_fmt', choices=['topas', 'phasespace', 'racehorse'], default='topas',
+        help=("Export format (default: topas). "
+              "Formats: topas (*.txt), phasespace (*.mcpl), racehorse (*.csv).")
+    )
 
     parser.add_argument('-v', '--verbosity', action='count', default=0,
                         help="Increase verbosity (can use -v, -vv, etc.).")

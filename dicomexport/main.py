@@ -59,12 +59,24 @@ def main(args=None) -> int:
 
     rd_path = get_path_dicom_dose(study_dir)
 
-    # export the geometry file
-    export_study_topas(ct, rs, pn,
-                       parsed_args.output_base_path,
-                       field_nr=parsed_args.field_nr,
-                       dose_path=rd_path,
-                       nstat=parsed_args.nstat)
+    # export the plan file
+    if parsed_args.export_fmt == 'topas':
+        export_study_topas(ct, rs, pn,
+                           parsed_args.output_base_path,
+                           field_nr=parsed_args.field_nr,
+                           dose_path=rd_path,
+                           nstat=parsed_args.nstat)
+    elif parsed_args.export_fmt == 'phasespace':
+        logger.error("Phasespace export is not implemented yet in this build.")
+        # Later: call your MCPL exporter here.
+        return 2
+    elif parsed_args.export_fmt == 'racehorse':
+        logger.error("Racehorse export is not implemented yet in this build.")
+        # Later: call your Racehorse exporter here.
+        return 2
+    else:
+        logger.error("Unknown export format: %s", parsed_args.export_fmt)
+        return 2
 
     return 0
 
