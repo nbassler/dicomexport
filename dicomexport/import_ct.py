@@ -51,7 +51,9 @@ def load_ct(mydir: Path) -> CTModel:
 
         # The next parts are just tests for a new scheme for reading DICOM files which should be more robust
         # in case of missing tags which are non essential
-        # Not sure I will keep this schema, it might be too clunky. /NBassler
+        # The following approach is designed to robustly read DICOM files, handling missing or non-essential tags gracefully.
+        # Required tags will raise errors if missing or malformed, while optional tags will default to safe values.
+        # This scheme improves resilience when processing DICOM data from diverse sources.
         #
         img = Image(
             # REQUIRED — fail fast if missing/malformed
