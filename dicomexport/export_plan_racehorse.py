@@ -32,7 +32,8 @@ class RacehorsePlan:
 
         if not np.isclose(check_total_mu, layer.cum_mu, rtol=1e-4):
             raise ValueError(
-                f"Total MU for layer {layer.number:02d}: {check_total_mu:.4f} differs from expected {layer.cum_mu:.4f} by more than 0.01%."
+                f"Total MU for layer {layer.number:02d}: {check_total_mu:.4f} differs from expected "
+                f"{layer.cum_mu:.4f} by more than 0.01%."
             )
 
         return c
