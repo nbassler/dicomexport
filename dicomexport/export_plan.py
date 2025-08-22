@@ -22,7 +22,7 @@ def export_plan(pln: Plan, bm: BeamModel, output_base_path: Path, field_nr: int 
     if field_nr >= 1:
         fields = [(field_nr, pln.fields[field_nr - 1])]
     else:
-        fields = list(enumerate(pln.fields))
+        fields = list(enumerate(pln.fields, start=1))
 
     for idx, field in fields:
         if fmt == "racehorse":
