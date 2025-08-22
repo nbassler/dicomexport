@@ -3,6 +3,7 @@ import datetime
 
 from dicomexport.__version__ import __version__
 from dicomexport.model_plan import Field
+import numpy as np
 
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,9 @@ class RacehorsePlan:
         for n, spot in enumerate(layer.spots):
             c += f"{n:2d},{spot.x:8.2f},{spot.y:8.2f},{spot.mu:8.2f}\n"  # index, mm, mm, monitor units
             check_total_mu += spot.mu
+
+        if not np.isclose(check_total_mu, layer.cum_mu, rtol=1e-4):
+            raise ValueError(f"Total MU for layer {layer.number:02d} differs from expected by more than 0.01%.")
 
         return c
 
