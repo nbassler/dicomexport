@@ -1,40 +1,11 @@
 import logging
 import numpy as np
-from pathlib import Path
 
-from dicomexport.model_plan import Plan, Field
+from dicomexport.model_plan import Field
 from dicomexport.beam_model import BeamModel
 from dicomexport.topas_text import TopasText
 
 logger = logging.getLogger(__name__)
-
-
-# export_plan is a workflow function, not a core method of the TopasPlan abstraction
-def export_plan(pln: Plan, bm: BeamModel, output_base_path: Path,
-                field_nr: int = -1, nominal: bool = True,
-                nstat: int = int(1e6)) -> None:
-    """
-    Export one or all fields from a Plan to Topas .txt files.
-    If field_nr >= 1, export only that field.
-    If field_nr < 0, export all fields with field number appended.
-    """
-
-    if field_nr >= 1:
-        field = pln.fields[field_nr - 1]
-        output_path = output_base_path.with_name(
-            f"{output_base_path.stem}_field{field_nr}{output_base_path.suffix}"
-        )
-        topas_text = TopasPlan.generate(
-            field, bm, nominal=nominal, nstat=nstat)
-        output_path.write_text(topas_text)
-    else:
-        for i, field in enumerate(pln.fields, start=1):
-            output_path = output_base_path.with_name(
-                f"{output_base_path.stem}_field{i}{output_base_path.suffix}"
-            )
-            topas_text = TopasPlan.generate(
-                field, bm, nominal=nominal, nstat=nstat)
-            output_path.write_text(topas_text)
 
 
 class TopasPlan:
@@ -45,7 +16,7 @@ class TopasPlan:
         Export the field to a topas input file.
         """
         logger.debug(
-            f"Generating Topas input for field {myfield.field_number} with nominal={nominal} and nstat={nstat}")
+            f"Generating Topas input for field {myfield.number} with nominal={nominal} and nstat={nstat}")
 
         # sad_x = myfield.layers[0].sad[0]
         # sad_y = myfield.layers[0].sad[1]

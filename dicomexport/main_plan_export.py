@@ -4,7 +4,7 @@ import logging
 from dicomexport.parser_plan_export import create_parser
 from dicomexport.beam_model import BeamModel
 from dicomexport.import_plan import load_plan
-from dicomexport.export_plan_topas import export_plan
+from dicomexport.export_plan import export_plan
 
 logger = logging.getLogger(__name__)
 
@@ -51,11 +51,12 @@ def main(args=None) -> int:
     logger.debug("Applying beam model to plan...")
     pln.apply_beammodel()
 
-    logger.debug("Exporting plan to Topas format...")
+    logger.debug("Exporting plan format...")
     export_plan(pln, pln.beam_model, parsed_args.fout,
                 field_nr=parsed_args.field_nr,
                 nominal=param_nominal,
-                nstat=parsed_args.nstat)
+                nstat=parsed_args.nstat,
+                fmt=parsed_args.export_fmt)
 
     return 0
 

@@ -37,7 +37,7 @@ class TestPregdosCLI(unittest.TestCase):
 
     def _run_conversion_test(self, dicom_file_name: str):
         """Helper to run CLI on a given DICOM file and check output."""
-        test_output_file = Path("plan_field1.txt")
+        test_output_file = Path("plan_field01.txt")
         if test_output_file.exists():
             test_output_file.unlink()
 

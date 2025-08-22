@@ -26,7 +26,7 @@ def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: 
         for field in plan.fields:
             logger.info("=" * 50)
             logger.info(
-                f"Exporting field {field.field_number} to Topas geometry file...")
+                f"Exporting field {field.number} to Topas geometry file...")
             logger.info("=" * 50)
             _export_study_field_topas(
                 ct, rs, field, plan.beam_model, output_base_path, dose_path, nstat=nstat)
@@ -46,7 +46,7 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: BeamMod
     # topas results will be written to output/field_number (no extension, will be handled by Topas
     # make target string for output file:
     topas_output_file_str_no_suffix = output_base_path.with_name(
-        f"{output_base_path.stem}_field{fld.field_number}")
+        f"{output_base_path.stem}_field{fld.number}")
 
     nstat_scale = TopasPlan.calculate_scaling_factor(fld, nstat)
 
@@ -75,7 +75,7 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: BeamMod
     TopasPlan.show_plan_data(fld, bm, nstat=nstat)
 
     output_path = output_base_path.with_name(
-        f"{output_base_path.stem}_field{fld.field_number}.txt")
+        f"{output_base_path.stem}_field{fld.number:02d}.txt")
     output_path.write_text(topas_string)
     logger.info(
-        f"Wrote Topas geometry file for field {fld.field_number}: {output_path.resolve()}")
+        f"Wrote Topas geometry file for field {fld.number}: {output_path.resolve()}")

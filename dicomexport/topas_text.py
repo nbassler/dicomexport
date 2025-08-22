@@ -12,7 +12,7 @@ class TopasText:
     @staticmethod
     def header(field: Field, nstat_scale: float, nstat: int) -> str:
         lines = [
-            f"# Topas input file for field {field.field_number}",
+            f"# Topas input file for field {field.number}",
             '# ' + '-' * 40,
             f"# SOP_INSTANCE_UID {field.sop_instance_uid}",
             "# ",
