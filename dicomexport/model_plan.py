@@ -61,7 +61,7 @@ class Layer:
         sad: (x, y) source-to-axis distance [mm].
         table_position: (vert, long, lat) [mm].
         meterset_rate: MU/min (optional).
-        number: int = 0
+        number: Layer number (int).
     """
 
     spots: List[Spot] = dc_field(default_factory=list)
