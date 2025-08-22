@@ -30,8 +30,8 @@ class TopasText:
 
         lines = [
             f"# Generated {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} by user '{getpass.getuser()}'",
-            f"# using pregdos {__version__}",
-            "# https://github.com/Eurados/pregdos",
+            f"# using dicomexport {__version__}",
+            "# https://github.com/nbassler/dicomexport",
             "#\n"
         ]
 
