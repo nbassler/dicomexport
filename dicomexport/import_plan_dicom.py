@@ -115,7 +115,7 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                 rs_dict[rs.number] = rs  # Store by DICOM number for lookup
 
         layer_nr = 1
-        for j, icp in enumerate(icps):
+        for icp_index, icp in enumerate(icps):
             # Several attributes are only set once at the first ion control point.
             # The strategy here is then to still set them for every layer, even if they do not change.
             # This is to ensure that the field object has all necessary attributes set.
