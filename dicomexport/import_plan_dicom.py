@@ -216,5 +216,5 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                 ))
                 layer_nr += 1
             else:
-                logger.debug("Skipping empty layer %i", j)
+                logger.debug("Skipping empty layer index %i", icp_index)
     return p
