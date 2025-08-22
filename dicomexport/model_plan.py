@@ -61,6 +61,7 @@ class Layer:
         sad: (x, y) source-to-axis distance [mm].
         table_position: (vert, long, lat) [mm].
         meterset_rate: MU/min (optional).
+        number: Layer number (int).
     """
 
     spots: List[Spot] = dc_field(default_factory=list)
@@ -80,6 +81,8 @@ class Layer:
     sad: Tuple[float, float] = (0.0, 0.0)
     table_position: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     meterset_rate: float = 0.0
+
+    number: int = 0  # layer number, starting from 1, only including layers which contain data
 
     @property
     def n_spots(self) -> int:

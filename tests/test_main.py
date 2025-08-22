@@ -43,7 +43,7 @@ class TestPregdosCLI(unittest.TestCase):
         """Helper to run CLI on a given DICOM file and check output."""
 
         test_output_files = [
-            Path(f"topas_field{i}.txt") for i in range(1, 4)
+            Path(f"topas_field{i:02d}.txt") for i in range(1, 4)
         ]
 
         # Clean up any existing output files

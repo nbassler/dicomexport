@@ -3,6 +3,8 @@ import pydicom
 from pathlib import Path
 from typing import List
 
+from dicomexport.ds_get import req, opt, tuple_of_float, as_int, as_str
+
 from dicomexport.model_ct import CTModel, Image
 
 logger = logging.getLogger(__name__)
@@ -47,21 +49,30 @@ def load_ct(mydir: Path) -> CTModel:
         ds = pydicom.dcmread(file, stop_before_pixels=False)
         logger.debug(f"Loading CT slice: {file.name}")
 
+        # The next parts are just tests for a new scheme for reading DICOM files which should be more robust
+        # in case of missing tags which are non essential
+        # The following approach is designed to robustly read DICOM files, handling missing or non-essential tags gracefully.
+        # Required tags will raise errors if missing or malformed, while optional tags will default to safe values.
+        # This scheme improves resilience when processing DICOM data from diverse sources.
+        #
         img = Image(
-            sop_class_uid=str(ds.SOPClassUID),
-            sop_instance_uid=str(ds.SOPInstanceUID),
-            modality=ds.Modality,
-            series_description=ds.SeriesDescription,
-            pixel_spacing=tuple(map(float, ds.PixelSpacing)),
-            slice_location=float(ds.SliceLocation),
-            image_orientation=tuple(map(float, ds.ImageOrientationPatient)),
-            image_position_patient=tuple(map(float, ds.ImagePositionPatient)),
-            instance_number=int(ds.InstanceNumber),
-            rows=int(ds.Rows),
-            columns=int(ds.Columns),
-            patient_name=ds.PatientName,
-            patient_id=ds.PatientID,
-            patient_position=ds.PatientPosition,
+            # REQUIRED — fail fast if missing/malformed
+            pixel_spacing=req(ds, "PixelSpacing", cast=tuple_of_float, n=2, file=file),
+            slice_location=req(ds, "SliceLocation", cast=float, file=file),
+            image_orientation=req(ds, "ImageOrientationPatient", cast=tuple_of_float, n=6, file=file),
+            image_position_patient=req(ds, "ImagePositionPatient", cast=tuple_of_float, n=3, file=file),
+            rows=req(ds, "Rows", cast=int, file=file),
+            columns=req(ds, "Columns", cast=int, file=file),
+            patient_position=req(ds, "PatientPosition", cast=as_str, file=file),
+
+            # OPTIONAL — default silently if missing/odd
+            sop_class_uid=opt(ds, "SOPClassUID", "", cast=as_str),
+            sop_instance_uid=opt(ds, "SOPInstanceUID", "", cast=as_str),
+            modality=opt(ds, "Modality", "", cast=as_str),
+            series_description=opt(ds, "SeriesDescription", "", cast=as_str),
+            instance_number=opt(ds, "InstanceNumber", 0, cast=as_int),
+            patient_name=opt(ds, "PatientName", "", cast=as_str),
+            patient_id=opt(ds, "PatientID", "", cast=as_str),
         )
         ct_model.images.append(img)
 

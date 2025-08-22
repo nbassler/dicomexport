@@ -54,7 +54,7 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
     for i, rb in enumerate(rbs):
         myfield = Field()
         field_nr = i + 1
-        myfield.field_number = field_nr
+        myfield.number = field_nr
         logger.debug("Appending field number %d...", field_nr)
         p.fields.append(myfield)
         myfield.sop_instance_uid = p.sop_instance_uid
@@ -114,8 +114,8 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                              rs.number, rs.type, rs.thickness)
                 rs_dict[rs.number] = rs  # Store by DICOM number for lookup
 
-        for j, icp in enumerate(icps):
-            layer_nr = j + 1
+        layer_nr = 1
+        for icp_index, icp in enumerate(icps):
             # Several attributes are only set once at the first ion control point.
             # The strategy here is then to still set them for every layer, even if they do not change.
             # This is to ensure that the field object has all necessary attributes set.
@@ -211,8 +211,10 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                     gantry_angle=gantry_angle,
                     couch_angle=couch_angle,
                     snout_position=snout_position,
-                    sad=(sad_x, sad_y)
+                    sad=(sad_x, sad_y),
+                    number=layer_nr
                 ))
+                layer_nr += 1
             else:
-                logger.debug("Skipping empty layer %i", j)
+                logger.debug("Skipping empty layer index %i", icp_index)
     return p

@@ -26,6 +26,12 @@ def create_parser():
                         help="additional scaling multiplier for MC plan", default=1.0)
     parser.add_argument('-N', '--nstat', type=int, dest='nstat', help="Target protons for simulation", default=int(1e6))
 
+    parser.add_argument(
+        '--export-fmt', dest='export_fmt', choices=['topas', 'phasespace', 'racehorse'], default='topas',
+        help=("Export format (default: topas). "
+              "Formats: topas (*.txt), phasespace (*.mcpl), racehorse (*.csv).")
+    )
+
     parser.add_argument('-v', '--verbosity', action='count', help="Increase verbosity", default=0)
     parser.add_argument('-V', '--version', action='version', version=__version__)
 
