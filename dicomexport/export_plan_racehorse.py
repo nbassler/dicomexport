@@ -18,7 +18,7 @@ class RacehorsePlan:
 
         c = "* ----- RACEHORSE Spot List -----\n"
 
-        check_total_mu = 0.0  # TODO
+        check_total_mu = 0.0  # Accumulate total MU for all spots in the layer
 
         layer = myfield.layers[layer_index]
         c += f"* Field: {myfield.number:02d}"  # no newline
