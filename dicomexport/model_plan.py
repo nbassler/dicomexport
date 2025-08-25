@@ -12,6 +12,14 @@ logger = logging.getLogger(__name__)
 
 INDENT = "    "
 
+RS_CATALOG = {
+    "None":    {"thickness": 0.0,   "material": None},
+    "RS_2CM":  {"thickness": 20.0,  "material": "Lexan"},
+    "RS_3CM":  {"thickness": 30.0,  "material": "Lexan"},
+    "RS_5CM":  {"thickness": 50.0,  "material": "Lexan"},
+    "RS_Block": {"thickness": 39.936, "material": "Lexan"},
+}
+
 
 @dataclass
 class RangeShifter:
@@ -24,6 +32,7 @@ class RangeShifter:
     # distance from isocenter to downstream edge of range shifter [mm]
     isocenter_distance: float = 0.0
     material: str = "Lexan"
+    density: float = 1.20  # g/cm3
     is_inserted: bool = False  # True if range shifter is inserted
 
 

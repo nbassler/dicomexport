@@ -1,9 +1,10 @@
 import copy
 import logging
+# from attr import ib
 import numpy as np
 from pathlib import Path
 
-from dicomexport.model_plan import Plan, Field, Layer, Spot, RangeShifter
+from dicomexport.model_plan import Plan, Field, Layer, Spot, RangeShifter, RS_CATALOG
 
 logger = logging.getLogger(__name__)
 
@@ -67,16 +68,16 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                      len(ibs.value), n_fields)
         raise ValueError("Inconsistent number of fields in DICOM plan.")
 
-    for i, ib in enumerate(ibs):
+    for i, ibm in enumerate(ibs):
         myfield = p.fields[i]
         field_nr = i + 1
         # each layer has 2 control points
-        n_layers = int(ib['NumberOfControlPoints'].value) // 2
+        n_layers = int(ibm['NumberOfControlPoints'].value) // 2
         myfield.meterset_weight_final = float(
-            ib['FinalCumulativeMetersetWeight'].value)
+            ibm['FinalCumulativeMetersetWeight'].value)
         myfield.meterset_per_weight = myfield.cum_mu / myfield.meterset_weight_final
 
-        icps = ib['IonControlPointSequence']  # layers for given field number
+        icps = ibm['IonControlPointSequence']  # layers for given field number
         logger.debug("Found %i layers in field number %i", n_layers, field_nr)
 
         cmu = 0.0
@@ -84,35 +85,12 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
         # If range shifters are present, build the RS lookup dictionary
         logger.debug(
             "Checking for Range Shifter Sequence in field number %i", field_nr)
-        if 'RangeShifterSequence' in ib:
-            rs_dict = {}
-            for rs_item in ib['RangeShifterSequence']:
-                rs = RangeShifter()
-                if 'RangeShifterNumber' in rs_item:
-                    # Use DICOM tag value
-                    rs.number = int(rs_item['RangeShifterNumber'].value)
-                else:
-                    logger.error("RangeShifterNumber not found in DICOM plan.")
-                    continue
-                if 'RangeShifterID' in rs_item:
-                    rs.type = rs_item['RangeShifterType'].value
-                    rs.id = rs_item['RangeShifterID'].value
-                    logger.debug("Found range shifter ID: %s", rs.id)
-                    if rs.id == 'None':
-                        rs.thickness = 0.0   # thickness always in mm
-                    elif rs.id == 'RS_3CM':  # Varian range shifter
-                        rs.thickness = 30.0
-                    elif rs.id == 'RS_5CM':  # Varian range shifter
-                        rs.thickness = 50.0
-                    elif rs.id == 'RS_Block':  # IBA range shifter
-                        rs.thickness = 36.0
-                else:
-                    logger.error("Unknown range shifter ID in DICOM plan.")
-                logger.info(
-                    f"Range shifter '{rs.id}', thickness: {rs.thickness} mm")
-                logger.debug("Found range shifter number %d with type %s and thickness %.2f mm",
-                             rs.number, rs.type, rs.thickness)
-                rs_dict[rs.number] = rs  # Store by DICOM number for lookup
+
+        rs_dict: dict[int, RangeShifter] = {}
+        if 'RangeShifterSequence' in ibm:
+            for rs_item in ibm['RangeShifterSequence']:
+                rs = _build_range_shifter(rs_item)
+                rs_dict[rs.number] = rs
 
         layer_nr = 1
         for icp_index, icp in enumerate(icps):
@@ -123,7 +101,7 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
             if 'LateralSpreadingDeviceSettingsSequence' in icp:
                 if len(icp['LateralSpreadingDeviceSettingsSequence'].value) != 2:
                     logger.error("LateralSpreadingDeviceSettingsSequence should contain exactly 2 elements, found %d.",
-                                 len(ib['LateralSpreadingDeviceSettingsSequence'].value))
+                                 len(ibm['LateralSpreadingDeviceSettingsSequence'].value))
                     raise ValueError(
                         "Invalid LateralSpreadingDeviceSettingsSequence in DICOM plan.")
 
@@ -218,3 +196,31 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
             else:
                 logger.debug("Skipping empty layer index %i", icp_index)
     return p
+
+
+def _build_range_shifter(rs_item) -> RangeShifter:
+    if 'RangeShifterNumber' not in rs_item:
+        raise ValueError("RangeShifterNumber not found in DICOM plan")
+
+    if 'RangeShifterID' not in rs_item:
+        raise ValueError("RangeShifterID not found in DICOM plan")
+
+    number = int(rs_item['RangeShifterNumber'].value)
+    rs_id = str(rs_item['RangeShifterID'].value)
+    rs_type = str(rs_item['RangeShifterType'].value) if 'RangeShifterType' in rs_item else ""
+
+    # (optional) normalize IDs if vendors change casing
+    key = rs_id  # or: rs_id.strip().upper() with an uppercased catalog
+    if key not in RS_CATALOG:
+        raise ValueError(f"Unknown RangeShifterID '{rs_id}' encountered")
+
+    spec = RS_CATALOG[key]
+    return RangeShifter(
+        id=rs_id,
+        number=number,
+        type=rs_type,
+        thickness=spec["thickness"],
+        material=spec["material"],
+        # keep other fields at dataclass defaults
+        # water_equivalent_thickness=..., density=..., etc., if you want
+    )
