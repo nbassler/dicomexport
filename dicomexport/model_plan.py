@@ -28,12 +28,14 @@ class RangeShifter:
     number: int = 0
     type: str = ""
     thickness: float = 0.0  # in mm
-    water_equivalent_thickness: float = 0.0  # in mm
-    # distance from isocenter to downstream edge of range shifter [mm]
+    # distance from isocenter to downstream edge of range shifter is given in DICOM file [mm]
     isocenter_distance: float = 0.0
     material: str = "Lexan"
-    density: float = 1.20  # g/cm3
     is_inserted: bool = False  # True if range shifter is inserted
+
+    # the following are for future compatibility, but at the moment not used
+    # density: float = 1.20  # g/cm3
+    # water_equivalent_thickness: float = 0.0  # mm
 
 
 @dataclass

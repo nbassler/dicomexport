@@ -209,12 +209,11 @@ def _build_range_shifter(rs_item) -> RangeShifter:
     rs_id = str(rs_item['RangeShifterID'].value)
     rs_type = str(rs_item['RangeShifterType'].value) if 'RangeShifterType' in rs_item else ""
 
-    # (optional) normalize IDs if vendors change casing
-    key = rs_id  # or: rs_id.strip().upper() with an uppercased catalog
-    if key not in RS_CATALOG:
+    # pattern matching is intentionally case-sensitive to IDs are used in practice
+    if rs_id not in RS_CATALOG:
         raise ValueError(f"Unknown RangeShifterID '{rs_id}' encountered")
 
-    spec = RS_CATALOG[key]
+    spec = RS_CATALOG[rs_id]
     return RangeShifter(
         id=rs_id,
         number=number,
@@ -222,5 +221,5 @@ def _build_range_shifter(rs_item) -> RangeShifter:
         thickness=spec["thickness"],
         material=spec["material"],
         # keep other fields at dataclass defaults
-        # water_equivalent_thickness=..., density=..., etc., if you want
+        # water_equivalent_thickness=..., density=..., etc
     )
