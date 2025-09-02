@@ -41,8 +41,7 @@ jobs:
       # Change the entry to your package's CLI entry point or __main__.py
       - name: PyInstaller build
         run: |
-          pyinstaller -F -n dicomexport-${{ steps.vers.outputs.version }} `
-            dicomexport/__main__.py
+          dicomexport/__main__.py
 
       # Optionally rename with arch suffix
       - name: Rename artifact with OS/arch
