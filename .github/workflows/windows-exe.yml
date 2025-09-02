@@ -1,0 +1,70 @@
+name: Build Windows EXE
+
+on:
+  push:
+    tags:
+      - 'v*'         # build on version tags like v0.2.0
+  workflow_dispatch:  # allow manual runs
+
+jobs:
+  build-windows-exe:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Upgrade pip and install build deps
+        run: |
+          python -m pip install --upgrade pip wheel
+          python -m pip install pyinstaller
+
+      - name: Install project (editable to resolve entry points)
+        run: |
+          python -m pip install -e .
+
+      # Optional: compute version string from tag (e.g. v0.2.0 -> 0.2.0)
+      - name: Derive VERSION from tag
+        id: vers
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF##*/}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+
+      # Build the one-file EXE
+      # Change the entry to your package's CLI entry point or __main__.py
+      - name: PyInstaller build
+        run: |
+          pyinstaller -F -n dicomexport-${{ steps.vers.outputs.version }} `
+            dicomexport/__main__.py
+
+      # Optionally rename with arch suffix
+      - name: Rename artifact with OS/arch
+        shell: bash
+        run: |
+          ART="dist/dicomexport-${{ steps.vers.outputs.version }}.exe"
+          mv "$ART" "dist/dicomexport-${{ steps.vers.outputs.version }}-win64.exe"
+
+      # Upload as workflow artifact (nice for manual download/debug)
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dicomexport-${{ steps.vers.outputs.version }}-win64.exe
+          path: dist/dicomexport-${{ steps.vers.outputs.version }}-win64.exe
+          if-no-files-found: error
+
+      # Publish to the GitHub Release for this tag
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            dist/dicomexport-${{ steps.vers.outputs.version }}-win64.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
