@@ -41,7 +41,8 @@ geo-export = "dicomexport.main_geo_export:main"
 
 
 [tool.setuptools.packages.find]
-where = ["dicomexport"]
+where = ["."]
+include = ["dicomexport"]
 
 [tool.pytest.ini_options]
 log_cli = true
