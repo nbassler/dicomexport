@@ -74,6 +74,50 @@ class TestPregdosCLI(unittest.TestCase):
         for test_output_file in test_output_files:
             test_output_file.unlink()
 
+    # test for -N nstat parameter
+    def test_nstat_parameter(self):
+        """Test that the -N parameter correctly sets the nstat value in the output files."""
+
+        test_output_files = [
+            Path(f"topas_field{i:02d}.txt") for i in range(1, 4)
+        ]
+
+        # Clean up any existing output files
+        for test_output_file in test_output_files:
+            if test_output_file.exists():
+                test_output_file.unlink()
+
+        nstat_value = int(2e6)  # double of the default value
+        test_args = [
+            "-vv",
+            f"-N {nstat_value}",
+            f"-b={BEAM_MODEL_PATH}",
+            f"-s={SPR_TABLE_PATH}",
+            f"{DICOM_TEST_DIR}"
+        ]
+
+        retcode = study.main(test_args)
+        self.assertEqual(
+            retcode, 0, f"CLI execution failed for {DICOM_TEST_DIR} with -N parameter.")
+
+        # check if all output files were created and contain the correct nstat value:
+        for test_output_file in test_output_files:
+            self.assertTrue(test_output_file.exists(),
+                            f"Output file was not created for {DICOM_TEST_DIR} with -N parameter.")
+            with open(test_output_file, 'r') as f:
+                content = f.read()
+                self.assertIn(f"# REQUESTED_HISTORIES: {nstat_value}", content,
+                              f"nStat value not found or incorrect in {test_output_file}.")
+
+    def tearDown(self):
+        """Clean up any created files after each test."""
+        test_output_files = [
+            Path(f"topas_field{i:02d}.txt") for i in range(1, 4)
+        ]
+        for test_output_file in test_output_files:
+            if test_output_file.exists():
+                test_output_file.unlink()
+
 
 if __name__ == "__main__":
     unittest.main()
