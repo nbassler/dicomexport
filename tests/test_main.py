@@ -90,7 +90,7 @@ class TestPregdosCLI(unittest.TestCase):
         nstat_value = int(2e6)  # double of the default value
         test_args = [
             "-vv",
-            f"-N {nstat_value}",
+            f"-N={nstat_value}",
             f"-b={BEAM_MODEL_PATH}",
             f"-s={SPR_TABLE_PATH}",
             f"{DICOM_TEST_DIR}"
