@@ -64,7 +64,6 @@ def load_ct(mydir: Path) -> CTModel:
             rows=req(ds, "Rows", cast=int, file=file),
             columns=req(ds, "Columns", cast=int, file=file),
             patient_position=req(ds, "PatientPosition", cast=as_str, file=file),
-            slice_position=req(ds, "SliceLocation", cast=float, file=file),
 
             # OPTIONAL — default silently if missing/odd
             sop_class_uid=opt(ds, "SOPClassUID", "", cast=as_str),
