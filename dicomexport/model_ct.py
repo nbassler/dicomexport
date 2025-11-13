@@ -26,7 +26,7 @@ class Image:
     pixel_spacing: Tuple[float, float] = (0.0, 0.0)
     slice_thickness: float = 0.0
     slice_location: float = 0.0  # will be computed from image position and orientation
-    image_orientation: Tuple[int, int, int, int, int, int] = (0, 0, 0, 0, 0, 0)
+    image_orientation: Tuple[float, float, float, float, float, float] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     image_position_patient: Tuple[float, float, float] = (0.0, 0.0, 0.0)
 
     instance_number: int = 0
