@@ -2,7 +2,7 @@ import logging
 import pydicom
 import numpy as np
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 from dicomexport.ds_get import req, opt, tuple_of_float, as_int, as_str
 
@@ -86,7 +86,7 @@ def load_ct(mydir: Path) -> CTModel:
     return ct_model
 
 
-def _get_slice_position(ipp: List[float], iop: List[float]) -> float:
+def _get_slice_position(ipp: Tuple[float, float, float], iop: Tuple[float, float, float, float, float, float]) -> float:
     """
     SliceLocation in DICOM is deprecated, and some CTs may not have it or even fill it with garbage values.
     Therefore, it will be taken from image_position_patient, taking scan orientation into account.
