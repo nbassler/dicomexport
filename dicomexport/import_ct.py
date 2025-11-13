@@ -58,7 +58,6 @@ def load_ct(mydir: Path) -> CTModel:
         img = Image(
             # REQUIRED — fail fast if missing/malformed
             pixel_spacing=req(ds, "PixelSpacing", cast=tuple_of_float, n=2, file=file),
-            slice_location=req(ds, "SliceLocation", cast=float, file=file),
             image_orientation=req(ds, "ImageOrientationPatient", cast=tuple_of_float, n=6, file=file),
             image_position_patient=req(ds, "ImagePositionPatient", cast=tuple_of_float, n=3, file=file),
             rows=req(ds, "Rows", cast=int, file=file),
@@ -74,6 +73,9 @@ def load_ct(mydir: Path) -> CTModel:
             patient_name=opt(ds, "PatientName", "", cast=as_str),
             patient_id=opt(ds, "PatientID", "", cast=as_str),
         )
+        # SliceLocation is optional, if missing we set it in the ct-model from image_position_patient z-coordinate
+        img.slice_location = opt(ds, "SliceLocation", img.image_position_patient[2], cast=float)
+
         ct_model.images.append(img)
 
     # Sort images by z-position if needed:
