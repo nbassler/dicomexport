@@ -91,8 +91,15 @@ def _get_slice_position(ipp: List[float], iop: List[float]) -> float:
     SliceLocation in DICOM is deprecated, and some CTs may not have it or even fill it with garbage values.
     Therefore, it will be taken from image_position_patient, taking scan orientation into account.
 
-    ipp: Image Position Patient (3 floats) as stored in DICOM
-    iop: Image Orientation Patient (6 floats) as stored in DICOM
+    Args:
+        ipp: Image Position Patient (3 floats) as stored in DICOM.
+        iop: Image Orientation Patient (6 floats) as stored in DICOM.
+            - The first 3 elements (iop[0:3]) correspond to the row direction (X).
+            - The last 3 elements (iop[3:6]) correspond to the column direction (Y).
+            - The normal vector (Z direction) is computed as the cross product of row and column.
+
+    Returns:
+        The position of the slice along the normal vector (Z direction).
     """
 
     ipp = np.array(ipp)
