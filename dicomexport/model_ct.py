@@ -25,7 +25,7 @@ class Image:
 
     pixel_spacing: Tuple[float, float] = (0.0, 0.0)
     slice_thickness: float = 0.0
-    slice_location: float = 0.0  # will be computed from image position and orientation
+    slice_position: float = 0.0  # will be computed from image position and orientation
     image_orientation: Tuple[float, float, float, float, float, float] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     image_position_patient: Tuple[float, float, float] = (0.0, 0.0, 0.0)
 
@@ -85,7 +85,7 @@ class CTModel:
     def slice_thickness(self) -> float:
         """Slice thickness of the CT model."""
         if len(self.images) > 1:
-            return self.images[1].slice_location - self.images[0].slice_location
+            return self.images[1].slice_position - self.images[0].slice_position
         else:
             return 0.0
 
