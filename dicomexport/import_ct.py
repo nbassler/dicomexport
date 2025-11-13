@@ -1,5 +1,6 @@
 import logging
 import pydicom
+import numpy as np
 from pathlib import Path
 from typing import List
 
@@ -63,6 +64,7 @@ def load_ct(mydir: Path) -> CTModel:
             rows=req(ds, "Rows", cast=int, file=file),
             columns=req(ds, "Columns", cast=int, file=file),
             patient_position=req(ds, "PatientPosition", cast=as_str, file=file),
+            slice_location=req(ds, "SliceLocation", cast=float, file=file),
 
             # OPTIONAL — default silently if missing/odd
             sop_class_uid=opt(ds, "SOPClassUID", "", cast=as_str),
@@ -73,12 +75,30 @@ def load_ct(mydir: Path) -> CTModel:
             patient_name=opt(ds, "PatientName", "", cast=as_str),
             patient_id=opt(ds, "PatientID", "", cast=as_str),
         )
-        # SliceLocation is optional, if missing we set it in the ct-model from image_position_patient z-coordinate
-        img.slice_location = opt(ds, "SliceLocation", img.image_position_patient[2], cast=float)
+
+        # Compute slice_location, do not take it from DICOM directly, since it may be missing or garbage.
+        img.slice_location = _get_slice_location(img.image_position_patient, img.image_orientation)
 
         ct_model.images.append(img)
 
     # Sort images by z-position if needed:
-    ct_model.images.sort(key=lambda img: img.image_position_patient[2])
+    ct_model.images.sort(key=lambda img: img.slice_location)
 
     return ct_model
+
+
+def _get_slice_location(ipp: List[float], iop: List[float]) -> float:
+    """
+    SliceLocation in DICOM is optional, and some CTs may not have it or even fill it with garbage values.
+    Therefore, it will be taken from image_position_patient, taking scan orientation into account.
+
+    ipp: Image Position Patient (3 floats) as stored in DICOM
+    iop: Image Orientation Patient (6 floats) as stored in DICOM
+    """
+
+    ipp = np.array(ipp)
+    iop = np.array(iop)
+    row = iop[0:3]
+    col = iop[3:6]
+    normal = np.cross(row, col)
+    return float(np.dot(ipp, normal))
