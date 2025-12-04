@@ -1,7 +1,8 @@
 import logging
 import pydicom
+import numpy as np
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 from dicomexport.ds_get import req, opt, tuple_of_float, as_int, as_str
 
@@ -58,7 +59,6 @@ def load_ct(mydir: Path) -> CTModel:
         img = Image(
             # REQUIRED — fail fast if missing/malformed
             pixel_spacing=req(ds, "PixelSpacing", cast=tuple_of_float, n=2, file=file),
-            slice_location=req(ds, "SliceLocation", cast=float, file=file),
             image_orientation=req(ds, "ImageOrientationPatient", cast=tuple_of_float, n=6, file=file),
             image_position_patient=req(ds, "ImagePositionPatient", cast=tuple_of_float, n=3, file=file),
             rows=req(ds, "Rows", cast=int, file=file),
@@ -74,9 +74,37 @@ def load_ct(mydir: Path) -> CTModel:
             patient_name=opt(ds, "PatientName", "", cast=as_str),
             patient_id=opt(ds, "PatientID", "", cast=as_str),
         )
+
+        # Compute slice_position, do not use slice_location from DICOM directly, since it is deprecated.
+        img.slice_position = _get_slice_position(img.image_position_patient, img.image_orientation)
+
         ct_model.images.append(img)
 
     # Sort images by z-position if needed:
-    ct_model.images.sort(key=lambda img: img.image_position_patient[2])
+    ct_model.images.sort(key=lambda img: img.slice_position)
 
     return ct_model
+
+
+def _get_slice_position(ipp: Tuple[float, float, float], iop: Tuple[float, float, float, float, float, float]) -> float:
+    """
+    SliceLocation in DICOM is deprecated, and some CTs may not have it or even fill it with garbage values.
+    Therefore, it will be taken from image_position_patient, taking scan orientation into account.
+
+    Args:
+        ipp: Image Position Patient (3 floats) as stored in DICOM.
+        iop: Image Orientation Patient (6 floats) as stored in DICOM.
+            - The first 3 elements (iop[0:3]) correspond to the row direction (X).
+            - The last 3 elements (iop[3:6]) correspond to the column direction (Y).
+            - The normal vector (Z direction) is computed as the cross product of row and column.
+
+    Returns:
+        The position of the slice along the normal vector (Z direction).
+    """
+
+    ipp = np.array(ipp)
+    iop = np.array(iop)
+    row = iop[0:3]
+    col = iop[3:6]
+    normal = np.cross(row, col)
+    return float(np.dot(ipp, normal))
