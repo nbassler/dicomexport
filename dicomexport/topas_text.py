@@ -419,7 +419,8 @@ class TopasText:
         ]
         return "\n".join(lines)
 
-    # here do a XY scoring box with 2D binning in X an Y
+    # here do a XY scoring box with 2D binning in X and Y
+    @staticmethod
     def scoring_box_xy(size_x: float = 300.0, size_y: float = 300.0) -> str:
         lines = [
             "##############################################",
@@ -442,6 +443,7 @@ class TopasText:
         ]
         return "\n".join(lines)
 
+    @staticmethod
     def scoring_box_xz(size_x: float = 300.0, size_z: float = 300.0) -> str:
         lines = [
             "##############################################",
@@ -464,6 +466,7 @@ class TopasText:
         ]
         return "\n".join(lines)
 
+    @staticmethod
     def scoring_box_yz(size_y: float = 300.0, size_z: float = 300.0) -> str:
         lines = [
             "##############################################",

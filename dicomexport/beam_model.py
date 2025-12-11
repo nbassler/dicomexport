@@ -17,7 +17,7 @@ class BeamModel():
         Load a beam model given as a CSV file.
 
         Interpolation lookup can be done as a function of nominal energy (default, nominal=True),
-        or as a function of actual energy (nominal=False).
+        or as a function of actual energy (nominal=False). Most dicom files use nominal energy.
 
         Header rows will be discarded and must be prefixed with '#'.
 
@@ -40,9 +40,9 @@ class BeamModel():
 
         # resolve by nominal energy
         if nominal:
-            energy = data[:, 0]
+            energy = data[:, 0]  # first column holds nominal energy
         else:
-            energy = data[:, 1]
+            energy = data[:, 1]  # second column holds measured energy at the given beam_model position
 
         k = 'cubic'
 

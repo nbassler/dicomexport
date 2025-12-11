@@ -1,8 +1,7 @@
 import sys
-import numpy as np
 import logging
 from dataclasses import dataclass, field as dc_field
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from io import StringIO
 
 from dicomexport.beam_model import BeamModel, get_fwhm
@@ -35,7 +34,7 @@ class RangeShifter:
 
     # the following are for future compatibility, but at the moment not used
     # density: float = 1.20  # g/cm3
-    # water_equivalent_thickness: float = 0.0  # mm
+    water_equivalent_thickness: float = 0.0  # mm
 
 
 @dataclass
@@ -73,6 +72,7 @@ class Layer:
         table_position: (vert, long, lat) [mm].
         meterset_rate: MU/min (optional).
         number: Layer number (int).
+        spot_size: FWHM [mm] (set after beam model application).
     """
 
     spots: List[Spot] = dc_field(default_factory=list)
@@ -94,6 +94,7 @@ class Layer:
     meterset_rate: float = 0.0
 
     number: int = 0  # layer number, starting from 1, only including layers which contain data
+    spot_size: Tuple[float, float] = (0.0, 0.0)  # FWHM in (x,y), set after beam model application
 
     @property
     def n_spots(self) -> int:
@@ -154,6 +155,7 @@ class Field:
     layers: List[Layer] = dc_field(default_factory=list)
     dose: float = 0.0
     cum_mu: float = 0.0
+    cum_particles: float = 0.0
     pld_csetweight: float = 0.0
     scaling: float = 1.0
 
@@ -165,7 +167,7 @@ class Field:
     sop_instance_uid: str = ""
     number: int = 0
 
-    range_shifter: RangeShifter = None  # optional range shifter data
+    range_shifter: Optional[RangeShifter] = None  # optional range shifter data
 
     @property
     def n_layers(self) -> int:
@@ -207,6 +209,10 @@ class Field:
         """Maximum energy of all layers in this field."""
         return max(layer.energy_nominal for layer in self.layers) if self.layers else 0.0
 
+    def diagnose(self):
+        """Print overview of field to stdout."""
+        print(self.__repr__())
+
     def __repr__(self):
         """Return overview of field as a string."""
 
@@ -246,10 +252,12 @@ class Plan:
     patient_initials: str = ""
     patient_firstname: str = ""
     plan_label: str = ""
-    beam_model: BeamModel = None  # optional beam model class
+    plan_date: str = ""
+    sop_instance_uid: str = ""
+    beam_model: Optional[BeamModel] = None  # optional beam model class
     beam_name: str = ""
     scaling: float = 1.0
-    uid: str = ""
+    # uid: str = ""
 
     @property
     def n_fields(self) -> int:
@@ -279,9 +287,10 @@ class Plan:
                         layer.energy_nominal)
                     layer.espread = self.beam_model.f_espread(
                         layer.energy_nominal)
-                    layer.spotsize = np.array(
-                        [self.beam_model.f_sx(layer.energy_nominal),
-                            self.beam_model.f_sy(layer.energy_nominal)]) * get_fwhm(1.0)
+                    layer.spot_size = (
+                        self.beam_model.f_sx(layer.energy_nominal) * get_fwhm(1.0),
+                        self.beam_model.f_sy(layer.energy_nominal) * get_fwhm(1.0)
+                    )
         else:
             logger.error("No beam model set, cannot apply beam model to plan.")
             raise ValueError("No beam model set for plan.")
