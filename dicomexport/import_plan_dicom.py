@@ -93,7 +93,7 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                 rs_dict[rs.number] = rs
 
         layer_nr = 1
-        print("Processing field number:", field_nr)
+        logger.debug("Processing field number:", field_nr)
 
         # init some values which may only be changed once or not at all.
         sad_x = 0.0
@@ -103,14 +103,16 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
         gantry_angle = 0.0
         couch_angle = 0.0
 
+        # some empty placeholder for energy:
+        energy = 0.0
+
         for icp_index, icp in enumerate(icps):
-            print("  Processing control point index:", icp_index)
+            logger.debug(f"  Processing control point index: {icp_index}")
             # Several attributes are only set once at the first ion control point.
             # The strategy here is then to still set them for every layer, even if they do not change.
             # This is to ensure that the field object has all necessary attributes set.
             # But also enables future stuff like arc therapy, where these values may change per layer.
             if 'LateralSpreadingDeviceSettingsSequence' in icp:
-                print("    Found LateralSpreadingDeviceSettingsSequence")
                 if len(icp['LateralSpreadingDeviceSettingsSequence'].value) != 2:
                     logger.error("LateralSpreadingDeviceSettingsSequence should contain exactly 2 elements, found %d.",
                                  len(ibm['LateralSpreadingDeviceSettingsSequence'].value))
@@ -125,7 +127,6 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
 
                 logger.debug("Set Lateral spreading device distances: X = %.2f mm, Y = %.2f mm",
                              sad_x, sad_y)
-                print(f"sad_x: {sad_x}, sad_y: {sad_y}")
 
             # check snout position
             if 'SnoutPosition' in icp:
@@ -165,17 +166,16 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
             if 'PatientSupportAngle' in icp:
                 couch_angle = float(icp['PatientSupportAngle'].value)
 
-            # The remaining attributes are required for each control point.
-            # Therefore we check them one by one and raise an error if any is missing.
+            # Nominal beam energy seems to be a special case, which can be set in
+            # every control point, even if it does not change, or it can be set once
+            # together with gantry angle etc.
 
             if 'NominalBeamEnergy' in icp:
                 # Nominal energy in MeV
                 energy = float(icp['NominalBeamEnergy'].value)
-            else:
-                logger.error(
-                    "NominalBeamEnergy not found in control point index %i", icp_index)
-                raise ValueError(
-                    "Invalid DICOM plan: NominalBeamEnergy missing.")
+
+            # The remaining attributes are required for each control point.
+            # Therefore we check them one by one and raise an error if any is missing.
 
             if 'NumberOfScanSpotPositions' in icp:
                 # number of spots
