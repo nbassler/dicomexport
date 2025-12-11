@@ -49,6 +49,7 @@ class CTModel:
         images: List of images in the CT model.
 """
     images: List[Image] = field(default_factory=list)
+    dicom_origin: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     spr_to_material_path: Optional[Path] = None  # in fact mandatory as long we depend on the dose cube
 
     # In dicom format, the following data are per image, and could in princple be different

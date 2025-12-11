@@ -58,7 +58,7 @@ def load_ct(mydir: Path) -> CTModel:
         #
         img = Image(
             # REQUIRED — fail fast if missing/malformed
-            pixel_spacing=req(ds, "PixelSpacing", cast=tuple_of_float, n=2, file=file),
+            pixel_spacing=req(ds, "PixelSpacing", cast=tuple_of_float, n=2, file=file),  # TODO: fix pylance warning
             image_orientation=req(ds, "ImageOrientationPatient", cast=tuple_of_float, n=6, file=file),
             image_position_patient=req(ds, "ImagePositionPatient", cast=tuple_of_float, n=3, file=file),
             rows=req(ds, "Rows", cast=int, file=file),
@@ -102,8 +102,8 @@ def _get_slice_position(ipp: Tuple[float, float, float], iop: Tuple[float, float
         The position of the slice along the normal vector (Z direction).
     """
 
-    ipp = np.array(ipp)
-    iop = np.array(iop)
+    # ipp = np.array(ipp)
+    # iop = np.array(iop)
     row = iop[0:3]
     col = iop[3:6]
     normal = np.cross(row, col)

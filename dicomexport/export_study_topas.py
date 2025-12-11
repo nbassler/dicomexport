@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Optional
 
 from dicomexport.model_ct import CTModel
 from dicomexport.model_rtstruct import RTStruct
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: Path,
-                       field_nr: int = 0, dose_path: Path = None, nstat: int = int(1e6)) -> None:
+                       field_nr: int = 0, dose_path: Optional[Path] = None, nstat: int = int(1e6)) -> None:
     """
     Export the CT and RTStruct models to a Topas-compatible geometry file.
     """
@@ -38,41 +39,64 @@ def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: 
             ct, rs, field, plan.beam_model, output_base_path, dose_path, nstat=nstat)
 
 
-def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: BeamModel, output_base_path: Path,
-                              dose_path: Path = None, nstat: int = int(1e6)) -> None:
+def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optional[BeamModel] = None,
+                              output_base_path: Optional[Path] = None,
+                              dose_path: Optional[Path] = None, nstat: int = int(1e6)) -> None:
     """
     Export a single field to a Topas-compatible geometry file.
     """
     # topas results will be written to output/field_number (no extension, will be handled by Topas
     # make target string for output file:
-    topas_output_file_str_no_suffix = output_base_path.with_name(
-        f"{output_base_path.stem}_field{fld.number}")
+    if output_base_path:
+        topas_output_file_str_no_suffix = output_base_path.with_name(
+            f"{output_base_path.stem}_field{fld.number}")
+    else:
+        topas_output_file_str_no_suffix = Path("foobar_field{fld.number}")
 
     nstat_scale = TopasPlan.calculate_scaling_factor(fld, nstat)
 
     lines = []
     lines.append(TopasText.header(fld, nstat_scale, nstat))
     lines.append(TopasText.header2())
-    lines.append(TopasText.spr_to_material(ct.spr_to_material_path))
+    if ct.spr_to_material_path:
+        lines.append(TopasText.spr_to_material(ct.spr_to_material_path))
     lines.append(TopasText.variables(fld))
     lines.append(TopasText.setup())
     lines.append(TopasText.world_setup())
-    lines.append(TopasText.geometry_patient_dicom(dose_path))
+    if dose_path:
+        lines.append(TopasText.geometry_patient_dicom(dose_path))
     lines.append(TopasText.geometry_gantry())
     lines.append(TopasText.geometry_couch())
     lines.append(TopasText.geometry_dcm_to_iec())
-    lines.append(TopasText.geometry_beam_position_timefeature(
-        bm.beam_model_position))
+    if bm and bm.beam_model_position:
+        lines.append(TopasText.geometry_beam_position_timefeature(
+            bm.beam_model_position))
+    else:
+        lines.append(TopasText.geometry_beam_position_timefeature(0.0))
+
     lines.append(TopasText.geometry_range_shifter(fld))
     lines.append(TopasText.field_beam_timefeature())
     lines.append(TopasText.scorer_setup_dicom(
-        topas_output_path=topas_output_file_str_no_suffix))
-    lines.append(TopasPlan.time_features_string(
-        fld, bm, nominal=True, nstat=nstat))
-    topas_string = "\n".join(lines)
+        topas_output_path=str(topas_output_file_str_no_suffix)))
 
-    # show some information about the field
-    TopasPlan.show_plan_data(fld, bm, nstat=nstat)
+    # For now, if no beam model is provided, spots and info are not shown.
+    # This should be revisited in the future.
+    # betst would be to refactor the code to have a default beam model with basic parameters.
+    # and move the load beam model from __init__.py to a new dedicated function in BeamModel class.
+    if bm:
+        lines.append(TopasPlan.time_features_string(
+            fld, bm, nominal=True, nstat=nstat))
+        topas_string = "\n".join(lines)
+
+        # show some information about the field
+        TopasPlan.show_plan_data(fld, bm, nstat=nstat)
+    else:
+        topas_string = "\n".join(lines)
+        logger.warning(
+            "No beam model provided. Limited conversion, TODO: fix this in the future.")
+
+    if output_base_path is None:
+        output_base_path = Path("topas_geometry_field{fld.number}")
 
     output_path = output_base_path.with_name(
         f"{output_base_path.stem}_field{fld.number:02d}.txt")

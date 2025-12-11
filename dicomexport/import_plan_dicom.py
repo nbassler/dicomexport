@@ -68,7 +68,7 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                      len(ibs.value), n_fields)
         raise ValueError("Inconsistent number of fields in DICOM plan.")
 
-    for i, ibm in enumerate(ibs):
+    for i, ibm in enumerate(ibs.value):
         myfield = p.fields[i]
         field_nr = i + 1
         # each layer has 2 control points
@@ -93,12 +93,24 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                 rs_dict[rs.number] = rs
 
         layer_nr = 1
+        print("Processing field number:", field_nr)
+
+        # init some values which may only be changed once or not at all.
+        sad_x = 0.0
+        sad_y = 0.0
+        snout_position = 0.0
+        isocenter = (0.0, 0.0, 0.0)
+        gantry_angle = 0.0
+        couch_angle = 0.0
+
         for icp_index, icp in enumerate(icps):
+            print("  Processing control point index:", icp_index)
             # Several attributes are only set once at the first ion control point.
             # The strategy here is then to still set them for every layer, even if they do not change.
             # This is to ensure that the field object has all necessary attributes set.
             # But also enables future stuff like arc therapy, where these values may change per layer.
             if 'LateralSpreadingDeviceSettingsSequence' in icp:
+                print("    Found LateralSpreadingDeviceSettingsSequence")
                 if len(icp['LateralSpreadingDeviceSettingsSequence'].value) != 2:
                     logger.error("LateralSpreadingDeviceSettingsSequence should contain exactly 2 elements, found %d.",
                                  len(ibm['LateralSpreadingDeviceSettingsSequence'].value))
@@ -113,6 +125,7 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
 
                 logger.debug("Set Lateral spreading device distances: X = %.2f mm, Y = %.2f mm",
                              sad_x, sad_y)
+                print(f"sad_x: {sad_x}, sad_y: {sad_y}")
 
             # check snout position
             if 'SnoutPosition' in icp:
@@ -126,7 +139,7 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                         _rs = rs_dict[_rs_number]
                         myfield.range_shifter = copy.deepcopy(_rs)
                         # set remaining attributes
-                        myfield.range_shifter.has_range_shifter = True
+                        myfield.range_shifter.is_inserted = True
                         myfield.range_shifter.water_equivalent_thickness = rss.get(
                             'WaterEquivalentThickness', 0.0)
                         myfield.range_shifter.isocenter_distance = rss.get(
@@ -139,31 +152,66 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
             if 'IsocenterPosition' in icp:
                 isocenter = tuple(float(v)
                                   for v in icp['IsocenterPosition'].value)
+                # check that length is 3.
+                if len(isocenter) != 3:
+                    logger.error(
+                        "IsocenterPosition must have exactly 3 values, found %d in control point index %i",
+                        len(isocenter), icp_index)
+                    raise ValueError(
+                        "Invalid DICOM plan: IsocenterPosition has incorrect number of values.")
+
             if 'GantryAngle' in icp:
                 gantry_angle = float(icp['GantryAngle'].value)
             if 'PatientSupportAngle' in icp:
                 couch_angle = float(icp['PatientSupportAngle'].value)
 
-            # Check each required DICOM tag individually
+            # The remaining attributes are required for each control point.
+            # Therefore we check them one by one and raise an error if any is missing.
+
             if 'NominalBeamEnergy' in icp:
                 # Nominal energy in MeV
                 energy = float(icp['NominalBeamEnergy'].value)
+            else:
+                logger.error(
+                    "NominalBeamEnergy not found in control point index %i", icp_index)
+                raise ValueError(
+                    "Invalid DICOM plan: NominalBeamEnergy missing.")
 
             if 'NumberOfScanSpotPositions' in icp:
                 # number of spots
                 nspots = int(icp['NumberOfScanSpotPositions'].value)
+            else:
+                logger.error(
+                    "NumberOfScanSpotPositions not found in control point index %i", icp_index)
+                raise ValueError(
+                    "Invalid DICOM plan: NumberOfScanSpotPositions missing.")
 
             if 'ScanSpotPositionMap' in icp:  # Extract spot MU and scale [MU]
                 pos = np.array(
                     icp['ScanSpotPositionMap'].value).reshape(nspots, 2)
+            else:
+                logger.error(
+                    "ScanSpotPositionMap not found in control point index %i", icp_index)
+                raise ValueError(
+                    "Invalid DICOM plan: ScanSpotPositionMap missing.")
 
             if 'ScanSpotMetersetWeights' in icp:
                 mu = np.array(icp['ScanSpotMetersetWeights'].value).reshape(
                     nspots) * myfield.meterset_per_weight
+            else:
+                logger.error(
+                    "ScanSpotMetersetWeights not found in control point index %i", icp_index)
+                raise ValueError(
+                    "Invalid DICOM plan: ScanSpotMetersetWeights missing.")
 
             # Extract spot nominal sizes [mm FWHM]
             if 'ScanningSpotSize' in icp:
                 size_x, size_y = icp['ScanningSpotSize'].value
+            else:
+                logger.error(
+                    "ScanningSpotSize not found in control point index %i", icp_index)
+                raise ValueError(
+                    "Invalid DICOM plan: ScanningSpotSize missing.")
 
             logger.debug(
                 "Found %i spots in layer number %i at energy %f", nspots, layer_nr, energy)
