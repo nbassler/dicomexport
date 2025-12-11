@@ -102,9 +102,9 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
         isocenter = (0.0, 0.0, 0.0)
         gantry_angle = 0.0
         couch_angle = 0.0
-
-        # some empty placeholder for energy:
         energy = 0.0
+        size_x = 0.0  # dicom values are in FWHM mm, but will be ignored, if beam model is available.
+        size_y = 0.0
 
         for icp_index, icp in enumerate(icps):
             logger.debug(f"  Processing control point index: {icp_index}")
@@ -207,11 +207,6 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
             # Extract spot nominal sizes [mm FWHM]
             if 'ScanningSpotSize' in icp:
                 size_x, size_y = icp['ScanningSpotSize'].value
-            else:
-                logger.error(
-                    "ScanningSpotSize not found in control point index %i", icp_index)
-                raise ValueError(
-                    "Invalid DICOM plan: ScanningSpotSize missing.")
 
             logger.debug(
                 "Found %i spots in layer number %i at energy %f", nspots, layer_nr, energy)
