@@ -68,6 +68,7 @@ class TopasPlan:
         n_spots = myfield.n_spots
         times = np.zeros(n_spots)
         energies = np.zeros(n_spots)
+        energies_real = np.zeros(n_spots)  # actual energies at the beam model position
         espreads = np.zeros(n_spots)
         posx = np.zeros(n_spots)
         angx = np.zeros(n_spots)
@@ -83,13 +84,16 @@ class TopasPlan:
 
         _spot_index = 0
         for mylayer in myfield.layers:
+            # input dicom files may have been designed with nominal or actual energies
+            # (for artificial dicom files for research purposes)
             energy = mylayer.energy_nominal if nominal else mylayer.energy_measured
             espread = mylayer.espread
             sad_x, sad_y = mylayer.sad
 
             for spot in mylayer.spots:
                 times[_spot_index] = _spot_index + 1
-                energies[_spot_index] = energy
+                energies[_spot_index] = energy  # nominal energies
+                energies_real[_spot_index] = mylayer.energy_measured  # actual energies
                 espreads[_spot_index] = espread
                 posx[_spot_index] = spot.x * \
                     (sad_x - bm.beam_model_position) / sad_x
@@ -119,7 +123,7 @@ class TopasPlan:
         lines.append(
             f"d:Tf/TimelineEnd                     = {n_spots+1} s\n\n")
 
-        lines.append(_topas_array(times, energies, "Energy", "f", 3, "MeV"))
+        lines.append(_topas_array(times, energies_real, "Energy", "f", 3, "MeV"))
         lines.append(_topas_array(times, espreads, "EnergySpread", "f", 5, ""))
         lines.append(_topas_array(times, posx, "spotPositionX", "f", 2, "mm"))
         lines.append(_topas_array(times, angx, "spotAngleX", "f", 3, "deg"))
