@@ -51,7 +51,7 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
         topas_output_file_str_no_suffix = output_base_path.with_name(
             f"{output_base_path.stem}_field{fld.number}")
     else:
-        topas_output_file_str_no_suffix = Path("foobar_field{fld.number}")
+        topas_output_file_str_no_suffix = Path(f"foobar_field{fld.number}")
 
     nstat_scale = TopasPlan.calculate_scaling_factor(fld, nstat)
 
@@ -81,7 +81,7 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
 
     # For now, if no beam model is provided, spots and info are not shown.
     # This should be revisited in the future.
-    # betst would be to refactor the code to have a default beam model with basic parameters.
+    # best would be to refactor the code to have a default beam model with basic parameters.
     # and move the load beam model from __init__.py to a new dedicated function in BeamModel class.
     if bm:
         lines.append(TopasPlan.time_features_string(
@@ -96,7 +96,7 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
             "No beam model provided. Limited conversion, TODO: fix this in the future.")
 
     if output_base_path is None:
-        output_base_path = Path("topas_geometry_field{fld.number}")
+        output_base_path = Path(f"topas_geometry_field{fld.number}")
 
     output_path = output_base_path.with_name(
         f"{output_base_path.stem}_field{fld.number:02d}.txt")

@@ -1,5 +1,4 @@
 import sys
-# import numpy as np
 import logging
 from dataclasses import dataclass, field as dc_field
 from typing import List, Tuple, Optional
