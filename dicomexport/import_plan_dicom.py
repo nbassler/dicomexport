@@ -93,7 +93,7 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                 rs_dict[rs.number] = rs
 
         layer_nr = 1
-        logger.debug("Processing field number:", field_nr)
+        logger.debug(f"Processing field number: {field_nr}")
 
         # init some values which may only be changed once or not at all.
         sad_x = 0.0
