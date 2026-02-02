@@ -127,7 +127,8 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
     ez_list: list[np.ndarray] = []
 
     D = float(bm.beam_model_position)  # mm upstream of isocenter (positive number)
-    z_plane = -D                       # isocenter at z=0, upstream is negative z
+    z_plane = D                        # isocenter at z=0, upstream of isocenter is postive z
+    logger.debug("Beam model position D = %+.1f mm", D)
 
     dx = float(field.lateral_spreading_device_distanceX)  # mm
     dy = float(field.lateral_spreading_device_distanceY)  # mm
@@ -156,9 +157,9 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
             y_bm = y_iso * (dy - D) / dy
 
             # central ray direction (from point on plane to isocenter)
-            # point on plane: (x_bm, y_bm, -D); isocenter: (0,0,0)
+            # point on plane: (x_bm, y_bm, D); isocenter: (0,0,0)
             # vector to isocenter:
-            ez = np.array([-x_bm, -y_bm, D], dtype=float)
+            ez = np.array([-x_bm, -y_bm, -D], dtype=float)
             ez /= np.linalg.norm(ez)
 
             ex, ey = _make_transverse_basis(ez)
