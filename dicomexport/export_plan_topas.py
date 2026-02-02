@@ -171,7 +171,7 @@ class TopasPlan:
         logger.info(f"Beam Meterset:                {myfield.cum_mu:.2f} MU")
 
 
-def _topas_array(time_arr: np.array, arr: np.array, name: str, fmt: str = "f", precision: int = 0, unit=""):
+def _topas_array(time_arr: np.ndarray, arr: np.ndarray, name: str, fmt: str = "f", precision: int = 0, unit=""):
     """generate string of time data."""
     s = ""
     n_spots = arr.size

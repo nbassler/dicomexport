@@ -16,7 +16,8 @@ RS_CATALOG = {
     "RS_2CM":  {"thickness": 20.0,  "material": "Lexan"},
     "RS_3CM":  {"thickness": 30.0,  "material": "Lexan"},
     "RS_5CM":  {"thickness": 50.0,  "material": "Lexan"},
-    "RS_Block": {"thickness": 39.936, "material": "Lexan"},
+    "RS_Block": {"thickness": 39.936, "material": "Lexan"},  # CCB
+    "RS_3.5": {"thickness": 30.62,  "material": "Lexan"},  # Skandion
 }
 
 
