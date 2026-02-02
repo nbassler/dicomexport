@@ -235,6 +235,10 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                     sad=(sad_x, sad_y),
                     number=layer_nr
                 ))
+                # these are also set on field base, since they are only once set in ICP anyway.
+                myfield.lateral_spreading_device_distanceX = sad_x
+                myfield.lateral_spreading_device_distanceY = sad_y
+
                 layer_nr += 1
             else:
                 logger.debug("Skipping empty layer index %i", icp_index)

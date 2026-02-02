@@ -28,7 +28,6 @@ class BeamModel():
             4) primary protons per MU [protons/MU]
             5) 1 sigma spot size x [mm]
             6) 1 sigma spot size y [mm]
-        Optionally, 4 more columns may be given:
             7) 1 sigma divergence x [rad]
             8) 1 sigma divergence y [rad]
             9) cov (x, x') [mm]
@@ -77,4 +76,4 @@ class BeamModel():
             self.f_covy = interp1d(energy, data[:, 9], kind=k)  # cov (y, y') [mm]
 
         self.data = data
-        self.beam_model_position = beam_model_position  # position of the beam model in mm
+        self.beam_model_position = beam_model_position  # position of the beam model in mm, e.g. 600 mm upstream from isocenter

@@ -158,6 +158,7 @@ class Field:
     cum_particles: float = 0.0
     pld_csetweight: float = 0.0
     scaling: float = 1.0
+    name: str = ""
 
     meterset_weight_final: float = 0.0
     meterset_per_weight: float = 0.0
