@@ -65,15 +65,54 @@ class BeamCache:
 
 # ---- public API ----
 def generate_mcpl_file(
+
     plan: Plan,
     beam_model: BeamModel,
     output_path: str,
     *,
     field_list: list[int] | None = None,
-    num_primaries: int = int(1e8),
-    buffer_size: int = 1 << 20,
+    num_primaries: int = int(1e7),  # default 10 million particles to generate
+    buffer_size: int = 1 << 20,  # approx 1 million particles for buffered writes
     rng_seed: int | None = None,
 ) -> None:
+    """
+    Generate an MCPL (Monte Carlo Particle List) file for a given treatment plan.
+
+    This function processes the fields of a treatment plan, simulates particle
+    trajectories using a beam model, and writes the results to an MCPL file. The
+    output file can be customized with various parameters, including the number
+    of particles to generate, buffer size for writing, and random number generator
+    seed.
+
+    Args:
+        plan (Plan): The treatment plan containing fields to process.
+        beam_model (BeamModel): The beam model used for particle simulation.
+        output_path (str): The base path for the output MCPL file. The suffix will
+            be enforced as ".mcpl".
+        field_list (list[int] | None, optional): A list of field indices to process.
+            If None, all fields in the plan will be processed. Defaults to None.
+        num_primaries (int, optional): The total number of primary particles to
+            generate. Defaults to 10 million (1e7).
+        buffer_size (int, optional): The buffer size for writing particles to the
+            file, in number of particles. Defaults to approximately 1 million
+            particles (1 << 20).
+        rng_seed (int | None, optional): The seed for the random number generator.
+            If None, a random seed will be used. Defaults to None.
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: If the output path is invalid or if the field list contains
+            invalid indices.
+
+    Notes:
+        - The function enforces the ".mcpl" suffix for the output file.
+        - Progress is printed to the console during particle generation.
+        - Each field in the plan is processed and written to a separate MCPL file
+          with a suffix indicating the field number.
+    """
+
     rng = np.random.default_rng(rng_seed)
     header = _mcpl_header(num_primaries)
 
@@ -86,8 +125,8 @@ def generate_mcpl_file(
         suffix = ".mcpl"
     base = Path(output_path).with_suffix(suffix)
 
-    for field in fields:
-        logger.info("Processing field: %s", field.name)
+    for i, field in enumerate(fields, start=1):
+        logger.info("Processing field %02d: '%s'", i, field.name)
 
         sampler = _prepare_field_sampler(field, beam_model)
         cache = _prewarm_beam_cache(sampler, beam_model)
@@ -98,13 +137,14 @@ def generate_mcpl_file(
         with open(output_path_field, "wb") as f:
             f.write(header)
 
-            written = 0
-            while written < num_primaries:
-                n = min(buffer_size, num_primaries - written)
+            wrote_count = 0
+            while wrote_count < num_primaries:
+                n = min(buffer_size, num_primaries - wrote_count)
                 buf = _sample_mcpl_buffer_fused(sampler, cache, n, rng=rng)
                 f.write(buf)
-                written += n
-                print(f"\rWritten {written}/{num_primaries} particles", end="", flush=True)
+                wrote_count += n
+                rprog = (wrote_count * 100) / num_primaries
+                print(f"\rWrote {wrote_count}/{num_primaries} particles ({rprog:.1f}%)", end="", flush=True)
 
     print()  # newline after progress
 
@@ -128,7 +168,7 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
 
     D = float(bm.beam_model_position)  # mm upstream of isocenter (positive number)
     z_plane = D                        # isocenter at z=0, upstream of isocenter is postive z
-    logger.debug("Beam model position D = %+.1f mm", D)
+    logger.info("Beam model position D = %+.1f mm", D)
 
     dx = float(field.lateral_spreading_device_distanceX)  # mm
     dy = float(field.lateral_spreading_device_distanceY)  # mm

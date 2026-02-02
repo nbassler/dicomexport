@@ -1,7 +1,7 @@
 # DicomExport
 A tool for exporting DICOM proton therapy studies.
-- So far only TOPAS input files are supported
-- Phasespace .MCPL can be added, as well as Racehorse .CSV.
+- So far only TOPAS input files and MCPL-phasespace files can be generated.
+- More output formats can be added.
 
 ## Developer notes
 ### Getting started:
@@ -65,7 +65,26 @@ options:
   -V, --version         Show version and exit.
   ```
 
+### Example for [MCPL](https://mctools.github.io/mcpl/) phasespace export
+The MCPL format is a standardized and efficient way to handle phase space files, commonly used in Monte Carlo simulations.
 
+To export a DICOM plan to the MCPL format, you can use the following command:
+
+```bash
+PYTHONPATH=. python3 dicomexport/main_plan_export.py res/test_plans/temp_sobp_10x10.dcm -b=res/beam_models/DCPT_beam_model__v2.csv --export-fmt=mcpl -v -N=1000000 temp_sobp_10x10.mcpl
+```
+```
+INFO:dicomexport.export_mcpl:Processing field:
+INFO:dicomexport.export_mcpl:Beam model position D = +500.0 mm
+INFO:dicomexport.export_mcpl:Writing MCPL file: temp_sobp_10x10_field01.mcpl
+Written 1000000/1000000 particles (100.0%)
+```
+
+This will process the specified DICOM plan and generate MCPL files for each field.
+
+
+
+For more details about the MCPL format, visit the [MCPL documentation](https://mctools.github.io/mcpl/).
 
 ## Acknowledgements
 This work is part of the SONORA project, which has received funding from the European Union’s EURATOM research and innovation programme under grant agreement No 101061037 (PIANOFORTE – European Partnership for Radiation Protection Research).
