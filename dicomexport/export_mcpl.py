@@ -196,9 +196,9 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
             x_bm = x_iso * (dx - D) / dx
             y_bm = y_iso * (dy - D) / dy
 
-            # central ray direction (from point on plane to isocenter)
-            # point on plane: (x_bm, y_bm, D); isocenter: (0,0,0)
-            # vector to isocenter:
+            # central ray direction (from point on upstream beam-model plane to isocenter)
+            # point on plane: (x_bm, y_bm, +D) with D > 0 representing upstream distance; isocenter: (0,0,0)
+            # vector from (x_bm, y_bm, +D) to isocenter (0,0,0) is (-x_bm, -y_bm, -D):
             ez = np.array([-x_bm, -y_bm, -D], dtype=float)
             ez /= np.linalg.norm(ez)
 
