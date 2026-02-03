@@ -167,7 +167,7 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
     ez_list: list[np.ndarray] = []
 
     D = float(bm.beam_model_position)  # mm upstream of isocenter (positive number)
-    z_plane = D                        # isocenter at z=0, upstream of isocenter is postive z
+    z_plane = D                        # isocenter at z=0, upstream of isocenter is positive z
     logger.info("Beam model position D = %+.1f mm", D)
 
     dx = float(field.lateral_spreading_device_distanceX)  # mm
