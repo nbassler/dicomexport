@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 # x,y,z, fp1,fp2, ekin_signed, time, pdg(int32)  -> 7 floats + 1 int32 = 32 bytes
 _particle_struct = struct.Struct("<fff fff f i")
 
+PDG_PROTON = 2212
 
 L2 = np.ndarray
 R3 = np.ndarray
@@ -254,7 +255,7 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
 def _make_transverse_basis(ez: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Given unit ez, return orthonormal ex, ey with ex ⟂ ez and ey = ez × ex."""
     up = np.array([0.0, 1.0, 0.0], dtype=float)
-    if abs(float(np.dot(up, ez))) > 0.99:
+    if np.isclose(abs(float(np.dot(up, ez))), 1.0):
         up = np.array([1.0, 0.0, 0.0], dtype=float)
 
     ex = np.cross(up, ez)
@@ -291,7 +292,7 @@ def _sample_mcpl_buffer_fused(
     n: int,
     *,
     rng: np.random.Generator,
-    pdg: int = 2212,
+    pdg: int = PDG_PROTON,
 ) -> bytearray:
     # pick spots MU-weighted
     u = rng.random(n) * sampler.total
