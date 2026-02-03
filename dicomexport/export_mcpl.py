@@ -323,7 +323,7 @@ def _sample_mcpl_buffer_fused(
         ey = sampler.ey[idx]
         ez = sampler.ez[idx]
 
-        # ---- position pinned to plane z = -D ----
+        # ---- position pinned to plane z = D (i.e. z = z_plane, positive/upstream) ----
         # r = r0 + x_local*ex + y_local*ey   (with r0 = (x_bm, y_bm, z_plane))
         xg = float(sampler.xbm[idx]) + float(x_local * ex[0] + y_local * ey[0])
         yg = float(sampler.ybm[idx]) + float(x_local * ex[1] + y_local * ey[1])
