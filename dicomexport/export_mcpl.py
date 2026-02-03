@@ -13,6 +13,7 @@ import logging
 import struct
 from dataclasses import dataclass
 from pathlib import Path
+import time
 
 import numpy as np
 
@@ -142,13 +143,19 @@ def generate_mcpl_file(
             wrote_count = 0
             while wrote_count < num_primaries:
                 n = min(buffer_size, num_primaries - wrote_count)
-                buf = _sample_mcpl_buffer_fused(sampler, cache, n, rng=rng)
+                t0 = time.perf_counter()
+                # buf = _sample_mcpl_buffer_fused(sampler, cache, n, rng=rng)
+                buf = _sample_mcpl_buffer_fused_numpy(sampler, cache, n, rng=rng)
+                t1 = time.perf_counter()
                 f.write(buf)
+                t2 = time.perf_counter()
+                logger.debug("Sampled and wrote %d particles in %.3f + %.3f s", n, t1 - t0, t2 - t1)
                 wrote_count += n
                 rprog = (wrote_count * 100) / num_primaries
                 print(f"\rWrote {wrote_count}/{num_primaries} particles ({rprog:.1f}%)", end="", flush=True)
 
-    print()  # newline after progress
+            print()  # newline after progress
+            logger.info("Wrote MCPL file %s for %d particles", output_path_field, num_primaries)
 
 
 # ---- preparation ----
@@ -326,6 +333,12 @@ def _sample_mcpl_buffer_fused(
     rng: np.random.Generator,
     pdg: int = PDG_PROTON,
 ) -> bytearray:
+    """
+    MCPL buffer generation with fused loop for better CPU cache usage.
+    Produces exactly n records (32 bytes each) as bytes ready for f.write().
+    """
+
+    # sample spot indices proportional to MU
     u = rng.random(n) * sampler.totalMU
     idxs = np.searchsorted(sampler.cumw, u, side="right").astype(np.int64, copy=False)
 
@@ -336,7 +349,7 @@ def _sample_mcpl_buffer_fused(
     off = 0
     z_plane = float(sampler.z_plane)
 
-    # loop over every spot in this field
+    # loop over every particle to sample
     for j, idx in enumerate(idxs):
 
         # get spot energy layer index and the cached Cholesky factors
@@ -390,6 +403,132 @@ def _sample_mcpl_buffer_fused(
         off += _particle_struct.size
 
     return out
+
+
+def _sample_mcpl_buffer_fused_numpy(
+    sampler: FieldSampler,
+    cache: BeamCache,
+    n: int,
+    *,
+    rng: np.random.Generator,
+    pdg: int = PDG_PROTON,
+) -> bytes:
+    """
+    Vectorized MCPL buffer generation (pure NumPy).
+
+    Produces exactly n records (32 bytes each) as bytes ready for f.write().
+    """
+
+    # --- sample spot indices proportional to MU ---
+    u = rng.random(n, dtype=np.float64) * sampler.totalMU
+    idxs = np.searchsorted(sampler.cumw, u, side="right").astype(np.int64, copy=False)
+
+    # idx has the length n, corresponding to the number of particles to sample
+
+    # --- random normals: z0,z1,z2,z3,zE ---
+    Z = rng.standard_normal((n, 5), dtype=np.float32)
+    z0, z1, z2, z3, zE = (Z[:, 0], Z[:, 1], Z[:, 2], Z[:, 3], Z[:, 4])
+
+    # --- gather per-particle spot + energy-bin data ---
+    k = sampler.idxE[idxs].astype(np.int64, copy=False)
+
+    # Cholesky factors per particle: shape (n,2,2)
+    Lx = cache.Lx[k]
+    Ly = cache.Ly[k]
+
+    # spot centers at beam-model plane
+    xbm = sampler.xbm[idxs]
+    ybm = sampler.ybm[idxs]
+    z_plane = np.float32(sampler.z_plane)
+
+    # basis vectors per particle: shape (n,3)
+    v0 = sampler.v0[idxs]
+    t1 = sampler.t1[idxs]
+    t2 = sampler.t2[idxs]
+
+    # --- sample correlated phase space in x and y ---
+    # x_local = L00*z0
+    x_local = Lx[:, 0, 0] * z0
+    # xprim  = L10*z0 + L11*z1
+    xprim = Lx[:, 1, 0] * z0 + Lx[:, 1, 1] * z1
+
+    y_local = Ly[:, 0, 0] * z2
+    yprim = Ly[:, 1, 0] * z2 + Ly[:, 1, 1] * z3
+
+    # --- positions at the fixed plane z = z_plane (global x/y) ---
+    xg = (xbm + x_local) * np.float32(0.1)   # mm -> cm
+    yg = (ybm + y_local) * np.float32(0.1)
+    zg = np.full(n, z_plane * np.float32(0.1), dtype=np.float32)
+
+    # --- directions: v = v0 + xprim*t1 + yprim*t2, then normalize ---
+    # compute components (all float32)
+    vx = v0[:, 0] + xprim * t1[:, 0] + yprim * t2[:, 0]
+    vy = v0[:, 1] + xprim * t1[:, 1] + yprim * t2[:, 1]
+    vz = v0[:, 2] + xprim * t1[:, 2] + yprim * t2[:, 2]
+
+    invn = np.reciprocal(np.sqrt(vx * vx + vy * vy + vz * vz, dtype=np.float32))
+    vx *= invn
+    vy *= invn
+    vz *= invn
+
+    # --- energy sampling ---
+    Emean = sampler.Emean[k]
+    Esig = sampler.Esig[k]
+    ekin = Emean + Esig * zE
+    ekin = np.maximum(ekin, np.float32(0.0))
+
+    # --- APP packing (vectorized) ---
+    ax = np.abs(vx)
+    ay = np.abs(vy)
+    az = np.abs(vz)
+
+    # default init
+    fp1 = np.empty(n, dtype=np.float32)
+    fp2 = np.empty(n, dtype=np.float32)
+    ekin_signed = ekin.copy()
+
+    # avoid division by zero (should not happen for vz in your geometry, but safe)
+    inv_vz = np.empty(n, dtype=np.float32)
+    np.divide(np.float32(1.0), vz, out=inv_vz, where=vz != 0.0)
+    inv_vz[vz == 0.0] = np.float32(np.inf)
+
+    m0 = (az >= ax) & (az >= ay)             # dominant z
+    m1 = (ax >= ay) & (ax > az)              # dominant x
+    m2 = ~(m0 | m1)                          # dominant y
+
+    # m0: fp1=vx, fp2=vy, sign on ekin by vz
+    fp1[m0] = vx[m0]
+    fp2[m0] = vy[m0]
+    ekin_signed[m0 & (vz < 0.0)] *= np.float32(-1.0)
+
+    # m1: fp1=1/vz, fp2=vy, sign on ekin by vx
+    fp1[m1] = inv_vz[m1]
+    fp2[m1] = vy[m1]
+    ekin_signed[m1 & (vx < 0.0)] *= np.float32(-1.0)
+
+    # m2: fp1=vx, fp2=1/vz, sign on ekin by vy
+    fp1[m2] = vx[m2]
+    fp2[m2] = inv_vz[m2]
+    ekin_signed[m2 & (vy < 0.0)] *= np.float32(-1.0)
+
+    # --- pack into MCPL record struct (32 bytes each) via structured dtype ---
+    rec_dtype = np.dtype([
+        ("x", "<f4"), ("y", "<f4"), ("z", "<f4"),
+        ("fp1", "<f4"), ("fp2", "<f4"), ("ekin_signed", "<f4"),
+        ("time", "<f4"), ("pdg", "<i4"),
+    ])
+
+    rec = np.empty(n, dtype=rec_dtype)
+    rec["x"] = xg
+    rec["y"] = yg
+    rec["z"] = zg
+    rec["fp1"] = fp1
+    rec["fp2"] = fp2
+    rec["ekin_signed"] = ekin_signed.astype(np.float32, copy=False)
+    rec["time"] = np.float32(0.0)
+    rec["pdg"] = np.int32(pdg)
+
+    return rec.tobytes(order="C")
 
 
 def _mcpl_app_pack(ux: float, uy: float, uz: float, ekin: float) -> tuple[float, float, float]:
