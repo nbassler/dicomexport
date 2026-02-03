@@ -73,7 +73,7 @@ class TestMCPLExport(unittest.TestCase):
             # main physics sanity: beam should go toward -z (downstream)
             self.assertGreaterEqual(
                 frac_neg, 0.99,
-                f"Unexpected upstream directions: {len(particles)-neg_uz}/{len(particles)} have uz >= 0 "
+                f"Unexpected uz >= 0 (upstream) directions: {len(particles)-neg_uz}/{len(particles)} have uz >= 0 "
                 f"(frac_neg={frac_neg:.3f})"
             )
 
