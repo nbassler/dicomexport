@@ -34,25 +34,31 @@ R3 = np.ndarray
 
 # ---- dataclasses ----
 @dataclass(frozen=True)
-class FieldSampler:
-    idxE: np.ndarray
-    cumw: np.ndarray
-    total: float
+class FieldSampler:  # computed per field
+    # these arrays have the length of the number of spots N in the field
+    idxE: np.ndarray  # for each spot i, idxE[i] index which energy bin to use
+    cumw: np.ndarray  # cumulative MU weights used for inverse-CDF sampling
+    totalMU: float  # total MU across all spots in the field (cumw[-1])
 
-    xbm: np.ndarray
-    ybm: np.ndarray
+    xbm: np.ndarray  # spot centers at beam model position  [mm]
+    ybm: np.ndarray  # spot centers at beam model position  [mm]
 
+    # unit vector giving the nominal direction of the spot central ray from beam model plane towards isocenter
     v0: np.ndarray         # (N,3) float32
+
+    # two unit vectors orthonormal to v0, spanning the transverse plane perpendicular to the local beam direction.
     t1: np.ndarray         # (N,3) float32
     t2: np.ndarray         # (N,3) float32
 
-    z_plane: float
+    z_plane: float    # z position of the beam model plane [mm]
 
-    Enom: np.ndarray
-    Emean: np.ndarray
-    Esig: np.ndarray
+    # these arrays have the length of the number of unique energy bins (layers) K in the field
+    Enom: np.ndarray  # nominal energy for each energy layer
+    Emean: np.ndarray  # actial mean energy for each energy layer
+    Esig: np.ndarray  # energy spread (1 sigma) for each energy layer
 
 
+# per-field cache of Cholesky factors for the transverse 2D Gaussian phase-space in each plane.
 @dataclass(frozen=True)
 class BeamCache:
     Lx: np.ndarray         # (K,2,2) float32
@@ -147,14 +153,18 @@ def generate_mcpl_file(
 
 # ---- preparation ----
 def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
+    """
+    Precalculate per-field sampling data structures.
+    """
+    # for every energy layer in the field
     Enom_list: list[float] = []
     Emean_list: list[float] = []
     Esig_list: list[float] = []
     energy_to_bin: dict[float, int] = {}
 
+    # for every spot in the field across all energy layers
     idxE_list: list[int] = []
     w_list: list[float] = []
-
     xbm_list: list[float] = []
     ybm_list: list[float] = []
     v0_list: list[np.ndarray] = []
@@ -169,10 +179,14 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
 
     dx = float(field.lateral_spreading_device_distanceX)
     dy = float(field.lateral_spreading_device_distanceY)
+    if D > dx or D > dy:
+        logger.warning("Beam model plane is upstream of scan distance: D=%.1f dx=%.1f dy=%.1f -> sign flip possible",
+                       D, dx, dy)
 
     for layer in field.layers:
         Enom = float(layer.energy_nominal)
 
+        # build energy bin index and populate energy arrays
         k = energy_to_bin.get(Enom)
         if k is None:
             k = len(Enom_list)
@@ -181,18 +195,22 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
             Emean_list.append(float(bm.f_e(Enom)))
             Esig_list.append(float(bm.f_espread(Enom)))
 
+        # process spots in this layer
         for s in layer.spots:
             w = float(s.mu)
             if w <= 0.0:
                 continue
 
+            # positions at isocenter
             x_iso = float(s.x)
             y_iso = float(s.y)
 
+            # backproject beam positions to beam model plane
             x_bm = x_iso * (dx - D) / dx
             y_bm = y_iso * (dy - D) / dy
 
-            v0 = np.array([-x_bm, -y_bm, -D], dtype=float)
+            # direction of ray crossing x_bm,y_bm at beam model plane and x_iso,y_iso at isocenter
+            v0 = np.array([x_iso - x_bm, y_iso - y_bm, -D], dtype=float)
             v0 /= np.linalg.norm(v0)
 
             t1, t2 = _make_transverse_basis_from_v(v0)
@@ -230,7 +248,7 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
     return FieldSampler(
         idxE=idxE,
         cumw=cumw,
-        total=total,
+        totalMU=total,
         xbm=xbm,
         ybm=ybm,
         v0=v0,
@@ -248,17 +266,34 @@ def _prewarm_beam_cache(sampler: FieldSampler, bm: BeamModel) -> BeamCache:
     Lx = np.empty((K, 2, 2), dtype=np.float32)
     Ly = np.empty((K, 2, 2), dtype=np.float32)
 
+    # loop over energy layers
     for k in range(K):
         Enom = float(sampler.Enom[k])
 
+        # get interpolated beam model parameters
         sx = float(bm.f_sx(Enom))
         sy = float(bm.f_sy(Enom))
         divx = float(bm.f_divx(Enom))
         divy = float(bm.f_divy(Enom))
 
-        # the beam model holdes correlation coefficients, not covariances
+        # the beam model holdes correlation coefficients (not covariances as stated earlier)
         rho_x = float(bm.f_corx(Enom))
         rho_y = float(bm.f_cory(Enom))
+
+        # some sanity checks
+        a = sx * sx
+        b = divx * divx
+        c = rho_x * sx * divx
+        det = a*b - c*c
+
+        if not np.isclose(abs(rho_x), 1.0, atol=0.0001):
+            logger.warning("rho_x out of range at Enom=%.3f: rho_x=%.6g", Enom, rho_x)
+
+        if not np.isclose(det, 0.0, atol=1e-12 * abs(a*b)):
+            logger.warning("Cov not PSD at Enom=%.3f: sx=%.6g divx=%.6g rho=%.6g det=%.6g",
+                           Enom, sx, divx, rho_x, det)
+        if divx > 0.1:  # 0.1 rad = 100 mrad, extremely large for clinical pencil beams
+            logger.warning("divx unusually large (rad?): Enom=%.1f divx=%.4g", Enom, divx)
 
         covx = rho_x * sx * divx
         covy = rho_y * sy * divy
@@ -290,26 +325,34 @@ def _sample_mcpl_buffer_fused(
     pdg: int = PDG_PROTON,
 ) -> bytearray:
 
-    u = rng.random(n) * sampler.total
+    u = rng.random(n) * sampler.totalMU
     idxs = np.searchsorted(sampler.cumw, u, side="right").astype(np.int64, copy=False)
 
+    # get 5 sets of standard normal random numbers per particle
     Z = rng.standard_normal((n, 5), dtype=np.float32)
 
     out = bytearray(n * _particle_struct.size)
     off = 0
     z_plane = float(sampler.z_plane)
 
+    # loop over every spot in this field
     for j, idx in enumerate(idxs):
+
+        # get spot energy layer index and the cached Cholesky factors
         k = int(sampler.idxE[idx])
         Lx = cache.Lx[k]
         Ly = cache.Ly[k]
 
         z0, z1, z2, z3, zE = Z[j]
 
+        # Sample correlated transverse phase space:
+        #   x_local, y_local : transverse position offsets at z = z_plane [mm]
+        #   xprim,  yprim    : transverse slopes dx/dz, dy/dz (small angles) [rad]
+        # The correlation between position and angle is encoded via the shared z0/z2 terms.
         x_local = Lx[0, 0] * z0
-        xp = Lx[1, 0] * z0 + Lx[1, 1] * z1
+        xprim = Lx[1, 0] * z0 + Lx[1, 1] * z1  # xprim = dx/dz ~ angle in radians
         y_local = Ly[0, 0] * z2
-        yp = Ly[1, 0] * z2 + Ly[1, 1] * z3
+        yprim = Ly[1, 0] * z2 + Ly[1, 1] * z3  # yprim = dy/dz
 
         xg = float(sampler.xbm[idx] + x_local)
         yg = float(sampler.ybm[idx] + y_local)
@@ -319,9 +362,9 @@ def _sample_mcpl_buffer_fused(
         t1 = sampler.t1[idx]
         t2 = sampler.t2[idx]
 
-        vx = float(v0[0] + xp * t1[0] + yp * t2[0])
-        vy = float(v0[1] + xp * t1[1] + yp * t2[1])
-        vz = float(v0[2] + xp * t1[2] + yp * t2[2])
+        vx = float(v0[0] + xprim * t1[0] + yprim * t2[0])
+        vy = float(v0[1] + xprim * t1[1] + yprim * t2[1])
+        vz = float(v0[2] + xprim * t1[2] + yprim * t2[2])
 
         invn = 1.0 / np.sqrt(vx * vx + vy * vy + vz * vz)
         vx *= invn
@@ -338,7 +381,7 @@ def _sample_mcpl_buffer_fused(
 
         _particle_struct.pack_into(
             out, off,
-            np.float32(xg), np.float32(yg), np.float32(zg),
+            np.float32(xg * 0.1), np.float32(yg * 0.1), np.float32(zg * 0.1),  # mm to cm
             np.float32(fp1), np.float32(fp2), np.float32(ekin_signed),
             np.float32(0.0),
             int(pdg),
