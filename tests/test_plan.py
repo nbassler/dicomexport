@@ -6,7 +6,11 @@ import sys
 import os
 import unittest
 
+import numpy as np
+
 from dicomexport.model_plan import Plan
+
+TEST_PDG_PROTON = 2212
 
 
 class TestPlan(unittest.TestCase):
@@ -34,10 +38,11 @@ class TestMCPLExport(unittest.TestCase):
                 sys.executable,
                 "dicomexport/main_plan_export.py",
                 plan_path,
+                out_path,
                 f"-b={bm_path}",
                 "--export-fmt=mcpl",
+                "-v",
                 "-N=100",
-                out_path,
             ]
 
             env = dict(os.environ)
@@ -55,12 +60,12 @@ class TestMCPLExport(unittest.TestCase):
             neg_uz = 0
             for i, p in enumerate(particles):
                 with self.subTest(particle=i):
-                    self.assertEqual(p.pdgcode, 2212)
+                    self.assertEqual(p.pdgcode, TEST_PDG_PROTON)
 
                     # direction should be finite and ~unit length
                     self.assertTrue(math.isfinite(p.ux) and math.isfinite(p.uy) and math.isfinite(p.uz))
                     u2 = p.ux * p.ux + p.uy * p.uy + p.uz * p.uz
-                    self.assertTrue(abs(u2 - 1.0) < 1e-3, f"|u|^2={u2}")
+                    self.assertTrue(np.isclose(u2, 1.0), f"|u|^2={u2}")
 
                     # positions should be finite
                     self.assertTrue(math.isfinite(p.x) and math.isfinite(p.y) and math.isfinite(p.z))
