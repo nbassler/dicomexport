@@ -35,27 +35,22 @@ R3 = np.ndarray
 # ---- dataclasses ----
 @dataclass(frozen=True)
 class FieldSampler:
-    # per-spot sampling
-    idxE: np.ndarray       # (N,) uint16/int32 energy-bin index per spot
-    cumw: np.ndarray       # (N,) float64 cumulative MU weights
-    total: float           # total MU
+    idxE: np.ndarray
+    cumw: np.ndarray
+    total: float
 
-    # per-spot mean at beam-model plane
-    xbm: np.ndarray        # (N,) float32
-    ybm: np.ndarray        # (N,) float32
+    xbm: np.ndarray
+    ybm: np.ndarray
 
-    # per-spot orthonormal basis (columns)
-    ex: np.ndarray         # (N,3) float32
-    ey: np.ndarray         # (N,3) float32
-    ez: np.ndarray         # (N,3) float32  (central ray direction)
+    v0: np.ndarray         # (N,3) float32
+    t1: np.ndarray         # (N,3) float32
+    t2: np.ndarray         # (N,3) float32
 
-    # plane coordinate
-    z_plane: float         # scalar (float), typically -D (mm)
+    z_plane: float
 
-    # per-energy-bin info (K bins)
-    Enom: np.ndarray       # (K,) float32
-    Emean: np.ndarray      # (K,) float32
-    Esig: np.ndarray       # (K,) float32
+    Enom: np.ndarray
+    Emean: np.ndarray
+    Esig: np.ndarray
 
 
 @dataclass(frozen=True)
@@ -162,17 +157,18 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
 
     xbm_list: list[float] = []
     ybm_list: list[float] = []
+    v0_list: list[np.ndarray] = []
+    t1_list: list[np.ndarray] = []
+    t2_list: list[np.ndarray] = []
 
-    ex_list: list[np.ndarray] = []
-    ey_list: list[np.ndarray] = []
-    ez_list: list[np.ndarray] = []
-
-    D = float(bm.beam_model_position)  # mm upstream of isocenter (positive number)
-    z_plane = D                        # isocenter at z=0, upstream of isocenter is positive z
+    D = float(bm.beam_model_position)
+    if D <= 0.0:
+        raise ValueError(f"Beam model position must be positive (upstream). Got {D}")
+    z_plane = D
     logger.info("Beam model position D = %+.1f mm", D)
 
-    dx = float(field.lateral_spreading_device_distanceX)  # mm
-    dy = float(field.lateral_spreading_device_distanceY)  # mm
+    dx = float(field.lateral_spreading_device_distanceX)
+    dy = float(field.lateral_spreading_device_distanceY)
 
     for layer in field.layers:
         Enom = float(layer.energy_nominal)
@@ -193,26 +189,22 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
             x_iso = float(s.x)
             y_iso = float(s.y)
 
-            # mean spot center in beam-model plane (backproject from isocenter plane)
             x_bm = x_iso * (dx - D) / dx
             y_bm = y_iso * (dy - D) / dy
 
-            # central ray direction (from point on upstream beam-model plane to isocenter)
-            # point on plane: (x_bm, y_bm, +D) with D > 0 representing upstream distance; isocenter: (0,0,0)
-            # vector from (x_bm, y_bm, +D) to isocenter (0,0,0) is (-x_bm, -y_bm, -D):
-            ez = np.array([-x_bm, -y_bm, -D], dtype=float)
-            ez /= np.linalg.norm(ez)
+            v0 = np.array([-x_bm, -y_bm, -D], dtype=float)
+            v0 /= np.linalg.norm(v0)
 
-            ex, ey = _make_transverse_basis(ez)
+            t1, t2 = _make_transverse_basis_from_v(v0)
 
             idxE_list.append(k)
             w_list.append(w)
 
             xbm_list.append(x_bm)
             ybm_list.append(y_bm)
-            ex_list.append(ex)
-            ey_list.append(ey)
-            ez_list.append(ez)
+            v0_list.append(v0)
+            t1_list.append(t1)
+            t2_list.append(t2)
 
     if not w_list:
         raise ValueError(f"Field {field.name} has no spots with positive MU.")
@@ -227,10 +219,9 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
 
     xbm = np.asarray(xbm_list, dtype=np.float32)
     ybm = np.asarray(ybm_list, dtype=np.float32)
-
-    ex = np.asarray(ex_list, dtype=np.float32)  # (N,3)
-    ey = np.asarray(ey_list, dtype=np.float32)
-    ez = np.asarray(ez_list, dtype=np.float32)
+    v0 = np.asarray(v0_list, dtype=np.float32)
+    t1 = np.asarray(t1_list, dtype=np.float32)
+    t2 = np.asarray(t2_list, dtype=np.float32)
 
     Enom = np.asarray(Enom_list, dtype=np.float32)
     Emean = np.asarray(Emean_list, dtype=np.float32)
@@ -242,26 +233,14 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
         total=total,
         xbm=xbm,
         ybm=ybm,
-        ex=ex,
-        ey=ey,
-        ez=ez,
+        v0=v0,
+        t1=t1,
+        t2=t2,
         z_plane=z_plane,
         Enom=Enom,
         Emean=Emean,
         Esig=Esig,
     )
-
-
-def _make_transverse_basis(ez: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Given unit ez, return orthonormal ex, ey with ex ⟂ ez and ey = ez × ex."""
-    up = np.array([0.0, 1.0, 0.0], dtype=float)
-    if np.isclose(abs(float(np.dot(up, ez))), 1.0):
-        up = np.array([1.0, 0.0, 0.0], dtype=float)
-
-    ex = np.cross(up, ez)
-    ex /= np.linalg.norm(ex)
-    ey = np.cross(ez, ex)
-    return ex, ey
 
 
 def _prewarm_beam_cache(sampler: FieldSampler, bm: BeamModel) -> BeamCache:
@@ -276,13 +255,29 @@ def _prewarm_beam_cache(sampler: FieldSampler, bm: BeamModel) -> BeamCache:
         sy = float(bm.f_sy(Enom))
         divx = float(bm.f_divx(Enom))
         divy = float(bm.f_divy(Enom))
-        covx = float(bm.f_covx(Enom))
-        covy = float(bm.f_covy(Enom))
+
+        # the beam model holdes correlation coefficients, not covariances
+        rho_x = float(bm.f_corx(Enom))
+        rho_y = float(bm.f_cory(Enom))
+
+        covx = rho_x * sx * divx
+        covy = rho_y * sy * divy
 
         Lx[k] = _chol2_psd(sx * sx, divx * divx, covx).astype(np.float32)
         Ly[k] = _chol2_psd(sy * sy, divy * divy, covy).astype(np.float32)
 
     return BeamCache(Lx=Lx, Ly=Ly)
+
+
+def _make_transverse_basis_from_v(v: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    up = np.array([0.0, 1.0, 0.0], dtype=float)
+    if np.isclose(abs(float(np.dot(up, v))), 1.0):
+        up = np.array([1.0, 0.0, 0.0], dtype=float)
+    t1 = np.cross(up, v)
+    t1 /= np.linalg.norm(t1)
+    t2 = np.cross(v, t1)
+    t2 /= np.linalg.norm(t2)
+    return t1, t2
 
 
 # ---- sampling hot path ----
@@ -294,16 +289,14 @@ def _sample_mcpl_buffer_fused(
     rng: np.random.Generator,
     pdg: int = PDG_PROTON,
 ) -> bytearray:
-    # pick spots MU-weighted
+
     u = rng.random(n) * sampler.total
     idxs = np.searchsorted(sampler.cumw, u, side="right").astype(np.int64, copy=False)
 
-    # z0,z1,z2,z3 for x/y phase space + zE for energy
     Z = rng.standard_normal((n, 5), dtype=np.float32)
 
     out = bytearray(n * _particle_struct.size)
     off = 0
-
     z_plane = float(sampler.z_plane)
 
     for j, idx in enumerate(idxs):
@@ -313,50 +306,41 @@ def _sample_mcpl_buffer_fused(
 
         z0, z1, z2, z3, zE = Z[j]
 
-        # local transverse phase space sample
         x_local = Lx[0, 0] * z0
         xp = Lx[1, 0] * z0 + Lx[1, 1] * z1
         y_local = Ly[0, 0] * z2
         yp = Ly[1, 0] * z2 + Ly[1, 1] * z3
 
-        # basis at this spot
-        ex = sampler.ex[idx]
-        ey = sampler.ey[idx]
-        ez = sampler.ez[idx]
-
-        # ---- position pinned to plane z = D (i.e. z = z_plane, positive/upstream) ----
-        # r = r0 + x_local*ex + y_local*ey   (with r0 = (x_bm, y_bm, z_plane))
-        xg = float(sampler.xbm[idx]) + float(x_local * ex[0] + y_local * ey[0])
-        yg = float(sampler.ybm[idx]) + float(x_local * ex[1] + y_local * ey[1])
+        xg = float(sampler.xbm[idx] + x_local)
+        yg = float(sampler.ybm[idx] + y_local)
         zg = z_plane
 
-        # ---- direction ----
-        # Interpret xp,yp as small angular deviations in the transverse basis
-        # v = normalize(ez + xp*ex + yp*ey)
-        vx = float(ez[0] + xp * ex[0] + yp * ey[0])
-        vy = float(ez[1] + xp * ex[1] + yp * ey[1])
-        vz = float(ez[2] + xp * ex[2] + yp * ey[2])
+        v0 = sampler.v0[idx]
+        t1 = sampler.t1[idx]
+        t2 = sampler.t2[idx]
+
+        vx = float(v0[0] + xp * t1[0] + yp * t2[0])
+        vy = float(v0[1] + xp * t1[1] + yp * t2[1])
+        vz = float(v0[2] + xp * t1[2] + yp * t2[2])
 
         invn = 1.0 / np.sqrt(vx * vx + vy * vy + vz * vz)
         vx *= invn
         vy *= invn
         vz *= invn
 
-        # ---- energy sampling ----
         Emean = float(sampler.Emean[k])
         Esig = float(sampler.Esig[k])
         ekin = Emean + Esig * float(zE)
         if ekin < 0.0:
             ekin = 0.0
 
-        # ---- MCPL APP packing (fp1, fp2, ekin_signed) ----
         fp1, fp2, ekin_signed = _mcpl_app_pack(vx, vy, vz, ekin)
 
         _particle_struct.pack_into(
             out, off,
             np.float32(xg), np.float32(yg), np.float32(zg),
             np.float32(fp1), np.float32(fp2), np.float32(ekin_signed),
-            np.float32(0.0),   # time
+            np.float32(0.0),
             int(pdg),
         )
         off += _particle_struct.size
@@ -365,7 +349,11 @@ def _sample_mcpl_buffer_fused(
 
 
 def _mcpl_app_pack(ux: float, uy: float, uz: float, ekin: float) -> tuple[float, float, float]:
-    """Adaptive Projection Packing compatible with the mcpl python reader."""
+    """
+    Adaptive Projection Packing compatible with the mcpl python reader.
+    Given a unit direction (ux,uy,uz) and kinetic energy ekin (float),
+    return (fp1, fp2, ekin_signed) according to the APP scheme.
+    """
     ax, ay, az = abs(ux), abs(uy), abs(uz)
     inv_uz = (1.0 / uz) if uz != 0.0 else float(np.inf)
 
@@ -387,6 +375,11 @@ def _mcpl_app_pack(ux: float, uy: float, uz: float, ekin: float) -> tuple[float,
 
 # ---- helpers ----
 def _chol2_psd(a: float, b: float, c: float) -> L2:
+    """
+    Given 2x2 PSD matrix [[a, c],
+                          [c, b]],
+    return its Cholesky factor L such that LL^T = PSD.
+    """
     if a < 0.0:
         a = 0.0
     if b < 0.0:
@@ -404,6 +397,9 @@ def _chol2_psd(a: float, b: float, c: float) -> L2:
 
 
 def _mcpl_header(num_particles: int) -> bytes:
+    """
+    Generate MCPL file header for given number of particles.
+    """
     source_name = f"dicomexport {__version__}".encode("ascii")
 
     header = (

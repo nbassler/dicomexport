@@ -30,8 +30,8 @@ class BeamModel():
             6) 1 sigma spot size y [mm]
             7) 1 sigma divergence x [rad]
             8) 1 sigma divergence y [rad]
-            9) cov (x, x') [mm]
-            10) cov (y, y') [mm]
+            9) cor (x, x') [mm]
+            10) cor (y, y') [mm]
 
         TODO: get rid of scipy dependency
         """
@@ -70,10 +70,10 @@ class BeamModel():
         if cols == 10:
             logger.debug("Beam model has divergence data")
             self.has_divergence = True
-            self.f_divx = interp1d(energy, data[:, 6], kind=k)  # div x [rad]
-            self.f_divy = interp1d(energy, data[:, 7], kind=k)  # div y [rad]
-            self.f_covx = interp1d(energy, data[:, 8], kind=k)  # cov (x, x') [mm]
-            self.f_covy = interp1d(energy, data[:, 9], kind=k)  # cov (y, y') [mm]
+            self.f_divx = interp1d(energy, data[:, 6], kind=k)  # divergence x [rad]
+            self.f_divy = interp1d(energy, data[:, 7], kind=k)  # divergence y [rad]
+            self.f_corx = interp1d(energy, data[:, 8], kind=k)  # correlation coef. (x, x') [mm]
+            self.f_cory = interp1d(energy, data[:, 9], kind=k)  # correlation coef. (y, y') [mm]
 
         self.data = data
         self.beam_model_position = beam_model_position  # position of the beam model in mm, e.g. 600 mm upstream from isocenter
