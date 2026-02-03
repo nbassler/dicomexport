@@ -48,7 +48,13 @@ class TestMCPLExport(unittest.TestCase):
             env = dict(os.environ)
             env["PYTHONPATH"] = "." + (os.pathsep + env["PYTHONPATH"] if "PYTHONPATH" in env else "")
 
-            subprocess.run(cmd, check=True, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            try:
+                subprocess.run(
+                    cmd, check=True, env=env,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                )
+            except subprocess.CalledProcessError as e:
+                self.fail(f"CLI failed\ncmd={cmd}\nstdout:\n{e.stdout}\nstderr:\n{e.stderr}")
 
             out_field = os.path.join(td, "myoutput_field01.mcpl")
             self.assertTrue(os.path.exists(out_field), f"Expected output file not found: {out_field}")
