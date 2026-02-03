@@ -38,8 +38,8 @@ R3 = np.ndarray
 class FieldSampler:  # computed per field
     # these arrays have the length of the number of spots N in the field
     idxE: np.ndarray  # for each spot i, idxE[i] index which energy bin to use
-    cumw: np.ndarray  # cumulative MU weights used for inverse-CDF sampling
-    totalMU: float  # total MU across all spots in the field (cumw[-1])
+    cum_n: np.ndarray  # cumulative particle numbers used for inverse-CDF sampling
+    total_n: float  # total number of particles across all spots in the field (cum_n[-1])
 
     xbm: np.ndarray  # spot centers at beam model position  [mm]
     ybm: np.ndarray  # spot centers at beam model position  [mm]
@@ -168,6 +168,7 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
     Enom_list: list[float] = []
     Emean_list: list[float] = []
     Esig_list: list[float] = []
+    PpMU_list: list[float] = []  # protons per MU for this particular energy layer
     energy_to_bin: dict[float, int] = {}
 
     # for every spot in the field across all energy layers
@@ -202,10 +203,11 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
             Enom_list.append(Enom)
             Emean_list.append(float(bm.f_e(Enom)))
             Esig_list.append(float(bm.f_espread(Enom)))
+            PpMU_list.append(float(bm.f_ppmu(Enom)))
 
         # process spots in this layer
         for s in layer.spots:
-            w = float(s.mu)
+            w = float(s.mu) * PpMU_list[k] * 1e6  # number of protons for this spot
             if w <= 0.0:
                 continue
 
@@ -239,6 +241,9 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
     cumw = np.cumsum(w)
     total = float(cumw[-1])
 
+    logger.debug("Field has %d spots across %d energy layers", len(w_list), len(Enom_list))
+    logger.debug("Total protons in field: %.3e", total)
+
     K = len(Enom_list)
     idx_dtype = np.uint16 if K < 65535 else np.int32
     idxE = np.asarray(idxE_list, dtype=idx_dtype)
@@ -255,8 +260,8 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
 
     return FieldSampler(
         idxE=idxE,
-        cumw=cumw,
-        totalMU=total,
+        cum_n=cumw,
+        total_n=total,
         xbm=xbm,
         ybm=ybm,
         v0=v0,
@@ -339,8 +344,8 @@ def _sample_mcpl_buffer_fused(
     """
 
     # sample spot indices proportional to MU
-    u = rng.random(n) * sampler.totalMU
-    idxs = np.searchsorted(sampler.cumw, u, side="right").astype(np.int64, copy=False)
+    u = rng.random(n) * sampler.total_n
+    idxs = np.searchsorted(sampler.cum_n, u, side="right").astype(np.int64, copy=False)
 
     # get 5 sets of standard normal random numbers per particle
     Z = rng.standard_normal((n, 5), dtype=np.float32)
@@ -420,8 +425,8 @@ def _sample_mcpl_buffer_fused_numpy(
     """
 
     # --- sample spot indices proportional to MU ---
-    u = rng.random(n, dtype=np.float64) * sampler.totalMU
-    idxs = np.searchsorted(sampler.cumw, u, side="right").astype(np.int64, copy=False)
+    u = rng.random(n, dtype=np.float64) * sampler.total_n
+    idxs = np.searchsorted(sampler.cum_n, u, side="right").astype(np.int64, copy=False)
 
     # idx has the length n, corresponding to the number of particles to sample
 
