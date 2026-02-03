@@ -156,6 +156,7 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
     """
     Precalculate per-field sampling data structures.
     """
+    logger.debug("Preparing field sampler for field '%s'", field.name)
     # for every energy layer in the field
     Enom_list: list[float] = []
     Emean_list: list[float] = []
@@ -262,6 +263,7 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
 
 
 def _prewarm_beam_cache(sampler: FieldSampler, bm: BeamModel) -> BeamCache:
+    logger.debug("Prewarming beam cache for %d energy layers", sampler.Enom.shape[0])
     K = sampler.Enom.shape[0]
     Lx = np.empty((K, 2, 2), dtype=np.float32)
     Ly = np.empty((K, 2, 2), dtype=np.float32)
@@ -286,10 +288,10 @@ def _prewarm_beam_cache(sampler: FieldSampler, bm: BeamModel) -> BeamCache:
         c = rho_x * sx * divx
         det = a*b - c*c
 
-        if not np.isclose(abs(rho_x), 1.0, atol=0.0001):
+        if abs(rho_x) > 1.0001:
             logger.warning("rho_x out of range at Enom=%.3f: rho_x=%.6g", Enom, rho_x)
 
-        if not np.isclose(det, 0.0, atol=1e-12 * abs(a*b)):
+        if det < -1e-12 * (a*b):  # relative tolerance
             logger.warning("Cov not PSD at Enom=%.3f: sx=%.6g divx=%.6g rho=%.6g det=%.6g",
                            Enom, sx, divx, rho_x, det)
         if divx > 0.1:  # 0.1 rad = 100 mrad, extremely large for clinical pencil beams
@@ -324,7 +326,6 @@ def _sample_mcpl_buffer_fused(
     rng: np.random.Generator,
     pdg: int = PDG_PROTON,
 ) -> bytearray:
-
     u = rng.random(n) * sampler.totalMU
     idxs = np.searchsorted(sampler.cumw, u, side="right").astype(np.int64, copy=False)
 
