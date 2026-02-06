@@ -27,9 +27,9 @@ def create_parser():
     parser.add_argument('-N', '--nstat', type=int, dest='nstat', help="Target protons for simulation", default=int(1e6))
 
     parser.add_argument(
-        '--export-fmt', dest='export_fmt', choices=['topas', 'phasespace', 'racehorse'], default='topas',
+        '--export-fmt', dest='export_fmt', choices=['topas', 'mcpl', 'racehorse'], default='topas',
         help=("Export format (default: topas). "
-              "Formats: topas (*.txt), phasespace (*.mcpl), racehorse (*.csv).")
+              "Formats: topas (*.txt), mcpl (*.mcpl), racehorse (*.csv).")
     )
 
     parser.add_argument('-v', '--verbosity', action='count', help="Increase verbosity", default=0)

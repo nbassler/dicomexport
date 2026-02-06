@@ -5,6 +5,7 @@ from dicomexport.parser_plan_export import create_parser
 from dicomexport.beam_model import BeamModel
 from dicomexport.import_plan import load_plan
 from dicomexport.export_plan import export_plan
+from dicomexport.export_mcpl import generate_mcpl_file
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +53,31 @@ def main(args=None) -> int:
     pln.apply_beammodel()
 
     logger.debug("Exporting plan format...")
-    export_plan(pln, pln.beam_model, parsed_args.fout,
-                field_nr=parsed_args.field_nr,
-                nominal=param_nominal,
-                nstat=parsed_args.nstat,
-                fmt=parsed_args.export_fmt)
+    if parsed_args.export_fmt == 'mcpl':
+        generate_mcpl_file(
+            pln,
+            pln.beam_model,
+            output_path=parsed_args.fout,
+            field_list=[parsed_args.field_nr]
+            if parsed_args.field_nr > 0 else None,
+            num_primaries=parsed_args.nstat,
+            rng_seed=42
+        )
+
+    elif parsed_args.export_fmt in ('topas'):
+        export_plan(pln, pln.beam_model, parsed_args.fout,
+                    field_nr=parsed_args.field_nr,
+                    nominal=param_nominal,
+                    nstat=parsed_args.nstat,
+                    fmt=parsed_args.export_fmt)
+
+    elif parsed_args.export_fmt in ('racehorse'):
+        # TODO
+        pass
+
+    else:
+        logger.error(f"Unsupported export format: {parsed_args.export_fmt}")
+        return 1
 
     return 0
 

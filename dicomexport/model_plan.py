@@ -77,25 +77,25 @@ class Layer:
     """
 
     spots: List[Spot] = dc_field(default_factory=list)
-    energy_nominal: float = 0.0
-    energy_measured: float = 0.0
-    espread: float = 0.0
-    cum_mu: float = 0.0
+    energy_nominal: float = 0.0  # [MeV]
+    energy_measured: float = 0.0  # [MeV]
+    espread: float = 0.0  # [MeV] 1 sigma
+    cum_mu: float = 0.0  # cumulative MU
     cum_particles: float = 0.0
     repaint: int = 0
     mu_to_part_coef: float = 0.0
     is_empty: bool = True
 
-    isocenter: Tuple[float, float, float] = (0.0, 0.0, 0.0)
-    gantry_angle: float = 0.0
-    couch_angle: float = 0.0
-    snout_position: float = 0.0
-    sad: Tuple[float, float] = (0.0, 0.0)
-    table_position: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    isocenter: Tuple[float, float, float] = (0.0, 0.0, 0.0)     # [mm]
+    gantry_angle: float = 0.0  # [deg]
+    couch_angle: float = 0.0   # [deg]
+    snout_position: float = 0.0  # [mm]
+    sad: Tuple[float, float] = (0.0, 0.0)  # [mm]
+    table_position: Tuple[float, float, float] = (0.0, 0.0, 0.0)  # [mm]
     meterset_rate: float = 0.0
 
     number: int = 0  # layer number, starting from 1, only including layers which contain data
-    spot_size: Tuple[float, float] = (0.0, 0.0)  # FWHM in (x,y), set after beam model application
+    spot_size: Tuple[float, float] = (0.0, 0.0)  # FWHM in (x,y), set after beam model application [mm]
 
     @property
     def n_spots(self) -> int:
@@ -159,6 +159,7 @@ class Field:
     cum_particles: float = 0.0
     pld_csetweight: float = 0.0
     scaling: float = 1.0
+    name: str = ""
 
     meterset_weight_final: float = 0.0
     meterset_per_weight: float = 0.0

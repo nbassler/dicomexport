@@ -105,8 +105,8 @@ class TopasPlan:
                 sigy[_spot_index] = bm.f_sy(mylayer.energy_nominal)
                 sigxp[_spot_index] = bm.f_divx(mylayer.energy_nominal)
                 sigyp[_spot_index] = bm.f_divy(mylayer.energy_nominal)
-                corx[_spot_index] = bm.f_covx(mylayer.energy_nominal)
-                cory[_spot_index] = bm.f_covy(mylayer.energy_nominal)
+                corx[_spot_index] = bm.f_corx(mylayer.energy_nominal)
+                cory[_spot_index] = bm.f_cory(mylayer.energy_nominal)
                 nparts[_spot_index] = spot.mu * mylayer.mu_to_part_coef
                 _spot_index += 1
 
