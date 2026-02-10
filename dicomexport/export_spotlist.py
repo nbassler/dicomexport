@@ -1,10 +1,19 @@
 """
-MCPL phase-space generator for scanned proton spots.
+Spotlist text export utilities for proton (or ion) treatment plans.
 
-- Samples spot indices proportional to MU
-- Samples transverse phase space from beam model (Gaussian with covariances)
-- Applies scanning by using per-spot central ray basis (ex,ey,ez)
-- Writes MCPL records in buffered chunks
+This module converts a :class:`dicomexport.model_plan.Plan` object into a
+plain-text "spotlist" file suitable for use with downstream dose engines
+or beam delivery simulations.
+
+The main public entry point is :func:`export_spotlist`, which:
+
+- Selects fields from the input plan (optionally restricted by field list).
+- Builds a per-spot :class:`pandas.DataFrame` with geometric and beam
+  parameters.
+- Adds derived beam parameters needed for various spotlist formats
+  (e.g. FWHM from sigma, divergences, correlations).
+- Writes the result to disk as a space-separated text file with a
+  configurable number of columns, as defined in ``SPOTLIST_EXPORT_COLS``.
 """
 
 from __future__ import annotations
