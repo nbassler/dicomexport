@@ -68,8 +68,6 @@ def export_spotlist(
 
     Args:
         plan: The treatment plan object containing field and spot data.
-        beam_model: Beam model object (kept for interface compatibility but not
-            strictly required for export).
         output_path: Base path for output file(s). Individual field files will be
             named using the pattern: {stem}_field{dicom_field_number:02d}{suffix}
         field_list: Optional list of 1-based field numbers to export. If None,
