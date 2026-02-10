@@ -65,18 +65,18 @@ def main(args=None) -> int:
             rng_seed=42
         )
 
-    elif parsed_args.export_fmt in ('topas'):
+    elif parsed_args.export_fmt == 'topas':
         export_plan(pln, pln.beam_model, parsed_args.fout,
                     field_nr=parsed_args.field_nr,
                     nominal=param_nominal,
                     nstat=parsed_args.nstat,
                     fmt=parsed_args.export_fmt)
 
-    elif parsed_args.export_fmt in ('racehorse'):
+    elif parsed_args.export_fmt == 'racehorse':
         # TODO
         pass
 
-    elif parsed_args.export_fmt in ('spotlist'):
+    elif parsed_args.export_fmt == 'spotlist':
         export_spotlist(
             pln,
             parsed_args.fout,

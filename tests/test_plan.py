@@ -136,5 +136,55 @@ class TestSpotlistExport(unittest.TestCase):
                     self.assertEqual(len(cols), col_count, f"Line has {len(cols)} columns, expected {col_count}")
 
 
+class TestSpotlistExport_6colbm(unittest.TestCase):
+    def test_spotlist_export_6col_bm(self):
+        """ Check loading of 6-column beam model to produce 11-colum spotlist.
+        """
+        plan_path = "res/test_plans/temp_160MeV_10x10.dcm"
+        bm_path = "res/beam_models/bm_test_6col.csv"
+
+        with tempfile.TemporaryDirectory() as td:
+            out_path = os.path.join(td, "myspotlist.dat")
+
+            cmd = [
+                sys.executable,
+                "dicomexport/main_plan_export.py",
+                plan_path,
+                out_path,
+                f"-b={bm_path}",
+                "--export-fmt=spotlist",
+                "-v",
+                "-nc=11",
+            ]
+
+            env = dict(os.environ)
+            env["PYTHONPATH"] = "." + (os.pathsep + env["PYTHONPATH"] if "PYTHONPATH" in env else "")
+
+            try:
+                subprocess.run(
+                    cmd, check=True, env=env,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                )
+            except subprocess.CalledProcessError as e:
+                self.fail(f"CLI failed\ncmd={cmd}\nstdout:\n{e.stdout}\nstderr:\n{e.stderr}")
+
+            out_field = os.path.join(td, "myspotlist_field01.dat")
+            # check if file exists and has the right number of columns
+            self.assertTrue(os.path.exists(out_field), f"Expected output file not found: {out_field}")
+
+            with open(out_field, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+
+            # Skip header lines starting with '#'
+            data_lines = [line for line in lines if not line.startswith("#") and line.strip()]
+
+            for line in data_lines:
+                cols = line.strip().split()
+                self.assertEqual(len(cols), 11, f"Line has {len(cols)} columns, expected 11")
+                # check also if spotlist column 7-10 are 0 for the 6 column beam model input
+                for i in range(6, 10):
+                    self.assertEqual(cols[i], "0", f"Expected column {i+1} to be 0 for 6-column beam model input")
+
+
 if __name__ == "__main__":
     unittest.main()
