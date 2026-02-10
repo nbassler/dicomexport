@@ -6,6 +6,7 @@ from dicomexport.beam_model import BeamModel
 from dicomexport.import_plan import load_plan
 from dicomexport.export_plan import export_plan
 from dicomexport.export_mcpl import generate_mcpl_file
+from dicomexport.export_spotlist import export_spotlist
 
 logger = logging.getLogger(__name__)
 
@@ -64,16 +65,24 @@ def main(args=None) -> int:
             rng_seed=42
         )
 
-    elif parsed_args.export_fmt in ('topas'):
+    elif parsed_args.export_fmt == 'topas':
         export_plan(pln, pln.beam_model, parsed_args.fout,
                     field_nr=parsed_args.field_nr,
                     nominal=param_nominal,
                     nstat=parsed_args.nstat,
                     fmt=parsed_args.export_fmt)
 
-    elif parsed_args.export_fmt in ('racehorse'):
+    elif parsed_args.export_fmt == 'racehorse':
         # TODO
         pass
+
+    elif parsed_args.export_fmt == 'spotlist':
+        export_spotlist(
+            pln,
+            parsed_args.fout,
+            field_list=[parsed_args.field_nr] if parsed_args.field_nr > 0 else None,
+            col_count=parsed_args.spotlist_column_count,
+        )
 
     else:
         logger.error(f"Unsupported export format: {parsed_args.export_fmt}")
