@@ -138,7 +138,12 @@ def _plan_to_spot_dataframe(plan) -> pd.DataFrame:
     One row per spot.
     """
     rows = []
-    bm = plan.beam_model
+    bm = getattr(plan, "beam_model", None)
+    if bm is None:
+        raise ValueError(
+            "plan.beam_model must be set before converting plan to a spot dataframe; "
+            "cannot compute particles per MU without a beam model."
+        )
 
     for field_idx, myfield in enumerate(plan.fields, start=1):
         for layer_idx, layer in enumerate(myfield.layers, start=1):
