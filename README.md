@@ -65,6 +65,14 @@ options:
   -V, --version         Show version and exit.
   ```
 
+### Example for SpotList export
+Can export files which are useful for passing them to FLUKA via the `SOURCE` card, or loading into SHIELD-HIT12A via the `USECBEAM` card.
+Here a 7-column spotlist is exported:
+
+```bash
+$ PYTHONPATH=. python3 dicomexport/main_plan_export.py --export-fmt=spotlist -nc=7 res/test_plans/temp_sobp_10x10.dcm -v -b res/beam_models/DCPT_beam_model__v2.csv
+```
+
 ### Example for [MCPL](https://mctools.github.io/mcpl/) phasespace export
 The MCPL format is a standardized and efficient way to handle phase space files, commonly used in Monte Carlo simulations.
 

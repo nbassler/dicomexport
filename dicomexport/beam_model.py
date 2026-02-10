@@ -48,7 +48,12 @@ class BeamModel():
         cols = len(data[0])
         logger.debug("Number of columns in beam model: %i", cols)
 
+        # Defaults: no divergence / no correlation
         self.has_divergence = False
+        self.f_divx = lambda E: 0.0
+        self.f_divy = lambda E: 0.0
+        self.f_corx = lambda E: 0.0
+        self.f_cory = lambda E: 0.0
 
         try:
             from scipy.interpolate import interp1d
@@ -61,7 +66,7 @@ class BeamModel():
             self.f_en = interp1d(energy, data[:, 0], kind=k)  # nominal energy [MeV]
             self.f_e = interp1d(energy, data[:, 1], kind=k)  # measured energy [MeV]
             self.f_espread = interp1d(energy, data[:, 2], kind=k)  # energy spread 1 sigma [% of measured energy]
-            self.f_ppmu = interp1d(energy, data[:, 3], kind=k)  # 1e6 protons per MU  [1e6/MU]
+            self.f_ppmu = interp1d(energy, data[:, 3], kind=k)  # protons per MU  [MU]
             self.f_sx = interp1d(energy, data[:, 4], kind=k)  # 1 sigma x [mm]
             self.f_sy = interp1d(energy, data[:, 5], kind=k)  # 1 sigma y [mm]
         else:
