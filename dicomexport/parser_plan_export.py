@@ -25,11 +25,14 @@ def create_parser():
     parser.add_argument('-s', '--scale', type=float, dest='scale',
                         help="additional scaling multiplier for MC plan", default=1.0)
     parser.add_argument('-N', '--nstat', type=int, dest='nstat', help="Target protons for simulation", default=int(1e6))
+    parser.add_argument('-nc', '--spotlist-column-count', type=int, dest='spotlist_column_count',
+                        choices=[5, 6, 7, 9, 11], default=11,
+                        help="Number of columns in the spotlist export. Valid values: 5, 6, 7, 9, or 11 (default: 11).")
 
     parser.add_argument(
-        '--export-fmt', dest='export_fmt', choices=['topas', 'mcpl', 'racehorse'], default='topas',
+        '--export-fmt', dest='export_fmt', choices=['topas', 'mcpl', 'racehorse', 'spotlist'], default='topas',
         help=("Export format (default: topas). "
-              "Formats: topas (*.txt), mcpl (*.mcpl), racehorse (*.csv).")
+              "Formats: topas (*.txt), mcpl (*.mcpl), racehorse (*.csv), spotlist (*.txt).")
     )
 
     parser.add_argument('-v', '--verbosity', action='count', help="Increase verbosity", default=0)

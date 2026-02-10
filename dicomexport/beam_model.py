@@ -72,8 +72,8 @@ class BeamModel():
             self.has_divergence = True
             self.f_divx = interp1d(energy, data[:, 6], kind=k)  # divergence x [rad]
             self.f_divy = interp1d(energy, data[:, 7], kind=k)  # divergence y [rad]
-            self.f_corx = interp1d(energy, data[:, 8], kind=k)  # correlation coef. (x, x') [mm]
-            self.f_cory = interp1d(energy, data[:, 9], kind=k)  # correlation coef. (y, y') [mm]
+            self.f_corx = interp1d(energy, data[:, 8], kind=k)  # correlation coef. rho (x, x') [-]
+            self.f_cory = interp1d(energy, data[:, 9], kind=k)  # correlation coef. rho (y, y') [-]
 
         self.data = data
         self.beam_model_position = beam_model_position  # position of the beam model in mm, e.g. 600 mm upstream from isocenter
