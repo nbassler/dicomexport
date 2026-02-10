@@ -168,10 +168,12 @@ def _plan_to_spot_dataframe(plan) -> pd.DataFrame:
                 cor_x = float(bm.f_corx(E_nom))
                 cor_y = float(bm.f_cory(E_nom))
             else:
-                sxpr_rad = np.nan
-                sypr_rad = np.nan
-                cor_x = np.nan
-                cor_y = np.nan
+                # No divergence/correlation available from beam model: use explicit 0.0
+                # instead of NaN to avoid empty fields in fixed-column CSV exports.
+                sxpr_rad = 0.0
+                sypr_rad = 0.0
+                cor_x = 0.0
+                cor_y = 0.0
 
             for spot_idx, spot in enumerate(layer.spots, start=1):
                 rows.append({
