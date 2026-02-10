@@ -104,6 +104,13 @@ def export_spotlist(
 
     # Optional subset of fields (expects 1-based field numbers as in your CLI)
     if field_list is not None:
+        n_fields = len(plan.fields)
+        invalid_fields = [f for f in field_list if f < 1 or f > n_fields]
+        if invalid_fields:
+            raise IndexError(
+                f"field_list contains out-of-range field numbers: {invalid_fields}. "
+                f"Valid field numbers are between 1 and {n_fields} (inclusive)."
+            )
         df = df[df["field"].isin(field_list)]
 
     base = Path(output_path)
