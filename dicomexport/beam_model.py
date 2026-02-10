@@ -66,7 +66,7 @@ class BeamModel():
             self.f_en = interp1d(energy, data[:, 0], kind=k)  # nominal energy [MeV]
             self.f_e = interp1d(energy, data[:, 1], kind=k)  # measured energy [MeV]
             self.f_espread = interp1d(energy, data[:, 2], kind=k)  # energy spread 1 sigma [% of measured energy]
-            self.f_ppmu = interp1d(energy, data[:, 3], kind=k)  # protons per MU  [MU]
+            self.f_ppmu = interp1d(energy, data[:, 3], kind=k)  # protons per MU [protons/MU]
             self.f_sx = interp1d(energy, data[:, 4], kind=k)  # 1 sigma x [mm]
             self.f_sy = interp1d(energy, data[:, 5], kind=k)  # 1 sigma y [mm]
         else:
