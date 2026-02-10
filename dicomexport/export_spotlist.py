@@ -138,6 +138,7 @@ def _write_spotlist(df: pd.DataFrame, out_path: Path, *, col_count: int, header:
             index=False,
             float_format="%.6g",
             lineterminator="\n",
+            na_rep="nan",
         )
 
 
