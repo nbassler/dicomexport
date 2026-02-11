@@ -186,11 +186,17 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
     z_plane = D
     logger.info("Beam model position D = %+.1f mm", D)
 
-    dx = float(field.lateral_spreading_device_distanceX)
-    dy = float(field.lateral_spreading_device_distanceY)
-    if D > dx or D > dy:
-        logger.warning("Beam model plane is upstream of scan distance: D=%.1f dx=%.1f dy=%.1f -> sign flip possible",
-                       D, dx, dy)
+    if field.has_spreading_device:
+        dx = float(field.lateral_spreading_device_distanceX)
+        dy = float(field.lateral_spreading_device_distanceY)
+    else:
+        dx = dy = float("nan")  # not used
+        logger.warning("No spreading device in plan; assuming parallel beam (no backprojection).")
+
+    if field.has_spreading_device:
+        if D > dx or D > dy:
+            logger.warning("Beam model plane is upstream of scan distance: D=%.1f dx=%.1f dy=%.1f -> sign flip possible",
+                           D, dx, dy)
 
     for layer in field.layers:
         Enom = float(layer.energy_nominal)
@@ -215,9 +221,13 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
             x_iso = float(s.x)
             y_iso = float(s.y)
 
-            # backproject beam positions to beam model plane
-            x_bm = x_iso * (dx - D) / dx
-            y_bm = y_iso * (dy - D) / dy
+            if field.has_spreading_device:
+                # backproject beam positions to beam model plane
+                x_bm = x_iso * (dx - D) / dx
+                y_bm = y_iso * (dy - D) / dy
+            else:
+                x_bm = x_iso
+                y_bm = y_iso
 
             # direction of ray crossing x_bm,y_bm at beam model plane and x_iso,y_iso at isocenter
             v0 = np.array([x_iso - x_bm, y_iso - y_bm, -D], dtype=float)
