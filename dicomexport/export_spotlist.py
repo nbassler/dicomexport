@@ -102,6 +102,20 @@ def export_spotlist(
     # Add derived export columns (GeV/cm/FWHM/mrad + Weight)
     df = _add_spotlist_export_columns(df)
 
+    bm = getattr(plan, "beam_model", None)
+    bmpos = getattr(bm, "beam_model_position", None) if bm is not None else None
+
+    if bmpos is not None:
+        logger.info(
+            "Spotlist positions will be exported at the beam model plane (backprojected): D = %.1f mm.",
+            float(bmpos),
+        )
+    else:
+        logger.warning(
+            "Plan beam model is missing beam_model_position; spotlist will assume parallel beam "
+            "(no backprojection)."
+        )
+
     # Optional subset of fields (expects 1-based field numbers as in your CLI)
     if field_list is not None:
         n_fields = len(plan.fields)
@@ -129,6 +143,7 @@ def export_spotlist(
             field_no=field_obj.number,
             field_name=field_obj.name,
             n_spots=field_obj.n_spots,
+            bmpos=bmpos,
         )
         _write_spotlist(df[df["field"] == field_idx], out_path, col_count=col_count, header=header_field)
 
@@ -153,6 +168,11 @@ def _plan_to_spot_dataframe(plan) -> pd.DataFrame:
     """
     Canonical internal spot table (units: MeV, mm, rad).
     One row per spot.
+
+    NOTE:
+      - x_iso_mm / y_iso_mm are DICOM isocenter-plane positions.
+      - x_bm_mm  / y_bm_mm  are positions backprojected to the beam-model plane (z = -D).
+      - Exporters should typically use BM-plane positions when instantiating particles at the beam-model plane.
     """
     rows = []
     bm = getattr(plan, "beam_model", None)
@@ -162,7 +182,25 @@ def _plan_to_spot_dataframe(plan) -> pd.DataFrame:
             "cannot compute particles per MU without a beam model."
         )
 
+    D = float(getattr(bm, "beam_model_position", 0.0))
+    if D <= 0.0:
+        raise ValueError(f"Beam model position must be positive (upstream). Got {D}")
+
     for field_idx, myfield in enumerate(plan.fields, start=1):
+        # Determine backprojection geometry for this field
+        has_sd = bool(getattr(myfield, "has_spreading_device", False))
+        if has_sd:
+            dx = float(getattr(myfield, "lateral_spreading_device_distanceX", 0.0))
+            dy = float(getattr(myfield, "lateral_spreading_device_distanceY", 0.0))
+            if dx == 0.0 or dy == 0.0:
+                logger.warning(
+                    "Field %02d: has_spreading_device=True but dx/dy is zero -> assuming parallel beam.",
+                    myfield.number if getattr(myfield, "number", None) else field_idx
+                )
+                has_sd = False
+        else:
+            dx = dy = 0.0  # unused
+
         for layer_idx, layer in enumerate(myfield.layers, start=1):
             if layer.n_spots == 0:
                 continue
@@ -172,27 +210,36 @@ def _plan_to_spot_dataframe(plan) -> pd.DataFrame:
             E_meas = float(layer.energy_measured) if layer.energy_measured else np.nan
             dE = float(layer.espread) if layer.espread else np.nan
 
-            # Spot size: in plan model this is FWHM in mm (from beam model application)
+            # Spot size: plan model is FWHM in mm (from beam model application)
             # Convert to sigma in mm for canonical storage.
             fwhm_x_mm, fwhm_y_mm = layer.spot_size if layer.spot_size else (np.nan, np.nan)
             sx_mm = float(fwhm_x_mm) * FWHM_TO_SIGMA if np.isfinite(fwhm_x_mm) else np.nan
             sy_mm = float(fwhm_y_mm) * FWHM_TO_SIGMA if np.isfinite(fwhm_y_mm) else np.nan
 
             # Divergence/correlation (rad, dimensionless) from beam model if present
-            if bm is not None and getattr(bm, "has_divergence", False):
+            if getattr(bm, "has_divergence", False):
                 sxpr_rad = float(bm.f_divx(E_nom))
                 sypr_rad = float(bm.f_divy(E_nom))
                 cor_x = float(bm.f_corx(E_nom))
                 cor_y = float(bm.f_cory(E_nom))
             else:
-                # No divergence/correlation available from beam model: use explicit 0.0
-                # instead of NaN to avoid empty fields in fixed-column CSV exports.
                 sxpr_rad = 0.0
                 sypr_rad = 0.0
                 cor_x = 0.0
                 cor_y = 0.0
 
             for spot_idx, spot in enumerate(layer.spots, start=1):
+                x_iso = float(spot.x)
+                y_iso = float(spot.y)
+
+                # Backproject ISO -> BM plane (or assume parallel beam if missing scan geometry)
+                if has_sd:
+                    x_bm = x_iso * (dx - D) / dx
+                    y_bm = y_iso * (dy - D) / dy
+                else:
+                    x_bm = x_iso
+                    y_bm = y_iso
+
                 rows.append({
                     # identifiers / provenance
                     "field": field_idx,
@@ -206,8 +253,10 @@ def _plan_to_spot_dataframe(plan) -> pd.DataFrame:
                     "dE_MeV": dE,
 
                     # positions (mm)
-                    "x_mm": float(spot.x),
-                    "y_mm": float(spot.y),
+                    "x_iso_mm": x_iso,
+                    "y_iso_mm": y_iso,
+                    "x_bm_mm": x_bm,
+                    "y_bm_mm": y_bm,
 
                     # spot widths (sigma, mm)
                     "sx_mm": sx_mm,
@@ -226,10 +275,8 @@ def _plan_to_spot_dataframe(plan) -> pd.DataFrame:
 
     df = pd.DataFrame.from_records(rows)
 
-    # A couple of helpful derived canonical columns:
     if not df.empty:
         df["mu_scaled"] = df["mu"] * float(getattr(plan, "scaling", 1.0))
-        # (above line optional; you might instead apply scaling later per exporter)
 
     return df
 
@@ -243,9 +290,13 @@ def _add_spotlist_export_columns(df: pd.DataFrame) -> pd.DataFrame:
     out["E_GeV"] = E_MeV / 1000.0
     out["dE_GeV"] = dE_MeV / 1000.0
 
-    # positions
-    out["X_cm"] = out["x_mm"] / 10.0
-    out["Y_cm"] = out["y_mm"] / 10.0
+    # positions at isocenter plane, kept as future option.
+    # out["X_cm"] = out["x_mm"] / 10.0
+    # out["Y_cm"] = out["y_mm"] / 10.0
+
+    # beam model plane positions are more relevant for dose engines that instantiate particles at the beam model plane
+    out["X_cm"] = out["x_bm_mm"] / 10.0
+    out["Y_cm"] = out["y_bm_mm"] / 10.0
 
     # widths: export as FWHM in cm
     out["FWHMx_cm"] = (out["sx_mm"] * SIGMA_TO_FWHM) / 10.0
@@ -273,6 +324,7 @@ def _build_spotlist_header(
     field_no: int | None = None,
     field_name: str | None = None,
     n_spots: int | None = None,
+    bmpos: float | None = None,
 
 
 ) -> str:
@@ -293,6 +345,8 @@ def _build_spotlist_header(
         lines.append(f"# FieldNumber: {field_no}")
     if field_name is not None:
         lines.append(f"# FieldName: {field_name}")
+    if bmpos is not None:
+        lines.append(f"# BeamModelPosition: {bmpos:+.1f} mm")
     if n_spots is not None:
         lines.append(f"# Spots: {n_spots}")
 

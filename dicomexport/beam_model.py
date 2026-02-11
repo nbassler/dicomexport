@@ -81,4 +81,5 @@ class BeamModel():
             self.f_cory = interp1d(energy, data[:, 9], kind=k)  # correlation coef. rho (y, y') [-]
 
         self.data = data
-        self.beam_model_position = beam_model_position  # position of the beam model in mm, e.g. 600 mm upstream from isocenter
+        # position of the beam model in mm, e.g. 600 mm upstream from isocenter
+        self.beam_model_position = beam_model_position  # in mm

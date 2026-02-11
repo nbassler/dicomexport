@@ -106,6 +106,8 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
         size_x = 0.0  # dicom values are in FWHM mm, but will be ignored, if beam model is available.
         size_y = 0.0
 
+        myfield.has_spreading_device = False
+
         for icp_index, icp in enumerate(icps):
             logger.debug(f"  Processing control point index: {icp_index}")
             # Several attributes are only set once at the first ion control point.
@@ -115,7 +117,7 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
             if 'LateralSpreadingDeviceSettingsSequence' in icp:
                 if len(icp['LateralSpreadingDeviceSettingsSequence'].value) != 2:
                     logger.error("LateralSpreadingDeviceSettingsSequence should contain exactly 2 elements, found %d.",
-                                 len(ibm['LateralSpreadingDeviceSettingsSequence'].value))
+                                 len(icp['LateralSpreadingDeviceSettingsSequence'].value))
                     raise ValueError(
                         "Invalid LateralSpreadingDeviceSettingsSequence in DICOM plan.")
 
@@ -124,6 +126,7 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                     lss[0]['IsocenterToLateralSpreadingDeviceDistance'].value)
                 sad_y = float(
                     lss[1]['IsocenterToLateralSpreadingDeviceDistance'].value)
+                myfield.has_spreading_device = True
 
                 logger.debug("Set Lateral spreading device distances: X = %.2f mm, Y = %.2f mm",
                              sad_x, sad_y)
@@ -236,8 +239,13 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                     number=layer_nr
                 ))
                 # these are also set on field base, since they are only once set in ICP anyway.
-                myfield.lateral_spreading_device_distanceX = sad_x
-                myfield.lateral_spreading_device_distanceY = sad_y
+
+                if myfield.has_spreading_device:
+                    myfield.lateral_spreading_device_distanceX = sad_x
+                    myfield.lateral_spreading_device_distanceY = sad_y
+                else:
+                    myfield.lateral_spreading_device_distanceX = 0.0
+                    myfield.lateral_spreading_device_distanceY = 0.0
 
                 layer_nr += 1
             else:

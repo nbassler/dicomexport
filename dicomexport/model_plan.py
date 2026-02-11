@@ -164,6 +164,7 @@ class Field:
     meterset_weight_final: float = 0.0
     meterset_per_weight: float = 0.0
 
+    has_spreading_device: bool = False
     lateral_spreading_device_distanceX: float = 0.0
     lateral_spreading_device_distanceY: float = 0.0
     sop_instance_uid: str = ""
