@@ -87,14 +87,16 @@ class TopasPlan:
             # input dicom files may have been designed with nominal or actual energies
             # (for artificial dicom files for research purposes)
             energy = mylayer.energy_nominal if nominal else mylayer.energy_measured
-            espread = mylayer.espread
+
+            # energy spread is in % of the actual energy at the beam model position, not in MeV.
+            espread_percent = (mylayer.espread / mylayer.energy_measured) * 100.0  # [%]
             sad_x, sad_y = mylayer.sad
 
             for spot in mylayer.spots:
                 times[_spot_index] = _spot_index + 1
                 energies[_spot_index] = energy  # nominal energies
                 energies_real[_spot_index] = mylayer.energy_measured  # actual energies
-                espreads[_spot_index] = espread
+                espreads[_spot_index] = espread_percent
                 posx[_spot_index] = spot.x * \
                     (sad_x - bm.beam_model_position) / sad_x
                 angx[_spot_index] = np.degrees(np.arctan(spot.x / sad_x))
