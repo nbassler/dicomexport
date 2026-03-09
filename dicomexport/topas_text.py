@@ -265,7 +265,7 @@ class TopasText:
             "##############################################",
             's:Ge/BeamPosition/Parent             = "Gantry"',
             's:Ge/BeamPosition/Type               = "Group"',
-            f"d:Ge/BeamPosition/TransZ             = -{beam_model_position} mm",
+            f"d:Ge/BeamPosition/TransZ             = {beam_model_position} mm",
             "d:Ge/BeamPosition/TransX             = Tf/spotPositionX/Value mm",
             "d:Ge/BeamPosition/TransY             = -1.0 * Tf/spotPositionY/Value mm",
             "d:Ge/BeamPosition/RotX               = -1.0 * Tf/spotAngleY/Value deg",
