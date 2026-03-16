@@ -296,7 +296,7 @@ class TopasText:
             f"d:Ge/RangeShifter/HLZ                = {rs.thickness*0.5:.2f} mm",
             's:Ge/RangeShifter/Color              = "Orange"',
             # TODO: not to center of RS?
-            f'd:Ge/RangeShifter/TransZ            = {-(rs.isocenter_distance+rs.thickness*0.5):.2f} mm\n',
+            f'd:Ge/RangeShifter/TransZ            = {rs.isocenter_distance+rs.thickness*0.5:.2f} mm\n',
             "\n"
         ]
         return "\n".join(lines)
