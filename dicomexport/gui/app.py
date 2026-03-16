@@ -62,7 +62,8 @@ else:
     spr_table_path = _sanitize_user_file_path(_spr_str)
     spr_table_path: Path | None = None
     # study_dir is intentionally user-provided: the user selects their DICOM study folder.
-    # Sanitize and validate it before using it to construct further paths.
+    # Convert it to an absolute, normalized path without following symlinks.
+    study_path = Path(study_dir.strip()).expanduser().absolute() if study_dir else None
     study_path = _sanitize_user_file_path(study_dir) if study_dir else None
     output_base = st.text_input("Output filename", value="topas.txt")
     bm_position = st.number_input("Beam model position (mm)", value=500.0)
@@ -81,9 +82,12 @@ if st.button("Run export", type="primary"):
     # as relative to the study directory and ensure it does not escape it.
     if not spr_tables:
         if not _spr_str:
-            spr_table_path = None
+                # Normalize the study directory once and ensure the SPR table path
+                # stays within that directory, preventing path traversal.
+                base_study_path = study_path.resolve(strict=False)
+                raw_spr_path = base_study_path / candidate
         else:
-            # Disallow absolute paths for SPR table when using manual input
+                    raw_spr_path.relative_to(base_study_path)
             candidate = Path(_spr_str)
             if candidate.is_absolute():
                 errors.append("Absolute paths are not allowed for the SPR-to-material table; "
