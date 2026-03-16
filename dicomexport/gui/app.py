@@ -9,9 +9,7 @@ BEAM_MODELS_DIR = PROJECT_ROOT / "res" / "beam_models"
 SPR_TABLES_DIR = PROJECT_ROOT / "res" / "spr_tables"
 
 
-def list_files(folder: Path, suffixes: list[str]) -> dict[str, Path]:
-    """Return {filename: full_path} for all matching files in folder."""
-    return {f.name: f for f in sorted(folder.iterdir()) if f.suffix in suffixes}
+from dicomexport.gui.utils import list_files
 
 
 beam_models = list_files(BEAM_MODELS_DIR, [".csv"])

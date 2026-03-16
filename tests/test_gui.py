@@ -8,8 +8,7 @@ class TestListFiles(unittest.TestCase):
     """Tests for the list_files helper used by both gui apps."""
 
     def setUp(self):
-        # Import here so the test doesn't fail if PyQt6 is absent
-        from dicomexport.gui.qt_app import list_files
+        from dicomexport.gui.utils import list_files
         self.list_files = list_files
 
     def test_finds_csv_files(self):

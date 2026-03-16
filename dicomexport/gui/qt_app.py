@@ -6,6 +6,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
 
 from dicomexport.__version__ import __version__
+from dicomexport.gui.utils import list_files
 from dicomexport.main import main as dicomexport_main
 from dicomexport.parser_main import create_parser
 
@@ -13,10 +14,6 @@ UI_FILE = Path(__file__).parent / "main_window.ui"
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 BEAM_MODELS_DIR = PROJECT_ROOT / "res" / "beam_models"
 SPR_TABLES_DIR = PROJECT_ROOT / "res" / "spr_tables"
-
-
-def list_files(folder: Path, suffixes: list) -> dict:
-    return {f.name: f for f in sorted(folder.iterdir()) if f.suffix in suffixes}
 
 
 class ExportWorker(QThread):
