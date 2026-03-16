@@ -67,7 +67,6 @@ class TopasPlan:
 
         n_spots = myfield.n_spots
         times = np.zeros(n_spots)
-        energies = np.zeros(n_spots)       # nominal energies
         energies_real = np.zeros(n_spots)  # actual energies at the beam model position
         espreads = np.zeros(n_spots)
         posx = np.zeros(n_spots)
@@ -92,7 +91,6 @@ class TopasPlan:
 
             for spot in mylayer.spots:
                 times[_spot_index] = _spot_index + 1
-                energies[_spot_index] = mylayer.energy_nominal  # nominal energies
                 energies_real[_spot_index] = mylayer.energy_measured  # actual energies
                 espreads[_spot_index] = espread_percent
                 posx[_spot_index] = spot.x * \
