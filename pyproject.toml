@@ -30,15 +30,17 @@ Changelog = "https://github.com/nbassler/dicomexport/releases"
 Discussions = "https://github.com/nbassler/dicomexport/discussions"
 
 [project.optional-dependencies]
+gui = ["PyQt6>=6.4.0"]
 web = ["streamlit>=1.12.0"]
 
 test = ["pytest>=7.2.1", "mcpl>=2.2.6"]
 
 dev = ["ruff>=0.4.0", "build", "twine", "dicomexport[test]"]
 
-# CLI entry point
+# Entry points
 [project.scripts]
 dicomexport = "dicomexport.main:main"
+dicomexport-gui = "dicomexport.gui.qt_app:main"
 plan-export = "dicomexport.main_plan_export:main"
 geo-export = "dicomexport.main_geo_export:main"
 

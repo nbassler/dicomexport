@@ -1,7 +1,25 @@
 # DicomExport
 A tool for exporting DICOM proton therapy studies.
-- So far only TOPAS input files and MCPL-phasespace files can be generated.
+- Supported output formats: TOPAS input files, MCPL phase-space files, and generic spot lists (FLUKA/SHIELD-HIT12A).
 - More output formats can be added.
+
+## Running the GUI
+
+### Desktop GUI (Qt)
+```bash
+pip install "dicomexport[gui]"
+dicomexport
+```
+Or directly:
+```bash
+python dicomexport/gui/qt_app.py
+```
+
+### Web UI (Streamlit)
+```bash
+pip install "dicomexport[gui]"
+streamlit run dicomexport/gui/app.py
+```
 
 ## Developer notes
 ### Getting started:
