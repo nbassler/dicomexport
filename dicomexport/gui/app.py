@@ -61,8 +61,9 @@ else:
     st.warning(f"No SPR tables found in {SPR_TABLES_DIR}")
     spr_table_path = _sanitize_user_file_path(_spr_str)
     spr_table_path: Path | None = None
-
-with st.expander("Advanced options"):
+    # study_dir is intentionally user-provided: the user selects their DICOM study folder.
+    # Sanitize and validate it before using it to construct further paths.
+    study_path = _sanitize_user_file_path(study_dir) if study_dir else None
     output_base = st.text_input("Output filename", value="topas.txt")
     bm_position = st.number_input("Beam model position (mm)", value=500.0)
     field_nr = st.number_input("Field number (0 = all)", value=0, step=1)
