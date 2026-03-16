@@ -3,7 +3,7 @@ from pathlib import Path
 
 from PyQt6 import uic
 from PyQt6.QtCore import QThread, pyqtSignal
-from PyQt6.QtWidgets import QApplication, QFileDialog, QMainWindow
+from PyQt6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
 
 from dicomexport.__version__ import __version__
 from dicomexport.main import main as dicomexport_main
@@ -122,6 +122,14 @@ class MainWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
+    if not BEAM_MODELS_DIR.exists() or not SPR_TABLES_DIR.exists():
+        QMessageBox.critical(
+            None, "Missing resources",
+            f"Could not find the required resource folders:\n"
+            f"  {BEAM_MODELS_DIR}\n"
+            f"  {SPR_TABLES_DIR}\n\n"
+            "Make sure 'res/' is in the same folder as the executable.")
+        sys.exit(1)
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

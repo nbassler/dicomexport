@@ -25,17 +25,31 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install pyinstaller
-        python -m pip install .
+        python -m pip install ".[gui]"
 
-    - name: Build EXE
+    - name: Build CLI EXE
       run: |
-        pyinstaller --onefile --name dicomexport dicomexport/main.py
+        pyinstaller --onefile --name dicomexport-cli dicomexport/main.py
 
-    - name: Upload EXE to release
+    - name: Build GUI EXE
+      run: |
+        pyinstaller --onefile --windowed --name dicomexport dicomexport/gui/qt_app.py
+
+    - name: Package GUI zip (exe + res/)
+      run: |
+        mkdir dicomexport-windows
+        copy dist\dicomexport.exe dicomexport-windows\
+        xcopy /E /I res dicomexport-windows\res
+        Compress-Archive -Path dicomexport-windows -DestinationPath dist\dicomexport-windows.zip
+      shell: pwsh
+
+    - name: Upload artifacts to release
       if: github.event_name == 'release'
       uses: softprops/action-gh-release@v2
       with:
-        files: dist/dicomexport.exe
+        files: |
+          dist/dicomexport-windows.zip
+          dist/dicomexport-cli.exe
 
   build-linux:
     runs-on: ubuntu-latest
