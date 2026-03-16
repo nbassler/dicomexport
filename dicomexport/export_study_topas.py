@@ -85,7 +85,7 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     # and move the load beam model from __init__.py to a new dedicated function in BeamModel class.
     if bm:
         lines.append(TopasPlan.time_features_string(
-            fld, bm, nominal=True, nstat=nstat))
+            fld, bm, nstat=nstat))
         topas_string = "\n".join(lines)
 
         # show some information about the field
