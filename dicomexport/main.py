@@ -50,7 +50,6 @@ def main(args=None) -> int:
 
     rs = load_rs(study_dir)
     bm = BeamModel(parsed_args.bm,
-                   nominal=True,
                    beam_model_position=parsed_args.beam_model_position)
 
     pn = load_plan(study_dir)

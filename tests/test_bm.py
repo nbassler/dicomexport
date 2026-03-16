@@ -16,7 +16,7 @@ class TestBeamModel(unittest.TestCase):
         self.beam_models = []
         for path_bm in beam_model_files:
             if path_bm.is_file():
-                bm = BeamModel(path_bm, nominal=True,
+                bm = BeamModel(path_bm,
                                beam_model_position=500.0)
                 self.beam_models.append(bm)
 

@@ -10,13 +10,13 @@ logger = logging.getLogger(__name__)
 
 class TopasPlan:
     @staticmethod
-    def generate(myfield: Field, bm: BeamModel, nominal: bool,
+    def generate(myfield: Field, bm: BeamModel,
                  nstat=100000, test_mode=False) -> str:
         """
         Export the field to a topas input file.
         """
         logger.debug(
-            f"Generating Topas input for field {myfield.number} with nominal={nominal} and nstat={nstat}")
+            f"Generating Topas input for field {myfield.number} with nstat={nstat}")
 
         # sad_x = myfield.layers[0].sad[0]
         # sad_y = myfield.layers[0].sad[1]
@@ -54,20 +54,19 @@ class TopasPlan:
         lines.append(TopasText.field_beam_timefeature())
 
         lines.append(TopasPlan.time_features_string(
-            myfield, bm, nominal, nstat))
+            myfield, bm, nstat))
 
         topas_text = "".join(lines)
         return topas_text
 
     @staticmethod
-    def time_features_string(myfield: Field, bm: BeamModel, nominal: bool, nstat: int = int(1e6)) -> str:
+    def time_features_string(myfield: Field, bm: BeamModel, nstat: int = int(1e6)) -> str:
         """
         Build the TIME FEATURES section for a Topas file and return as a string.
         """
 
         n_spots = myfield.n_spots
         times = np.zeros(n_spots)
-        energies = np.zeros(n_spots)
         energies_real = np.zeros(n_spots)  # actual energies at the beam model position
         espreads = np.zeros(n_spots)
         posx = np.zeros(n_spots)
@@ -84,17 +83,16 @@ class TopasPlan:
 
         _spot_index = 0
         for mylayer in myfield.layers:
-            # input dicom files may have been designed with nominal or actual energies
-            # (for artificial dicom files for research purposes)
-            energy = mylayer.energy_nominal if nominal else mylayer.energy_measured
-            espread = mylayer.espread
+
+            # layer.espread is an absolute energy spread in MeV at the beam model position;
+            # convert it to a relative (%) spread for TOPAS (which expects relative energy spread).
+            espread_percent = (mylayer.espread / mylayer.energy_measured) * 100.0  # [%]
             sad_x, sad_y = mylayer.sad
 
             for spot in mylayer.spots:
                 times[_spot_index] = _spot_index + 1
-                energies[_spot_index] = energy  # nominal energies
                 energies_real[_spot_index] = mylayer.energy_measured  # actual energies
-                espreads[_spot_index] = espread
+                espreads[_spot_index] = espread_percent
                 posx[_spot_index] = spot.x * \
                     (sad_x - bm.beam_model_position) / sad_x
                 angx[_spot_index] = np.degrees(np.arctan(spot.x / sad_x))

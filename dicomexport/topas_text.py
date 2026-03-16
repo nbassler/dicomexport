@@ -265,7 +265,7 @@ class TopasText:
             "##############################################",
             's:Ge/BeamPosition/Parent             = "Gantry"',
             's:Ge/BeamPosition/Type               = "Group"',
-            f"d:Ge/BeamPosition/TransZ             = -{beam_model_position} mm",
+            f"d:Ge/BeamPosition/TransZ             = {beam_model_position} mm",
             "d:Ge/BeamPosition/TransX             = Tf/spotPositionX/Value mm",
             "d:Ge/BeamPosition/TransY             = -1.0 * Tf/spotPositionY/Value mm",
             "d:Ge/BeamPosition/RotX               = -1.0 * Tf/spotAngleY/Value deg",
@@ -296,7 +296,7 @@ class TopasText:
             f"d:Ge/RangeShifter/HLZ                = {rs.thickness*0.5:.2f} mm",
             's:Ge/RangeShifter/Color              = "Orange"',
             # TODO: not to center of RS?
-            f'd:Ge/RangeShifter/TransZ            = {-(rs.isocenter_distance+rs.thickness*0.5):.2f} mm\n',
+            f'd:Ge/RangeShifter/TransZ            = {rs.isocenter_distance+rs.thickness*0.5:.2f} mm\n',
             "\n"
         ]
         return "\n".join(lines)

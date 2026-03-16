@@ -30,9 +30,6 @@ def main(args=None) -> int:
         logger.error(f"Input plan file not found: {parsed_args.fin}")
         return 1
 
-    # set nominal/actual energy lookup mode
-    param_nominal = not parsed_args.actual
-
     # load the plan
     pln = load_plan(parsed_args.fin)
 
@@ -48,7 +45,6 @@ def main(args=None) -> int:
         raise ValueError("Beam model file is required.")
 
     pln.beam_model = BeamModel(parsed_args.fbm,
-                               nominal=not parsed_args.actual,
                                beam_model_position=parsed_args.beam_model_position)
     logger.debug("Applying beam model to plan...")
     pln.apply_beammodel()
@@ -68,7 +64,6 @@ def main(args=None) -> int:
     elif parsed_args.export_fmt == 'topas':
         export_plan(pln, pln.beam_model, parsed_args.fout,
                     field_nr=parsed_args.field_nr,
-                    nominal=param_nominal,
                     nstat=parsed_args.nstat,
                     fmt=parsed_args.export_fmt)
 

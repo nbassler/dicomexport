@@ -12,12 +12,9 @@ def get_fwhm(sigma):
 class BeamModel():
     """Beam model from a given CSV file."""
 
-    def __init__(self, fn: Path, nominal=True, beam_model_position=500.0):
+    def __init__(self, fn: Path, beam_model_position=500.0):
         """
         Load a beam model given as a CSV file.
-
-        Interpolation lookup can be done as a function of nominal energy (default, nominal=True),
-        or as a function of actual energy (nominal=False). Most dicom files use nominal energy.
 
         Header rows will be discarded and must be prefixed with '#'.
 
@@ -32,16 +29,11 @@ class BeamModel():
             8) 1 sigma divergence y [rad]
             9) cor (x, x') [mm]
             10) cor (y, y') [mm]
-
-        TODO: get rid of scipy dependency
         """
         data = np.genfromtxt(fn, delimiter=",", invalid_raise=False, comments='#')
 
-        # resolve by nominal energy
-        if nominal:
-            energy = data[:, 0]  # first column holds nominal energy
-        else:
-            energy = data[:, 1]  # second column holds measured energy at the given beam_model position
+        # lookup by nominal energy (first column)
+        energy = data[:, 0]
 
         k = 'cubic'
 
@@ -65,7 +57,7 @@ class BeamModel():
         if cols in (6, 10):
             self.f_en = interp1d(energy, data[:, 0], kind=k)  # nominal energy [MeV]
             self.f_e = interp1d(energy, data[:, 1], kind=k)  # measured energy [MeV]
-            self.f_espread = interp1d(energy, data[:, 2], kind=k)  # energy spread 1 sigma [% of measured energy]
+            self.f_espread = interp1d(energy, data[:, 2], kind=k)  # energy spread 1 sigma [MeV]
             self.f_ppmu = interp1d(energy, data[:, 3], kind=k)  # protons per MU [protons/MU]
             self.f_sx = interp1d(energy, data[:, 4], kind=k)  # 1 sigma x [mm]
             self.f_sy = interp1d(energy, data[:, 5], kind=k)  # 1 sigma y [mm]
