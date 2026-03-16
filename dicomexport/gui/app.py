@@ -33,10 +33,11 @@ if spr_tables:
     spr_table_name = st.selectbox("SPR-to-material table", options=list(spr_tables.keys()))
     # Path object comes directly from the pre-scanned res/ directory, not user input
     spr_table_path: Path | None = spr_tables[spr_table_name]
+    _spr_str: str | None = None
 else:
     st.warning(f"No SPR tables found in {SPR_TABLES_DIR}")
-    _spr_str = st.text_input("SPR-to-material table", placeholder="C:\\path\\to\\spr_table.txt")
-    spr_table_path = Path(_spr_str).resolve(strict=False) if _spr_str else None
+    _spr_str = st.text_input("SPR-to-material table (relative to study directory)", placeholder="spr_table.txt")
+    spr_table_path: Path | None = None
 
 with st.expander("Advanced options"):
     output_base = st.text_input("Output filename", value="topas.txt")
@@ -51,6 +52,31 @@ if st.button("Run export", type="primary"):
     errors = []
     if not study_path or not study_path.is_dir():
         errors.append(f"Study directory not found: {study_dir!r}")
+
+    # If no bundled SPR tables are available, interpret the user-provided path
+    # as relative to the study directory and ensure it does not escape it.
+    if not spr_tables:
+        if not _spr_str:
+            spr_table_path = None
+        else:
+            # Disallow absolute paths for SPR table when using manual input
+            candidate = Path(_spr_str)
+            if candidate.is_absolute():
+                errors.append("Absolute paths are not allowed for the SPR-to-material table; "
+                              "please provide a path relative to the study directory.")
+                spr_table_path = None
+            elif study_path and study_path.is_dir():
+                raw_spr_path = (study_path / candidate).resolve(strict=False)
+                try:
+                    raw_spr_path.relative_to(study_path)
+                except ValueError:
+                    errors.append("SPR-to-material table must be located inside the study directory.")
+                    spr_table_path = None
+                else:
+                    spr_table_path = raw_spr_path
+            else:
+                spr_table_path = None
+
     if not beam_model_path or not beam_model_path.is_file():
         errors.append(f"Beam model file not found: {beam_model_path!r}")
     if not spr_table_path or not spr_table_path.is_file():
