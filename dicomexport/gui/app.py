@@ -12,6 +12,21 @@ BEAM_MODELS_DIR = PROJECT_ROOT / "res" / "beam_models"
 SPR_TABLES_DIR = PROJECT_ROOT / "res" / "spr_tables"
 
 
+def _sanitize_user_file_path(path_str: str) -> Path | None:
+    """
+    Convert a user-provided string to a Path in a conservative way.
+
+    Returns None if the value is empty or contains path-traversal components.
+    """
+    if not path_str:
+        return None
+    candidate = Path(path_str.strip()).resolve(strict=False)
+    # Reject any path that attempts traversal via ".." components
+    if any(part == ".." for part in candidate.parts):
+        return None
+    return candidate
+
+
 beam_models = list_files(BEAM_MODELS_DIR, [".csv"])
 spr_tables = list_files(SPR_TABLES_DIR, [".csv", ".txt"])
 
@@ -27,7 +42,7 @@ if beam_models:
 else:
     st.warning(f"No beam model CSVs found in {BEAM_MODELS_DIR}")
     _bm_str = st.text_input("Beam model CSV", placeholder="C:\\path\\to\\beam_model.csv")
-    beam_model_path = Path(_bm_str).resolve(strict=False) if _bm_str else None
+    beam_model_path = _sanitize_user_file_path(_bm_str)
 
 if spr_tables:
     spr_table_name = st.selectbox("SPR-to-material table", options=list(spr_tables.keys()))
@@ -36,7 +51,7 @@ if spr_tables:
     _spr_str: str | None = None
 else:
     st.warning(f"No SPR tables found in {SPR_TABLES_DIR}")
-    _spr_str = st.text_input("SPR-to-material table (relative to study directory)", placeholder="spr_table.txt")
+    spr_table_path = _sanitize_user_file_path(_spr_str)
     spr_table_path: Path | None = None
 
 with st.expander("Advanced options"):
