@@ -1,5 +1,16 @@
+import mcpl
+import subprocess
+import tempfile
+import math
+import sys
+import os
 import unittest
+
+import numpy as np
+
 from dicomexport.model_plan import Plan
+
+TEST_PDG_PROTON = 2212
 
 
 class TestPlan(unittest.TestCase):
@@ -15,5 +26,165 @@ class TestPlan(unittest.TestCase):
         self.assertEqual(len(p.fields), 0)
 
 
-if __name__ == '__main__':
+class TestMCPLExport(unittest.TestCase):
+    def test_mcpl_export_roundtrip_100(self):
+        plan_path = "res/test_plans/temp_160MeV_10x10.dcm"
+        bm_path = "res/beam_models/DCPT_beam_model__v2.csv"
+
+        with tempfile.TemporaryDirectory() as td:
+            out_path = os.path.join(td, "myoutput.mcpl")
+
+            cmd = [
+                sys.executable,
+                "dicomexport/main_plan_export.py",
+                plan_path,
+                out_path,
+                f"-b={bm_path}",
+                "--export-fmt=mcpl",
+                "-v",
+                "-N=100",
+            ]
+
+            env = dict(os.environ)
+            env["PYTHONPATH"] = "." + (os.pathsep + env["PYTHONPATH"] if "PYTHONPATH" in env else "")
+
+            try:
+                subprocess.run(
+                    cmd, check=True, env=env,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                )
+            except subprocess.CalledProcessError as e:
+                self.fail(f"CLI failed\ncmd={cmd}\nstdout:\n{e.stdout}\nstderr:\n{e.stderr}")
+
+            out_field = os.path.join(td, "myoutput_field01.mcpl")
+            self.assertTrue(os.path.exists(out_field), f"Expected output file not found: {out_field}")
+
+            m = mcpl.MCPLFile(out_field)
+            particles = list(m.particles)
+            self.assertEqual(len(particles), 100)
+
+            neg_uz = 0
+            for i, p in enumerate(particles):
+                with self.subTest(particle=i):
+                    self.assertEqual(p.pdgcode, TEST_PDG_PROTON)
+
+                    # direction should be finite and ~unit length
+                    self.assertTrue(math.isfinite(p.ux) and math.isfinite(p.uy) and math.isfinite(p.uz))
+                    u2 = p.ux * p.ux + p.uy * p.uy + p.uz * p.uz
+                    self.assertTrue(np.isclose(u2, 1.0), f"|u|^2={u2}")
+
+                    # positions should be finite
+                    self.assertTrue(math.isfinite(p.x) and math.isfinite(p.y) and math.isfinite(p.z))
+
+                    if p.uz < 0.0:
+                        neg_uz += 1
+
+            frac_neg = neg_uz / len(particles)
+
+            # main physics sanity: beam should go toward -z (downstream)
+            self.assertGreaterEqual(
+                frac_neg, 0.99,
+                f"Unexpected uz >= 0 (upstream) directions: {len(particles)-neg_uz}/{len(particles)} have uz >= 0 "
+                f"(frac_neg={frac_neg:.3f})"
+            )
+
+
+class TestSpotlistExport(unittest.TestCase):
+    def test_spotlist_export(self):
+        plan_path = "res/test_plans/temp_160MeV_10x10.dcm"
+        bm_path = "res/beam_models/DCPT_beam_model__v2.csv"
+
+        for col_count in [5, 6, 7, 9, 11]:
+
+            with tempfile.TemporaryDirectory() as td:
+                out_path = os.path.join(td, "myspotlist.dat")
+
+                cmd = [
+                    sys.executable,
+                    "dicomexport/main_plan_export.py",
+                    plan_path,
+                    out_path,
+                    f"-b={bm_path}",
+                    "--export-fmt=spotlist",
+                    "-v",
+                    f"-nc={col_count}",
+                ]
+
+                env = dict(os.environ)
+                env["PYTHONPATH"] = "." + (os.pathsep + env["PYTHONPATH"] if "PYTHONPATH" in env else "")
+
+                try:
+                    subprocess.run(
+                        cmd, check=True, env=env,
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                    )
+                except subprocess.CalledProcessError as e:
+                    self.fail(f"CLI failed\ncmd={cmd}\nstdout:\n{e.stdout}\nstderr:\n{e.stderr}")
+
+                out_field = os.path.join(td, "myspotlist_field01.dat")
+                # check if file exists and has the right number of columns
+                self.assertTrue(os.path.exists(out_field), f"Expected output file not found: {out_field}")
+
+                with open(out_field, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+
+                # Skip header lines starting with '#'
+                data_lines = [line for line in lines if not line.startswith("#") and line.strip()]
+
+                for line in data_lines:
+                    cols = line.strip().split()
+                    self.assertEqual(len(cols), col_count, f"Line has {len(cols)} columns, expected {col_count}")
+
+
+class TestSpotlistExport_6colbm(unittest.TestCase):
+    def test_spotlist_export_6col_bm(self):
+        """ Check loading of 6-column beam model to produce 11-colum spotlist.
+        """
+        plan_path = "res/test_plans/temp_160MeV_10x10.dcm"
+        bm_path = "res/beam_models/bm_test_6col.csv"
+
+        with tempfile.TemporaryDirectory() as td:
+            out_path = os.path.join(td, "myspotlist.dat")
+
+            cmd = [
+                sys.executable,
+                "dicomexport/main_plan_export.py",
+                plan_path,
+                out_path,
+                f"-b={bm_path}",
+                "--export-fmt=spotlist",
+                "-v",
+                "-nc=11",
+            ]
+
+            env = dict(os.environ)
+            env["PYTHONPATH"] = "." + (os.pathsep + env["PYTHONPATH"] if "PYTHONPATH" in env else "")
+
+            try:
+                subprocess.run(
+                    cmd, check=True, env=env,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                )
+            except subprocess.CalledProcessError as e:
+                self.fail(f"CLI failed\ncmd={cmd}\nstdout:\n{e.stdout}\nstderr:\n{e.stderr}")
+
+            out_field = os.path.join(td, "myspotlist_field01.dat")
+            # check if file exists and has the right number of columns
+            self.assertTrue(os.path.exists(out_field), f"Expected output file not found: {out_field}")
+
+            with open(out_field, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+
+            # Skip header lines starting with '#'
+            data_lines = [line for line in lines if not line.startswith("#") and line.strip()]
+
+            for line in data_lines:
+                cols = line.strip().split()
+                self.assertEqual(len(cols), 11, f"Line has {len(cols)} columns, expected 11")
+                # check also if spotlist column 7-10 are 0 for the 6 column beam model input
+                for i in range(6, 10):
+                    self.assertEqual(cols[i], "0", f"Expected column {i+1} to be 0 for 6-column beam model input")
+
+
+if __name__ == "__main__":
     unittest.main()

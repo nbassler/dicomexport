@@ -12,12 +12,9 @@ def get_fwhm(sigma):
 class BeamModel():
     """Beam model from a given CSV file."""
 
-    def __init__(self, fn: Path, nominal=True, beam_model_position=500.0):
+    def __init__(self, fn: Path, beam_model_position=500.0):
         """
         Load a beam model given as a CSV file.
-
-        Interpolation lookup can be done as a function of nominal energy (default, nominal=True),
-        or as a function of actual energy (nominal=False).
 
         Header rows will be discarded and must be prefixed with '#'.
 
@@ -28,28 +25,27 @@ class BeamModel():
             4) primary protons per MU [protons/MU]
             5) 1 sigma spot size x [mm]
             6) 1 sigma spot size y [mm]
-        Optionally, 4 more columns may be given:
             7) 1 sigma divergence x [rad]
             8) 1 sigma divergence y [rad]
-            9) cov (x, x') [mm]
-            10) cov (y, y') [mm]
-
-        TODO: get rid of scipy dependency
+            9) cor (x, x') [mm]
+            10) cor (y, y') [mm]
         """
         data = np.genfromtxt(fn, delimiter=",", invalid_raise=False, comments='#')
 
-        # resolve by nominal energy
-        if nominal:
-            energy = data[:, 0]
-        else:
-            energy = data[:, 1]
+        # lookup by nominal energy (first column)
+        energy = data[:, 0]
 
         k = 'cubic'
 
         cols = len(data[0])
         logger.debug("Number of columns in beam model: %i", cols)
 
+        # Defaults: no divergence / no correlation
         self.has_divergence = False
+        self.f_divx = lambda E: 0.0
+        self.f_divy = lambda E: 0.0
+        self.f_corx = lambda E: 0.0
+        self.f_cory = lambda E: 0.0
 
         try:
             from scipy.interpolate import interp1d
@@ -61,8 +57,8 @@ class BeamModel():
         if cols in (6, 10):
             self.f_en = interp1d(energy, data[:, 0], kind=k)  # nominal energy [MeV]
             self.f_e = interp1d(energy, data[:, 1], kind=k)  # measured energy [MeV]
-            self.f_espread = interp1d(energy, data[:, 2], kind=k)  # energy spread 1 sigma [% of measured energy]
-            self.f_ppmu = interp1d(energy, data[:, 3], kind=k)  # 1e6 protons per MU  [1e6/MU]
+            self.f_espread = interp1d(energy, data[:, 2], kind=k)  # energy spread 1 sigma [MeV]
+            self.f_ppmu = interp1d(energy, data[:, 3], kind=k)  # protons per MU [protons/MU]
             self.f_sx = interp1d(energy, data[:, 4], kind=k)  # 1 sigma x [mm]
             self.f_sy = interp1d(energy, data[:, 5], kind=k)  # 1 sigma y [mm]
         else:
@@ -71,10 +67,11 @@ class BeamModel():
         if cols == 10:
             logger.debug("Beam model has divergence data")
             self.has_divergence = True
-            self.f_divx = interp1d(energy, data[:, 6], kind=k)  # div x [rad]
-            self.f_divy = interp1d(energy, data[:, 7], kind=k)  # div y [rad]
-            self.f_covx = interp1d(energy, data[:, 8], kind=k)  # cov (x, x') [mm]
-            self.f_covy = interp1d(energy, data[:, 9], kind=k)  # cov (y, y') [mm]
+            self.f_divx = interp1d(energy, data[:, 6], kind=k)  # divergence x [rad]
+            self.f_divy = interp1d(energy, data[:, 7], kind=k)  # divergence y [rad]
+            self.f_corx = interp1d(energy, data[:, 8], kind=k)  # correlation coef. rho (x, x') [-]
+            self.f_cory = interp1d(energy, data[:, 9], kind=k)  # correlation coef. rho (y, y') [-]
 
         self.data = data
-        self.beam_model_position = beam_model_position  # position of the beam model in mm
+        # position of the beam model in mm, e.g. 600 mm upstream from isocenter
+        self.beam_model_position = beam_model_position  # in mm

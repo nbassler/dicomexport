@@ -10,13 +10,13 @@ logger = logging.getLogger(__name__)
 
 class TopasPlan:
     @staticmethod
-    def generate(myfield: Field, bm: BeamModel, nominal: bool,
+    def generate(myfield: Field, bm: BeamModel,
                  nstat=100000, test_mode=False) -> str:
         """
         Export the field to a topas input file.
         """
         logger.debug(
-            f"Generating Topas input for field {myfield.number} with nominal={nominal} and nstat={nstat}")
+            f"Generating Topas input for field {myfield.number} with nstat={nstat}")
 
         # sad_x = myfield.layers[0].sad[0]
         # sad_y = myfield.layers[0].sad[1]
@@ -54,20 +54,20 @@ class TopasPlan:
         lines.append(TopasText.field_beam_timefeature())
 
         lines.append(TopasPlan.time_features_string(
-            myfield, bm, nominal, nstat))
+            myfield, bm, nstat))
 
         topas_text = "".join(lines)
         return topas_text
 
     @staticmethod
-    def time_features_string(myfield: Field, bm: BeamModel, nominal: bool, nstat: int = int(1e6)) -> str:
+    def time_features_string(myfield: Field, bm: BeamModel, nstat: int = int(1e6)) -> str:
         """
         Build the TIME FEATURES section for a Topas file and return as a string.
         """
 
         n_spots = myfield.n_spots
         times = np.zeros(n_spots)
-        energies = np.zeros(n_spots)
+        energies_real = np.zeros(n_spots)  # actual energies at the beam model position
         espreads = np.zeros(n_spots)
         posx = np.zeros(n_spots)
         angx = np.zeros(n_spots)
@@ -83,14 +83,16 @@ class TopasPlan:
 
         _spot_index = 0
         for mylayer in myfield.layers:
-            energy = mylayer.energy_nominal if nominal else mylayer.energy_measured
-            espread = mylayer.espread
+
+            # layer.espread is an absolute energy spread in MeV at the beam model position;
+            # convert it to a relative (%) spread for TOPAS (which expects relative energy spread).
+            espread_percent = (mylayer.espread / mylayer.energy_measured) * 100.0  # [%]
             sad_x, sad_y = mylayer.sad
 
             for spot in mylayer.spots:
                 times[_spot_index] = _spot_index + 1
-                energies[_spot_index] = energy
-                espreads[_spot_index] = espread
+                energies_real[_spot_index] = mylayer.energy_measured  # actual energies
+                espreads[_spot_index] = espread_percent
                 posx[_spot_index] = spot.x * \
                     (sad_x - bm.beam_model_position) / sad_x
                 angx[_spot_index] = np.degrees(np.arctan(spot.x / sad_x))
@@ -101,8 +103,8 @@ class TopasPlan:
                 sigy[_spot_index] = bm.f_sy(mylayer.energy_nominal)
                 sigxp[_spot_index] = bm.f_divx(mylayer.energy_nominal)
                 sigyp[_spot_index] = bm.f_divy(mylayer.energy_nominal)
-                corx[_spot_index] = bm.f_covx(mylayer.energy_nominal)
-                cory[_spot_index] = bm.f_covy(mylayer.energy_nominal)
+                corx[_spot_index] = bm.f_corx(mylayer.energy_nominal)
+                cory[_spot_index] = bm.f_cory(mylayer.energy_nominal)
                 nparts[_spot_index] = spot.mu * mylayer.mu_to_part_coef
                 _spot_index += 1
 
@@ -119,7 +121,7 @@ class TopasPlan:
         lines.append(
             f"d:Tf/TimelineEnd                     = {n_spots+1} s\n\n")
 
-        lines.append(_topas_array(times, energies, "Energy", "f", 3, "MeV"))
+        lines.append(_topas_array(times, energies_real, "Energy", "f", 3, "MeV"))
         lines.append(_topas_array(times, espreads, "EnergySpread", "f", 5, ""))
         lines.append(_topas_array(times, posx, "spotPositionX", "f", 2, "mm"))
         lines.append(_topas_array(times, angx, "spotAngleX", "f", 3, "deg"))
@@ -167,7 +169,7 @@ class TopasPlan:
         logger.info(f"Beam Meterset:                {myfield.cum_mu:.2f} MU")
 
 
-def _topas_array(time_arr: np.array, arr: np.array, name: str, fmt: str = "f", precision: int = 0, unit=""):
+def _topas_array(time_arr: np.ndarray, arr: np.ndarray, name: str, fmt: str = "f", precision: int = 0, unit=""):
     """generate string of time data."""
     s = ""
     n_spots = arr.size

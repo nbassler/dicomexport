@@ -265,7 +265,7 @@ class TopasText:
             "##############################################",
             's:Ge/BeamPosition/Parent             = "Gantry"',
             's:Ge/BeamPosition/Type               = "Group"',
-            f"d:Ge/BeamPosition/TransZ             = -{beam_model_position} mm",
+            f"d:Ge/BeamPosition/TransZ             = {beam_model_position} mm",
             "d:Ge/BeamPosition/TransX             = Tf/spotPositionX/Value mm",
             "d:Ge/BeamPosition/TransY             = -1.0 * Tf/spotPositionY/Value mm",
             "d:Ge/BeamPosition/RotX               = -1.0 * Tf/spotAngleY/Value deg",
@@ -296,7 +296,7 @@ class TopasText:
             f"d:Ge/RangeShifter/HLZ                = {rs.thickness*0.5:.2f} mm",
             's:Ge/RangeShifter/Color              = "Orange"',
             # TODO: not to center of RS?
-            f'd:Ge/RangeShifter/TransZ            = {-(rs.isocenter_distance+rs.thickness*0.5):.2f} mm\n',
+            f'd:Ge/RangeShifter/TransZ            = {rs.isocenter_distance+rs.thickness*0.5:.2f} mm\n',
             "\n"
         ]
         return "\n".join(lines)
@@ -419,7 +419,8 @@ class TopasText:
         ]
         return "\n".join(lines)
 
-    # here do a XY scoring box with 2D binning in X an Y
+    # here do a XY scoring box with 2D binning in X and Y
+    @staticmethod
     def scoring_box_xy(size_x: float = 300.0, size_y: float = 300.0) -> str:
         lines = [
             "##############################################",
@@ -442,6 +443,7 @@ class TopasText:
         ]
         return "\n".join(lines)
 
+    @staticmethod
     def scoring_box_xz(size_x: float = 300.0, size_z: float = 300.0) -> str:
         lines = [
             "##############################################",
@@ -464,6 +466,7 @@ class TopasText:
         ]
         return "\n".join(lines)
 
+    @staticmethod
     def scoring_box_yz(size_y: float = 300.0, size_z: float = 300.0) -> str:
         lines = [
             "##############################################",

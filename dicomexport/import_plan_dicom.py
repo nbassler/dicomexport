@@ -68,7 +68,7 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                      len(ibs.value), n_fields)
         raise ValueError("Inconsistent number of fields in DICOM plan.")
 
-    for i, ibm in enumerate(ibs):
+    for i, ibm in enumerate(ibs.value):
         myfield = p.fields[i]
         field_nr = i + 1
         # each layer has 2 control points
@@ -93,7 +93,23 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                 rs_dict[rs.number] = rs
 
         layer_nr = 1
+        logger.debug(f"Processing field number: {field_nr}")
+
+        # init some values which may only be changed once or not at all.
+        sad_x = 0.0
+        sad_y = 0.0
+        snout_position = 0.0
+        isocenter = (0.0, 0.0, 0.0)
+        gantry_angle = 0.0
+        couch_angle = 0.0
+        energy = 0.0
+        size_x = 0.0  # dicom values are in FWHM mm, but will be ignored, if beam model is available.
+        size_y = 0.0
+
+        myfield.has_spreading_device = False
+
         for icp_index, icp in enumerate(icps):
+            logger.debug(f"  Processing control point index: {icp_index}")
             # Several attributes are only set once at the first ion control point.
             # The strategy here is then to still set them for every layer, even if they do not change.
             # This is to ensure that the field object has all necessary attributes set.
@@ -101,7 +117,7 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
             if 'LateralSpreadingDeviceSettingsSequence' in icp:
                 if len(icp['LateralSpreadingDeviceSettingsSequence'].value) != 2:
                     logger.error("LateralSpreadingDeviceSettingsSequence should contain exactly 2 elements, found %d.",
-                                 len(ibm['LateralSpreadingDeviceSettingsSequence'].value))
+                                 len(icp['LateralSpreadingDeviceSettingsSequence'].value))
                     raise ValueError(
                         "Invalid LateralSpreadingDeviceSettingsSequence in DICOM plan.")
 
@@ -110,6 +126,7 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                     lss[0]['IsocenterToLateralSpreadingDeviceDistance'].value)
                 sad_y = float(
                     lss[1]['IsocenterToLateralSpreadingDeviceDistance'].value)
+                myfield.has_spreading_device = True
 
                 logger.debug("Set Lateral spreading device distances: X = %.2f mm, Y = %.2f mm",
                              sad_x, sad_y)
@@ -126,7 +143,7 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                         _rs = rs_dict[_rs_number]
                         myfield.range_shifter = copy.deepcopy(_rs)
                         # set remaining attributes
-                        myfield.range_shifter.has_range_shifter = True
+                        myfield.range_shifter.is_inserted = True
                         myfield.range_shifter.water_equivalent_thickness = rss.get(
                             'WaterEquivalentThickness', 0.0)
                         myfield.range_shifter.isocenter_distance = rss.get(
@@ -139,27 +156,56 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
             if 'IsocenterPosition' in icp:
                 isocenter = tuple(float(v)
                                   for v in icp['IsocenterPosition'].value)
+                # check that length is 3.
+                if len(isocenter) != 3:
+                    logger.error(
+                        "IsocenterPosition must have exactly 3 values, found %d in control point index %i",
+                        len(isocenter), icp_index)
+                    raise ValueError(
+                        "Invalid DICOM plan: IsocenterPosition has incorrect number of values.")
+
             if 'GantryAngle' in icp:
                 gantry_angle = float(icp['GantryAngle'].value)
             if 'PatientSupportAngle' in icp:
                 couch_angle = float(icp['PatientSupportAngle'].value)
 
-            # Check each required DICOM tag individually
+            # Nominal beam energy seems to be a special case, which can be set in
+            # every control point, even if it does not change, or it can be set once
+            # together with gantry angle etc.
+
             if 'NominalBeamEnergy' in icp:
                 # Nominal energy in MeV
                 energy = float(icp['NominalBeamEnergy'].value)
 
+            # The remaining attributes are required for each control point.
+            # Therefore we check them one by one and raise an error if any is missing.
+
             if 'NumberOfScanSpotPositions' in icp:
                 # number of spots
                 nspots = int(icp['NumberOfScanSpotPositions'].value)
+            else:
+                logger.error(
+                    "NumberOfScanSpotPositions not found in control point index %i", icp_index)
+                raise ValueError(
+                    "Invalid DICOM plan: NumberOfScanSpotPositions missing.")
 
             if 'ScanSpotPositionMap' in icp:  # Extract spot MU and scale [MU]
                 pos = np.array(
                     icp['ScanSpotPositionMap'].value).reshape(nspots, 2)
+            else:
+                logger.error(
+                    "ScanSpotPositionMap not found in control point index %i", icp_index)
+                raise ValueError(
+                    "Invalid DICOM plan: ScanSpotPositionMap missing.")
 
             if 'ScanSpotMetersetWeights' in icp:
                 mu = np.array(icp['ScanSpotMetersetWeights'].value).reshape(
                     nspots) * myfield.meterset_per_weight
+            else:
+                logger.error(
+                    "ScanSpotMetersetWeights not found in control point index %i", icp_index)
+                raise ValueError(
+                    "Invalid DICOM plan: ScanSpotMetersetWeights missing.")
 
             # Extract spot nominal sizes [mm FWHM]
             if 'ScanningSpotSize' in icp:
@@ -192,6 +238,15 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                     sad=(sad_x, sad_y),
                     number=layer_nr
                 ))
+                # these are also set on field base, since they are only once set in ICP anyway.
+
+                if myfield.has_spreading_device:
+                    myfield.lateral_spreading_device_distanceX = sad_x
+                    myfield.lateral_spreading_device_distanceY = sad_y
+                else:
+                    myfield.lateral_spreading_device_distanceX = 0.0
+                    myfield.lateral_spreading_device_distanceY = 0.0
+
                 layer_nr += 1
             else:
                 logger.debug("Skipping empty layer index %i", icp_index)

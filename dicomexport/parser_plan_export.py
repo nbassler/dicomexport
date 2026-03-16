@@ -15,21 +15,23 @@ def create_parser():
                         "appended automatically to the name before the extension.")
     parser.add_argument('-b', '--beam-model', type=Path, dest='fbm', help="Beam model CSV path", default=None)
     parser.add_argument('-p', '--beam-model-position', type=float, dest='beam_model_position',
-                        help="Beam model position in mm, relative to isocenter, positive upstream.", default=500.0)
+                        help="Beam model position in mm, relative to isocenter, positive upstream.",
+                        default=500.0)
     parser.add_argument('-f', '--field', type=int, dest='field_nr', default=0,
                         help="Field number to export. If not specified, all fields will be exported.")
     parser.add_argument('-d', '--diag', action='store_true', dest="diag",
                         help="Print plan diagnostics and exit", default=False)
-    parser.add_argument('-a', '--actual-energy', action='store_true', dest="actual",
-                        help="Plan does actual energy lookup, rather than nominal energy lookup.", default=False)
     parser.add_argument('-s', '--scale', type=float, dest='scale',
                         help="additional scaling multiplier for MC plan", default=1.0)
     parser.add_argument('-N', '--nstat', type=int, dest='nstat', help="Target protons for simulation", default=int(1e6))
+    parser.add_argument('-nc', '--spotlist-column-count', type=int, dest='spotlist_column_count',
+                        choices=[5, 6, 7, 9, 11], default=11,
+                        help="Number of columns in the spotlist export. Valid values: 5, 6, 7, 9, or 11 (default: 11).")
 
     parser.add_argument(
-        '--export-fmt', dest='export_fmt', choices=['topas', 'phasespace', 'racehorse'], default='topas',
+        '--export-fmt', dest='export_fmt', choices=['topas', 'mcpl', 'racehorse', 'spotlist'], default='topas',
         help=("Export format (default: topas). "
-              "Formats: topas (*.txt), phasespace (*.mcpl), racehorse (*.csv).")
+              "Formats: topas (*.txt), mcpl (*.mcpl), racehorse (*.csv), spotlist (*.txt).")
     )
 
     parser.add_argument('-v', '--verbosity', action='count', help="Increase verbosity", default=0)
