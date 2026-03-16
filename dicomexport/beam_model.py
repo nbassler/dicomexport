@@ -16,9 +16,6 @@ class BeamModel():
         """
         Load a beam model given as a CSV file.
 
-        Interpolation lookup can be done as a function of nominal energy (default, nominal=True),
-        or as a function of actual energy (nominal=False). Most dicom files use nominal energy.
-
         Header rows will be discarded and must be prefixed with '#'.
 
         Input columns for beam model:
@@ -32,8 +29,6 @@ class BeamModel():
             8) 1 sigma divergence y [rad]
             9) cor (x, x') [mm]
             10) cor (y, y') [mm]
-
-        TODO: get rid of scipy dependency
         """
         data = np.genfromtxt(fn, delimiter=",", invalid_raise=False, comments='#')
 
