@@ -12,7 +12,7 @@ def get_fwhm(sigma):
 class BeamModel():
     """Beam model from a given CSV file."""
 
-    def __init__(self, fn: Path, nominal=True, beam_model_position=500.0):
+    def __init__(self, fn: Path, beam_model_position=500.0):
         """
         Load a beam model given as a CSV file.
 
@@ -37,11 +37,8 @@ class BeamModel():
         """
         data = np.genfromtxt(fn, delimiter=",", invalid_raise=False, comments='#')
 
-        # resolve by nominal energy
-        if nominal:
-            energy = data[:, 0]  # first column holds nominal energy
-        else:
-            energy = data[:, 1]  # second column holds measured energy at the given beam_model position
+        # lookup by nominal energy (first column)
+        energy = data[:, 0]
 
         k = 'cubic'
 
