@@ -1,15 +1,15 @@
 import subprocess
 import sys
 from pathlib import Path
+
 import streamlit as st
 
-# Paths relative to the project root (three levels up from dicomexport/web/)
+from dicomexport.gui.utils import list_files
+
+# Paths relative to the project root (three levels up from dicomexport/gui/)
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 BEAM_MODELS_DIR = PROJECT_ROOT / "res" / "beam_models"
 SPR_TABLES_DIR = PROJECT_ROOT / "res" / "spr_tables"
-
-
-from dicomexport.gui.utils import list_files
 
 
 beam_models = list_files(BEAM_MODELS_DIR, [".csv"])
