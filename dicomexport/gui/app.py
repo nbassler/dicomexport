@@ -22,17 +22,21 @@ study_dir = st.text_input("Study directory", placeholder="C:\\path\\to\\study")
 
 if beam_models:
     beam_model_name = st.selectbox("Beam model", options=list(beam_models.keys()))
-    beam_model = str(beam_models[beam_model_name])
+    # Path object comes directly from the pre-scanned res/ directory, not user input
+    beam_model_path: Path | None = beam_models[beam_model_name]
 else:
     st.warning(f"No beam model CSVs found in {BEAM_MODELS_DIR}")
-    beam_model = st.text_input("Beam model CSV", placeholder="C:\\path\\to\\beam_model.csv")
+    _bm_str = st.text_input("Beam model CSV", placeholder="C:\\path\\to\\beam_model.csv")
+    beam_model_path = Path(_bm_str).resolve(strict=False) if _bm_str else None
 
 if spr_tables:
     spr_table_name = st.selectbox("SPR-to-material table", options=list(spr_tables.keys()))
-    spr_table = str(spr_tables[spr_table_name])
+    # Path object comes directly from the pre-scanned res/ directory, not user input
+    spr_table_path: Path | None = spr_tables[spr_table_name]
 else:
     st.warning(f"No SPR tables found in {SPR_TABLES_DIR}")
-    spr_table = st.text_input("SPR-to-material table", placeholder="C:\\path\\to\\spr_table.txt")
+    _spr_str = st.text_input("SPR-to-material table", placeholder="C:\\path\\to\\spr_table.txt")
+    spr_table_path = Path(_spr_str).resolve(strict=False) if _spr_str else None
 
 with st.expander("Advanced options"):
     output_base = st.text_input("Output filename", value="topas.txt")
@@ -41,17 +45,16 @@ with st.expander("Advanced options"):
     nstat = st.number_input("Target protons (nstat)", value=1_000_000, step=100_000)
 
 if st.button("Run export", type="primary"):
-    study_path = Path(study_dir).resolve(strict=False) if study_dir else None
-    beam_model_path = Path(beam_model).resolve(strict=False) if beam_model else None
-    spr_table_path = Path(spr_table).resolve(strict=False) if spr_table else None
+    # study_dir is intentionally user-provided: the user selects their DICOM study folder
+    study_path = Path(study_dir.strip()).resolve(strict=False) if study_dir else None
 
     errors = []
     if not study_path or not study_path.is_dir():
         errors.append(f"Study directory not found: {study_dir!r}")
     if not beam_model_path or not beam_model_path.is_file():
-        errors.append(f"Beam model file not found: {beam_model!r}")
+        errors.append(f"Beam model file not found: {beam_model_path!r}")
     if not spr_table_path or not spr_table_path.is_file():
-        errors.append(f"SPR table file not found: {spr_table!r}")
+        errors.append(f"SPR table file not found: {spr_table_path!r}")
 
     if errors:
         for e in errors:
