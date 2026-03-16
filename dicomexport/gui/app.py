@@ -41,16 +41,29 @@ with st.expander("Advanced options"):
     nstat = st.number_input("Target protons (nstat)", value=1_000_000, step=100_000)
 
 if st.button("Run export", type="primary"):
-    if not study_dir:
-        st.error("Please provide the study directory.")
+    study_path = Path(study_dir) if study_dir else None
+    beam_model_path = Path(beam_model) if beam_model else None
+    spr_table_path = Path(spr_table) if spr_table else None
+
+    errors = []
+    if not study_path or not study_path.is_dir():
+        errors.append(f"Study directory not found: {study_dir!r}")
+    if not beam_model_path or not beam_model_path.is_file():
+        errors.append(f"Beam model file not found: {beam_model!r}")
+    if not spr_table_path or not spr_table_path.is_file():
+        errors.append(f"SPR table file not found: {spr_table!r}")
+
+    if errors:
+        for e in errors:
+            st.error(e)
     else:
         dicomexport_bin = Path(sys.executable).parent / "dicomexport"
         args = [
             str(dicomexport_bin),
-            study_dir,
+            str(study_path),
             output_base,
-            "-b", beam_model,
-            "-s", spr_table,
+            "-b", str(beam_model_path),
+            "-s", str(spr_table_path),
             "-p", str(bm_position),
             "-f", str(int(field_nr)),
             "-N", str(int(nstat)),

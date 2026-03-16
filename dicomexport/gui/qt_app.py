@@ -38,9 +38,10 @@ class ExportWorker(QThread):
 
         handler = QtHandler(self.log)
         handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
-        root_logger = logging.getLogger()
-        root_logger.addHandler(handler)
-        root_logger.setLevel(logging.INFO)
+        logger = logging.getLogger("dicomexport")
+        prev_level = logger.level
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
 
         try:
             rc = dicomexport_main(self._args)
@@ -48,7 +49,8 @@ class ExportWorker(QThread):
             self.log.emit(f"ERROR: {e}")
             rc = 1
         finally:
-            root_logger.removeHandler(handler)
+            logger.removeHandler(handler)
+            logger.setLevel(prev_level)
 
         self.finished.emit(rc)
 
