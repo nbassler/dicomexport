@@ -41,9 +41,9 @@ with st.expander("Advanced options"):
     nstat = st.number_input("Target protons (nstat)", value=1_000_000, step=100_000)
 
 if st.button("Run export", type="primary"):
-    study_path = Path(study_dir) if study_dir else None
-    beam_model_path = Path(beam_model) if beam_model else None
-    spr_table_path = Path(spr_table) if spr_table else None
+    study_path = Path(study_dir).resolve(strict=False) if study_dir else None
+    beam_model_path = Path(beam_model).resolve(strict=False) if beam_model else None
+    spr_table_path = Path(spr_table).resolve(strict=False) if spr_table else None
 
     errors = []
     if not study_path or not study_path.is_dir():
