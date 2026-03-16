@@ -36,18 +36,18 @@ jobs:
         pyinstaller --onefile --windowed --name dicomexport dicomexport/gui/qt_app.py
 
     - name: Package GUI zip (exe + res/)
-      run: |
-        mkdir dicomexport-windows
-        copy dist\dicomexport.exe dicomexport-windows\
-        xcopy /E /I res dicomexport-windows\res
-        Compress-Archive -Path dicomexport-windows -DestinationPath dist\dicomexport-windows.zip
       shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Path dicomexport-windows
+        Copy-Item dist\dicomexport.exe dicomexport-windows\
+        Copy-Item -Recurse res dicomexport-windows\res
+        Compress-Archive -Path dicomexport-windows -DestinationPath dist\dicomexport-windows.zip
 
     - name: Upload artifacts to release
       if: github.event_name == 'release'
       uses: softprops/action-gh-release@v2
       with:
-        files: |
+        files: >-
           dist/dicomexport-windows.zip
           dist/dicomexport-cli.exe
 

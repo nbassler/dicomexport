@@ -4,39 +4,21 @@ from pathlib import Path
 
 import streamlit as st
 
-from dicomexport.gui.utils import list_files
-
-# Paths relative to the project root (three levels up from dicomexport/gui/)
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-BEAM_MODELS_DIR = PROJECT_ROOT / "res" / "beam_models"
-SPR_TABLES_DIR = PROJECT_ROOT / "res" / "spr_tables"
+from dicomexport.gui.utils import BEAM_MODELS_DIR, SPR_TABLES_DIR, list_files
 
 
-def _sanitize_user_file_path(path_str: str) -> Path | None:
-    """
-    Convert a user-provided string to a Path in a conservative way.
-
-    Returns None if the value is empty, contains path-traversal components,
-    or includes any directory separators.
-    """
-    if not path_str:
-        return None
-    raw = path_str.strip()
-    if not raw:
-        return None
-    # Reject obvious path traversal and directory components to avoid
-    # accessing arbitrary locations on the filesystem.
-    if raw in (".", ".."):
-        return None
-    if "/" in raw or "\\" in raw:
-        return None
-    # At this point, treat the value as a simple filename.
-    candidate = Path(raw)
-    return candidate
+@st.cache_resource
+def get_beam_models() -> dict:
+    return list_files(BEAM_MODELS_DIR, [".csv"])
 
 
-beam_models = list_files(BEAM_MODELS_DIR, [".csv"])
-spr_tables = list_files(SPR_TABLES_DIR, [".csv", ".txt"])
+@st.cache_resource
+def get_spr_tables() -> dict:
+    return list_files(SPR_TABLES_DIR, [".csv", ".txt"])
+
+
+beam_models = get_beam_models()
+spr_tables = get_spr_tables()
 
 st.title("DICOM Export")
 st.info("Tip: in Windows Explorer, click the address bar to copy a folder path, then paste it here.")
@@ -44,76 +26,33 @@ st.info("Tip: in Windows Explorer, click the address bar to copy a folder path, 
 study_dir = st.text_input("Study directory", placeholder="C:\\path\\to\\study")
 
 if beam_models:
-    beam_model_name = st.selectbox("Beam model", options=list(beam_models.keys()))
-    # Path object comes directly from the pre-scanned res/ directory, not user input
+    beam_model_name = st.selectbox("Beam model", options=list(beam_models))
     beam_model_path: Path | None = beam_models[beam_model_name]
 else:
     st.warning(f"No beam model CSVs found in {BEAM_MODELS_DIR}")
     _bm_str = st.text_input("Beam model CSV", placeholder="C:\\path\\to\\beam_model.csv")
-    beam_model_path = _sanitize_user_file_path(_bm_str)
+    beam_model_path = Path(_bm_str).resolve(strict=False) if _bm_str else None
 
 if spr_tables:
-    spr_table_name = st.selectbox("SPR-to-material table", options=list(spr_tables.keys()))
-    # Path object comes directly from the pre-scanned res/ directory, not user input
+    spr_table_name = st.selectbox("SPR-to-material table", options=list(spr_tables))
     spr_table_path: Path | None = spr_tables[spr_table_name]
-    _spr_str: str | None = None
 else:
     st.warning(f"No SPR tables found in {SPR_TABLES_DIR}")
-    spr_table_path = _sanitize_user_file_path(_spr_str)
-    spr_table_path: Path | None = None
-    # study_dir is intentionally user-provided: the user selects their DICOM study folder.
-    study_path = _sanitize_user_file_path(study_dir) if study_dir else None
-    study_path = Path(study_dir.strip()).expanduser().absolute() if study_dir else None
-    study_path = _sanitize_user_file_path(study_dir) if study_dir else None
-    if study_path is not None:
-        try:
-            # Ensure the study directory is located within the project root directory
-            study_path.relative_to(PROJECT_ROOT)
-        except ValueError:
-            errors.append(
-                f"Study directory must be located inside the project root: {PROJECT_ROOT}"
-            )
-            study_path = None
+    _spr_str = st.text_input("SPR-to-material table", placeholder="C:\\path\\to\\spr_table.txt")
+    spr_table_path = Path(_spr_str).resolve(strict=False) if _spr_str else None
+
+with st.expander("Advanced options"):
     output_base = st.text_input("Output filename", value="topas.txt")
     bm_position = st.number_input("Beam model position (mm)", value=500.0)
     field_nr = st.number_input("Field number (0 = all)", value=0, step=1)
     nstat = st.number_input("Target protons (nstat)", value=1_000_000, step=100_000)
 
 if st.button("Run export", type="primary"):
-    # study_dir is intentionally user-provided: the user selects their DICOM study folder
     study_path = Path(study_dir.strip()).resolve(strict=False) if study_dir else None
 
     errors = []
     if not study_path or not study_path.is_dir():
         errors.append(f"Study directory not found: {study_dir!r}")
-
-    # If no bundled SPR tables are available, interpret the user-provided path
-    # as relative to the study directory and ensure it does not escape it.
-    if not spr_tables:
-        if not _spr_str:
-                # Normalize the study directory once and ensure the SPR table path
-                # stays within that directory, preventing path traversal.
-                base_study_path = study_path.resolve(strict=False)
-                raw_spr_path = base_study_path / candidate
-        else:
-                    raw_spr_path.relative_to(base_study_path)
-            candidate = Path(_spr_str)
-            if candidate.is_absolute():
-                errors.append("Absolute paths are not allowed for the SPR-to-material table; "
-                              "please provide a path relative to the study directory.")
-                spr_table_path = None
-            elif study_path and study_path.is_dir():
-                raw_spr_path = (study_path / candidate).resolve(strict=False)
-                try:
-                    raw_spr_path.relative_to(study_path)
-                except ValueError:
-                    errors.append("SPR-to-material table must be located inside the study directory.")
-                    spr_table_path = None
-                else:
-                    spr_table_path = raw_spr_path
-            else:
-                spr_table_path = None
-
     if not beam_model_path or not beam_model_path.is_file():
         errors.append(f"Beam model file not found: {beam_model_path!r}")
     if not spr_table_path or not spr_table_path.is_file():
