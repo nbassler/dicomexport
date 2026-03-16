@@ -85,7 +85,8 @@ class TopasPlan:
         _spot_index = 0
         for mylayer in myfield.layers:
 
-            # energy spread is in % of the actual energy at the beam model position, not in MeV.
+            # layer.espread is an absolute energy spread in MeV at the beam model position;
+            # convert it to a relative (%) spread for TOPAS (which expects relative energy spread).
             espread_percent = (mylayer.espread / mylayer.energy_measured) * 100.0  # [%]
             sad_x, sad_y = mylayer.sad
 
