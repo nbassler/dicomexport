@@ -62,9 +62,18 @@ else:
     spr_table_path = _sanitize_user_file_path(_spr_str)
     spr_table_path: Path | None = None
     # study_dir is intentionally user-provided: the user selects their DICOM study folder.
-    # Convert it to an absolute, normalized path without following symlinks.
+    study_path = _sanitize_user_file_path(study_dir) if study_dir else None
     study_path = Path(study_dir.strip()).expanduser().absolute() if study_dir else None
     study_path = _sanitize_user_file_path(study_dir) if study_dir else None
+    if study_path is not None:
+        try:
+            # Ensure the study directory is located within the project root directory
+            study_path.relative_to(PROJECT_ROOT)
+        except ValueError:
+            errors.append(
+                f"Study directory must be located inside the project root: {PROJECT_ROOT}"
+            )
+            study_path = None
     output_base = st.text_input("Output filename", value="topas.txt")
     bm_position = st.number_input("Beam model position (mm)", value=500.0)
     field_nr = st.number_input("Field number (0 = all)", value=0, step=1)
