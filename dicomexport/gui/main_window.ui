@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>620</width>
+    <height>520</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>DICOM Export</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+
+    <!-- Required inputs -->
+    <item>
+     <layout class="QFormLayout" name="formLayout">
+
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_study_dir">
+        <property name="text"><string>Study directory</string></property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <layout class="QHBoxLayout">
+        <item><widget class="QLineEdit" name="study_dir"/></item>
+        <item>
+         <widget class="QPushButton" name="btn_study_dir">
+          <property name="text"><string>Browse...</string></property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_beam_model">
+        <property name="text"><string>Beam model</string></property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QComboBox" name="beam_model"/>
+      </item>
+
+      <item row="2" column="0">
+       <widget class="QLabel" name="label_spr_table">
+        <property name="text"><string>SPR-to-material table</string></property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QComboBox" name="spr_table"/>
+      </item>
+
+     </layout>
+    </item>
+
+    <!-- Advanced options -->
+    <item>
+     <widget class="QGroupBox" name="groupBox_advanced">
+      <property name="title"><string>Advanced options</string></property>
+      <layout class="QFormLayout" name="formLayout_advanced">
+
+       <item row="0" column="0">
+        <widget class="QLabel"><property name="text"><string>Output filename</string></property></widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QLineEdit" name="output_base">
+         <property name="text"><string>topas.txt</string></property>
+        </widget>
+       </item>
+
+       <item row="1" column="0">
+        <widget class="QLabel"><property name="text"><string>Beam model position (mm)</string></property></widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QDoubleSpinBox" name="bm_position">
+         <property name="minimum"><double>0.0</double></property>
+         <property name="maximum"><double>9999.0</double></property>
+         <property name="singleStep"><double>10.0</double></property>
+        </widget>
+       </item>
+
+       <item row="2" column="0">
+        <widget class="QLabel"><property name="text"><string>Field number (0 = all)</string></property></widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QSpinBox" name="field_nr">
+         <property name="minimum"><number>0</number></property>
+         <property name="maximum"><number>99</number></property>
+        </widget>
+       </item>
+
+       <item row="3" column="0">
+        <widget class="QLabel"><property name="text"><string>Target protons (nstat)</string></property></widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QSpinBox" name="nstat">
+         <property name="minimum"><number>1000</number></property>
+         <property name="maximum"><number>999999999</number></property>
+         <property name="singleStep"><number>100000</number></property>
+        </widget>
+       </item>
+
+      </layout>
+     </widget>
+    </item>
+
+    <!-- Run button -->
+    <item>
+     <widget class="QPushButton" name="btn_run">
+      <property name="text"><string>Run export</string></property>
+     </widget>
+    </item>
+
+    <!-- Log output -->
+    <item>
+     <widget class="QTextEdit" name="log_output">
+      <property name="readOnly"><bool>true</bool></property>
+      <property name="placeholderText"><string>Output will appear here...</string></property>
+     </widget>
+    </item>
+
+   </layout>
+  </widget>
+ </widget>
+</ui>
