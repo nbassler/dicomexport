@@ -47,7 +47,7 @@ jobs:
       if: github.event_name == 'release'
       uses: softprops/action-gh-release@v2
       with:
-        files: >-
+        files: |
           dist/dicomexport-windows.zip
           dist/dicomexport-cli.exe
 
