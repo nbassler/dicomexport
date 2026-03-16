@@ -16,14 +16,22 @@ def _sanitize_user_file_path(path_str: str) -> Path | None:
     """
     Convert a user-provided string to a Path in a conservative way.
 
-    Returns None if the value is empty or contains path-traversal components.
+    Returns None if the value is empty, contains path-traversal components,
+    or includes any directory separators.
     """
     if not path_str:
         return None
-    candidate = Path(path_str.strip()).resolve(strict=False)
-    # Reject any path that attempts traversal via ".." components
-    if any(part == ".." for part in candidate.parts):
+    raw = path_str.strip()
+    if not raw:
         return None
+    # Reject obvious path traversal and directory components to avoid
+    # accessing arbitrary locations on the filesystem.
+    if raw in (".", ".."):
+        return None
+    if "/" in raw or "\\" in raw:
+        return None
+    # At this point, treat the value as a simple filename.
+    candidate = Path(raw)
     return candidate
 
 
