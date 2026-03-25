@@ -1,6 +1,13 @@
+import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+# When frozen by PyInstaller (--onefile), __file__ is inside a temp extraction
+# directory. Use the directory of the actual executable instead.
+if getattr(sys, "frozen", False):
+    PROJECT_ROOT = Path(sys.executable).parent
+else:
+    PROJECT_ROOT = Path(__file__).parent.parent.parent
+
 BEAM_MODELS_DIR = PROJECT_ROOT / "res" / "beam_models"
 SPR_TABLES_DIR = PROJECT_ROOT / "res" / "spr_tables"
 

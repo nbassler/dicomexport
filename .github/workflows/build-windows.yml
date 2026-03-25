@@ -33,7 +33,7 @@ jobs:
 
     - name: Build GUI EXE
       run: |
-        pyinstaller --onefile --windowed --name dicomexport dicomexport/gui/qt_app.py
+        pyinstaller --onefile --windowed --name dicomexport --add-data "dicomexport/gui/main_window.ui;dicomexport/gui" dicomexport/gui/qt_app.py
 
     - name: Package GUI zip (exe + res/)
       shell: pwsh
