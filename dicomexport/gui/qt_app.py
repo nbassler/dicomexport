@@ -10,7 +10,10 @@ from dicomexport.gui.utils import BEAM_MODELS_DIR, SPR_TABLES_DIR, list_files
 from dicomexport.main import main as dicomexport_main
 from dicomexport.parser_main import create_parser
 
-UI_FILE = Path(__file__).parent / "main_window.ui"
+if getattr(sys, "frozen", False):
+    UI_FILE = Path(sys._MEIPASS) / "dicomexport" / "gui" / "main_window.ui"
+else:
+    UI_FILE = Path(__file__).parent / "main_window.ui"
 
 
 class ExportWorker(QThread):

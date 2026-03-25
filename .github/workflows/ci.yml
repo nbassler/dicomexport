@@ -31,7 +31,7 @@ jobs:
       run: |
         pytest --maxfail=2 --disable-warnings
 
-  build-windows:
+  build-windows-check:
     runs-on: windows-latest
 
     steps:
@@ -56,15 +56,15 @@ jobs:
 
     - name: Build GUI EXE
       run: |
-        pyinstaller --onefile --windowed --name dicomexport dicomexport/gui/qt_app.py
+        pyinstaller --onefile --windowed --name dicomexport --add-data "dicomexport/gui/main_window.ui;dicomexport/gui" dicomexport/gui/qt_app.py
 
     - name: Package GUI zip (exe + res/)
-      run: |
-        mkdir dicomexport-windows
-        copy dist\dicomexport.exe dicomexport-windows\
-        xcopy /E /I res dicomexport-windows\res
-        Compress-Archive -Path dicomexport-windows -DestinationPath dist\dicomexport-windows.zip
       shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Path dicomexport-windows
+        Copy-Item dist\dicomexport.exe dicomexport-windows\
+        Copy-Item -Recurse res dicomexport-windows\res
+        Compress-Archive -Path dicomexport-windows -DestinationPath dist\dicomexport-windows.zip
 
   build-linux:
     runs-on: ubuntu-latest

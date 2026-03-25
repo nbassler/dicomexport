@@ -33,7 +33,7 @@ jobs:
 
     - name: Build GUI EXE
       run: |
-        pyinstaller --onefile --windowed --name dicomexport dicomexport/gui/qt_app.py
+        pyinstaller --onefile --windowed --name dicomexport --add-data "dicomexport/gui/main_window.ui;dicomexport/gui" dicomexport/gui/qt_app.py
 
     - name: Package GUI zip (exe + res/)
       shell: pwsh
@@ -42,6 +42,14 @@ jobs:
         Copy-Item dist\dicomexport.exe dicomexport-windows\
         Copy-Item -Recurse res dicomexport-windows\res
         Compress-Archive -Path dicomexport-windows -DestinationPath dist\dicomexport-windows.zip
+
+    - name: Upload artifact for testing (non-release)
+      if: github.event_name != 'release'
+      uses: actions/upload-artifact@v4
+      with:
+        name: dicomexport-windows
+        path: dicomexport-windows/
+        retention-days: 3
 
     - name: Upload artifacts to release
       if: github.event_name == 'release'
