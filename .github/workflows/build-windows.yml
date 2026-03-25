@@ -48,7 +48,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: dicomexport-windows
-        path: dist/dicomexport-windows.zip
+        path: dicomexport-windows/
         retention-days: 3
 
     - name: Upload artifacts to release
