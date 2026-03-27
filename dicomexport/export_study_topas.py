@@ -48,8 +48,7 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     # topas results will be written to output/field_number (no extension, will be handled by Topas
     # make target string for output file:
     if output_base_path:
-        topas_output_file_str_no_suffix = output_base_path.with_name(
-            f"{output_base_path.stem}_field{fld.number}")
+        topas_output_file_str_no_suffix = Path(f"{output_base_path.stem}_field{fld.number}")
     else:
         topas_output_file_str_no_suffix = Path(f"foobar_field{fld.number}")
 
