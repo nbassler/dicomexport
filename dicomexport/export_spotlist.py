@@ -116,6 +116,7 @@ def export_spotlist(
 
     bm = getattr(plan, "beam_model", None)
     bmpos = getattr(bm, "beam_model_position", None) if bm is not None else None
+    bmfile = getattr(bm, "filename", None) if bm is not None else None
 
     if bmpos is not None:
         logger.info(
@@ -156,6 +157,7 @@ def export_spotlist(
             field_name=field_obj.name,
             n_spots=field_obj.n_spots,
             bmpos=bmpos,
+            bmfile=bmfile,
             spot_pos_iso=spot_pos_iso,
         )
         _write_spotlist(df[df["field"] == field_idx], out_path, col_count=col_count, header=header_field)
@@ -337,6 +339,7 @@ def _build_spotlist_header(
     field_name: str | None = None,
     n_spots: int | None = None,
     bmpos: float | None = None,
+    bmfile: str | None = None,
     spot_pos_iso: bool = False,
 ) -> str:
     try:
@@ -358,6 +361,8 @@ def _build_spotlist_header(
         lines.append(f"# FieldNumber: {field_no}")
     if field_name:
         lines.append(f"# FieldName: {field_name}")
+    if bmfile is not None:
+        lines.append(f"# BeamModel: {bmfile}")
     if bmpos is not None:
         lines.append(f"# BeamModelPosition: {abs(bmpos):.1f} mm upstream of isocenter")
     lines.append(f"# SpotPositionPlane: {'isocenter (z=0)' if spot_pos_iso else 'beam model plane'}")
