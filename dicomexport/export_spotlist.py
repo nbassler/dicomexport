@@ -14,6 +14,12 @@ The main public entry point is :func:`export_spotlist`, which:
   (e.g. FWHM from sigma, divergences, correlations).
 - Writes the result to disk as a space-separated text file with a
   configurable number of columns, as defined in ``SPOTLIST_EXPORT_COLS``.
+
+By default, spot X/Y positions are backprojected to the beam model plane
+(z = -D, where D is the beam model position). Pass ``spot_pos_iso=True``
+to export positions at the isocenter plane (z = 0) instead — a hybrid
+mode where positions are at isocenter but spot sizes, divergences, and
+correlations remain at the beam model definition.
 """
 
 from __future__ import annotations
@@ -67,6 +73,7 @@ def export_spotlist(
     *,
     field_list: list[int] | None = None,
     col_count: int = 11,
+    spot_pos_iso: bool = False,
 ) -> None:
     """
     Export spot list data from a treatment plan to file(s).
@@ -83,6 +90,10 @@ def export_spotlist(
             all fields in the plan are exported. Defaults to None.
         col_count: Number of columns in the output file format. Must be a valid
             value supported by the spotlist header builder. Defaults to 11.
+        spot_pos_iso: If True, export spot X/Y positions at the isocenter plane
+            (z=0) instead of backprojecting to the beam model plane. Spot sizes,
+            divergences, and correlations are unaffected and still come from the
+            beam model. Defaults to False.
 
     Returns:
         None
@@ -100,7 +111,7 @@ def export_spotlist(
     df = _plan_to_spot_dataframe(plan)
 
     # Add derived export columns (GeV/cm/FWHM/mrad + Weight)
-    df = _add_spotlist_export_columns(df)
+    df = _add_spotlist_export_columns(df, spot_pos_iso=spot_pos_iso)
 
     bm = getattr(plan, "beam_model", None)
     bmpos = getattr(bm, "beam_model_position", None) if bm is not None else None
@@ -144,6 +155,7 @@ def export_spotlist(
             field_name=field_obj.name,
             n_spots=field_obj.n_spots,
             bmpos=bmpos,
+            spot_pos_iso=spot_pos_iso,
         )
         _write_spotlist(df[df["field"] == field_idx], out_path, col_count=col_count, header=header_field)
 
@@ -281,7 +293,7 @@ def _plan_to_spot_dataframe(plan) -> pd.DataFrame:
     return df
 
 
-def _add_spotlist_export_columns(df: pd.DataFrame) -> pd.DataFrame:
+def _add_spotlist_export_columns(df: pd.DataFrame, *, spot_pos_iso: bool = False) -> pd.DataFrame:
     out = df.copy()
 
     # energy
@@ -290,13 +302,12 @@ def _add_spotlist_export_columns(df: pd.DataFrame) -> pd.DataFrame:
     out["E_GeV"] = E_MeV / 1000.0
     out["dE_GeV"] = dE_MeV / 1000.0
 
-    # positions at isocenter plane, kept as future option.
-    # out["X_cm"] = out["x_mm"] / 10.0
-    # out["Y_cm"] = out["y_mm"] / 10.0
-
-    # beam model plane positions are more relevant for dose engines that instantiate particles at the beam model plane
-    out["X_cm"] = out["x_bm_mm"] / 10.0
-    out["Y_cm"] = out["y_bm_mm"] / 10.0
+    if spot_pos_iso:
+        out["X_cm"] = out["x_iso_mm"] / 10.0
+        out["Y_cm"] = out["y_iso_mm"] / 10.0
+    else:
+        out["X_cm"] = out["x_bm_mm"] / 10.0
+        out["Y_cm"] = out["y_bm_mm"] / 10.0
 
     # widths: export as FWHM in cm
     out["FWHMx_cm"] = (out["sx_mm"] * SIGMA_TO_FWHM) / 10.0
@@ -325,8 +336,7 @@ def _build_spotlist_header(
     field_name: str | None = None,
     n_spots: int | None = None,
     bmpos: float | None = None,
-
-
+    spot_pos_iso: bool = False,
 ) -> str:
     try:
         cols = SPOTLIST_EXPORT_COLS[col_count]
@@ -347,6 +357,7 @@ def _build_spotlist_header(
         lines.append(f"# FieldName: {field_name}")
     if bmpos is not None:
         lines.append(f"# BeamModelPosition: {bmpos:+.1f} mm")
+    lines.append(f"# SpotPositionPlane: {'isocenter (z=0)' if spot_pos_iso else 'beam model plane'}")
     if n_spots is not None:
         lines.append(f"# Spots: {n_spots}")
 

@@ -34,6 +34,10 @@ def create_parser():
               "Formats: topas (*.txt), mcpl (*.mcpl), racehorse (*.csv), spotlist (*.txt).")
     )
 
+    parser.add_argument('--spot-pos-iso', action='store_true', dest='spot_pos_iso', default=False,
+                        help="Export spot X/Y positions at isocenter (z=0) instead of the beam model plane. "
+                             "Spot sizes, divergences, and correlations are still taken from the beam model.")
+
     parser.add_argument('-v', '--verbosity', action='count', help="Increase verbosity", default=0)
     parser.add_argument('-V', '--version', action='version', version=__version__)
 
