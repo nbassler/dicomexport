@@ -28,6 +28,7 @@ from dicomexport.model_plan import Plan
 from dicomexport.__version__ import __version__
 
 import logging
+from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
@@ -346,17 +347,19 @@ def _build_spotlist_header(
     labels = [SPOTLIST_COLUMN_LABELS[c] for c in cols]
     col_desc = ", ".join(labels)
 
+    timestamp = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+
     lines = [
         f"# DICOM-RT Ion plan spot list exported by dicomexport {version}",
+        f"# Created: {timestamp}",
     ]
 
-    # Field metadata comes early (what you want)
     if field_no is not None:
         lines.append(f"# FieldNumber: {field_no}")
-    if field_name is not None:
+    if field_name:
         lines.append(f"# FieldName: {field_name}")
     if bmpos is not None:
-        lines.append(f"# BeamModelPosition: {bmpos:+.1f} mm")
+        lines.append(f"# BeamModelPosition: {abs(bmpos):.1f} mm upstream of isocenter")
     lines.append(f"# SpotPositionPlane: {'isocenter (z=0)' if spot_pos_iso else 'beam model plane'}")
     if n_spots is not None:
         lines.append(f"# Spots: {n_spots}")

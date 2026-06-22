@@ -71,6 +71,7 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
     for i, ibm in enumerate(ibs.value):
         myfield = p.fields[i]
         field_nr = i + 1
+        myfield.name = str(ibm['BeamName'].value) if 'BeamName' in ibm else ''
         # each layer has 2 control points
         n_layers = int(ibm['NumberOfControlPoints'].value) // 2
         myfield.meterset_weight_final = float(
