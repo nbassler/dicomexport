@@ -77,6 +77,7 @@ def main(args=None) -> int:
             parsed_args.fout,
             field_list=[parsed_args.field_nr] if parsed_args.field_nr > 0 else None,
             col_count=parsed_args.spotlist_column_count,
+            spot_pos_iso=parsed_args.spot_pos_iso,
         )
 
     else:

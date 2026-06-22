@@ -1,7 +1,9 @@
-import unittest
+import re
 import sys
 from pathlib import Path
 from io import StringIO
+
+import pytest
 
 import dicomexport.main as study
 
@@ -9,115 +11,67 @@ DICOM_TEST_DIR = Path("res/test_studies/DCPT_headphantom/")
 BEAM_MODEL_PATH = Path("res/beam_models/DCPT_beam_model__v2.csv")
 SPR_TABLE_PATH = Path("res/spr_tables/SPRtoMaterial__Brain.txt")
 
+_TOPAS_OUTPUT_FILES = [Path(f"topas_field{i:02d}.txt") for i in range(1, 4)]
 
-class TestPregdosCLI(unittest.TestCase):
+
+class TestPregdosCLI:
+
+    def teardown_method(self):
+        for f in _TOPAS_OUTPUT_FILES:
+            if f.exists():
+                f.unlink()
 
     def test_help_flag(self):
-        """Test that -h returns help message without error."""
         saved_stdout = sys.stdout
         try:
             sys.stdout = StringIO()
-            with self.assertRaises(SystemExit) as cm:
+            with pytest.raises(SystemExit) as exc_info:
                 study.main(["-h"])
             output = sys.stdout.getvalue()
-            self.assertIn("usage", output.lower())
-            self.assertEqual(cm.exception.code, 0)
         finally:
             sys.stdout = saved_stdout
+        assert "usage" in output.lower()
+        assert exc_info.value.code == 0
 
     def test_version_flag(self):
-        """Test that -V returns version string without error."""
         saved_stdout = sys.stdout
         try:
             sys.stdout = StringIO()
-            with self.assertRaises(SystemExit) as cm:
+            with pytest.raises(SystemExit) as exc_info:
                 study.main(["-V"])
             output = sys.stdout.getvalue()
-            # Match versions like 0.0.post2+g3e1d4d2
-            self.assertRegex(output, r"\d+\.\d+(\.\d+)?([a-z0-9\.\+\-]+)?")
-            self.assertEqual(cm.exception.code, 0)
         finally:
             sys.stdout = saved_stdout
+        assert re.search(r"\d+\.\d+(\.\d+)?([a-z0-9\.\+\-]+)?", output)
+        assert exc_info.value.code == 0
 
     def test_main(self):
-        """Helper to run CLI on a given DICOM file and check output."""
-
-        test_output_files = [
-            Path(f"topas_field{i:02d}.txt") for i in range(1, 4)
-        ]
-
-        # Clean up any existing output files
-        for test_output_file in test_output_files:
-            if test_output_file.exists():
-                test_output_file.unlink()
-
         test_args = [
             "-vv",
             "-p 500.0",
             f"-b={BEAM_MODEL_PATH}",
             f"-s={SPR_TABLE_PATH}",
-            f"{DICOM_TEST_DIR}"
+            f"{DICOM_TEST_DIR}",
         ]
+        assert study.main(test_args) == 0, f"CLI execution failed for {DICOM_TEST_DIR}"
 
-        retcode = study.main(test_args)
-        self.assertEqual(
-            retcode, 0, f"CLI execution failed for {DICOM_TEST_DIR}")
+        for f in _TOPAS_OUTPUT_FILES:
+            assert f.exists(), f"Output file was not created: {f}"
+            assert f.stat().st_size > 0, f"Output file is empty: {f}"
 
-        # check if all output files were created and are not empty:
-        for test_output_file in test_output_files:
-            self.assertTrue(test_output_file.exists(),
-                            f"Output file was not created for {DICOM_TEST_DIR}.")
-            self.assertGreater(test_output_file.stat().st_size,
-                               0, f"Output file is empty for {DICOM_TEST_DIR}.")
-
-        # Clean up
-        for test_output_file in test_output_files:
-            test_output_file.unlink()
-
-    # test for -N nstat parameter
     def test_nstat_parameter(self):
-        """Test that the -N parameter correctly sets the nstat value in the output files."""
-
-        test_output_files = [
-            Path(f"topas_field{i:02d}.txt") for i in range(1, 4)
-        ]
-
-        # Clean up any existing output files
-        for test_output_file in test_output_files:
-            if test_output_file.exists():
-                test_output_file.unlink()
-
-        nstat_value = int(2e6)  # double of the default value
+        nstat_value = int(2e6)
         test_args = [
             "-vv",
             f"-N={nstat_value}",
             f"-b={BEAM_MODEL_PATH}",
             f"-s={SPR_TABLE_PATH}",
-            f"{DICOM_TEST_DIR}"
+            f"{DICOM_TEST_DIR}",
         ]
+        assert study.main(test_args) == 0, "CLI execution failed with -N parameter."
 
-        retcode = study.main(test_args)
-        self.assertEqual(
-            retcode, 0, f"CLI execution failed for {DICOM_TEST_DIR} with -N parameter.")
-
-        # check if all output files were created and contain the correct nstat value:
-        for test_output_file in test_output_files:
-            self.assertTrue(test_output_file.exists(),
-                            f"Output file was not created for {DICOM_TEST_DIR} with -N parameter.")
-            with open(test_output_file, 'r') as f:
-                content = f.read()
-                self.assertIn(f"# REQUESTED_HISTORIES: {nstat_value}", content,
-                              f"nStat value not found or incorrect in {test_output_file}.")
-
-    def tearDown(self):
-        """Clean up any created files after each test."""
-        test_output_files = [
-            Path(f"topas_field{i:02d}.txt") for i in range(1, 4)
-        ]
-        for test_output_file in test_output_files:
-            if test_output_file.exists():
-                test_output_file.unlink()
-
-
-if __name__ == "__main__":
-    unittest.main()
+        for f in _TOPAS_OUTPUT_FILES:
+            assert f.exists(), f"Output file was not created: {f}"
+            content = f.read_text()
+            assert f"# REQUESTED_HISTORIES: {nstat_value}" in content, \
+                f"nStat value not found or incorrect in {f}."
