@@ -68,7 +68,7 @@ class TestPregdosCLI:
             f"-s={SPR_TABLE_PATH}",
             f"{DICOM_TEST_DIR}",
         ]
-        assert study.main(test_args) == 0, f"CLI execution failed with -N parameter."
+        assert study.main(test_args) == 0, "CLI execution failed with -N parameter."
 
         for f in _TOPAS_OUTPUT_FILES:
             assert f.exists(), f"Output file was not created: {f}"

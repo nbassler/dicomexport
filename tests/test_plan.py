@@ -108,7 +108,7 @@ class TestSpotlistExport:
             assert os.path.exists(out_field), f"Expected output file not found: {out_field}"
 
             with open(out_field, encoding="utf-8") as f:
-                data_lines = [l for l in f if not l.startswith("#") and l.strip()]
+                data_lines = [line for line in f if not line.startswith("#") and line.strip()]
 
             for line in data_lines:
                 cols = line.strip().split()
@@ -148,7 +148,7 @@ class TestSpotlistExport6ColBM:
             assert os.path.exists(out_field), f"Expected output file not found: {out_field}"
 
             with open(out_field, encoding="utf-8") as f:
-                data_lines = [l for l in f if not l.startswith("#") and l.strip()]
+                data_lines = [line for line in f if not line.startswith("#") and line.strip()]
 
             for line in data_lines:
                 cols = line.strip().split()
