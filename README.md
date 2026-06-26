@@ -1,4 +1,12 @@
 # DicomExport
+
+[![CI](https://github.com/nbassler/dicomexport/actions/workflows/ci.yml/badge.svg)](https://github.com/nbassler/dicomexport/actions/workflows/ci.yml)
+[![Lint](https://github.com/nbassler/dicomexport/actions/workflows/lint.yml/badge.svg)](https://github.com/nbassler/dicomexport/actions/workflows/lint.yml)
+[![CodeQL](https://github.com/nbassler/dicomexport/actions/workflows/codeql.yml/badge.svg)](https://github.com/nbassler/dicomexport/actions/workflows/codeql.yml)
+[![Build Binaries](https://github.com/nbassler/dicomexport/actions/workflows/build-windows.yml/badge.svg)](https://github.com/nbassler/dicomexport/actions/workflows/build-windows.yml)
+[![TOPAS integration](https://github.com/nbassler/dicomexport/actions/workflows/topas-integration.yml/badge.svg)](https://github.com/nbassler/dicomexport/actions/workflows/topas-integration.yml)
+[![Dependabot](https://img.shields.io/badge/dependabot-enabled-025e8c?logo=dependabot)](https://github.com/nbassler/dicomexport/network/updates)
+
 A tool for exporting DICOM proton therapy studies.
 - Supported output formats: TOPAS input files, MCPL phase-space files, and generic spot lists (FLUKA/SHIELD-HIT12A).
 - More output formats can be added.
@@ -171,4 +179,4 @@ This will process the specified DICOM plan and generate MCPL files for each fiel
 For more details about the MCPL format, visit the [MCPL documentation](https://mctools.github.io/mcpl/).
 
 ## Acknowledgements
-This work is part of the SONORA project, which has received funding from the European Union’s EURATOM research and innovation programme under grant agreement No 101061037 (PIANOFORTE – European Partnership for Radiation Protection Research).
+This work is part of the [SONORA project](https://pianoforte-partnership.eu/sonora/), which has received funding from the European Union's EURATOM research and innovation programme under grant agreement No 101061037 ([PIANOFORTE](https://pianoforte-partnership.eu/) - European Partnership for Radiation Protection Research).

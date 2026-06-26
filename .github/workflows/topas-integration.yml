@@ -1,6 +1,9 @@
 name: Topas beam-direction check
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
