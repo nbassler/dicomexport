@@ -34,6 +34,9 @@ jobs:
       - name: Pull OpenTOPAS Docker image
         run: docker pull opentopasmcpro/opentopas:latest
 
+      - name: Remove stale scorer output
+        run: rm -f isocenter_scorer.csv
+
       - name: Run Topas simulation
         run: |
           docker run --rm \
