@@ -40,7 +40,7 @@ jobs:
             -v "$PWD":/work \
             -w /work \
             opentopas/opentopas:latest \
-            topas topas_beamcheck_field01.txt
+            topas_beamcheck_field01.txt
 
       - name: Assert non-zero dose at isocenter
         run: python tests/check_isocenter.py
