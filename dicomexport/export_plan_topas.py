@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class TopasPlan:
     @staticmethod
     def generate(myfield: Field, bm: BeamModel,
-                 nstat=100000, test_mode=False) -> str:
+                 nstat=100000, test_mode=False, beam_direction: int = 1) -> str:
         """
         Export the field to a topas input file.
         """
@@ -50,18 +50,19 @@ class TopasPlan:
             lines.append(TopasText.geometry_dcm_to_iec())
             lines.append(TopasText.geometry_isocenter_scorer())
         lines.append(TopasText.geometry_beam_position_timefeature(
-            bm.beam_model_position))
-        lines.append(TopasText.geometry_range_shifter(myfield))
+            bm.beam_model_position, beam_direction=beam_direction))
+        lines.append(TopasText.geometry_range_shifter(myfield, beam_direction=beam_direction))
         lines.append(TopasText.field_beam_timefeature())
 
         lines.append(TopasPlan.time_features_string(
-            myfield, bm, nstat))
+            myfield, bm, nstat, beam_direction=beam_direction))
 
         topas_text = "".join(lines)
         return topas_text
 
     @staticmethod
-    def time_features_string(myfield: Field, bm: BeamModel, nstat: int = int(1e6)) -> str:
+    def time_features_string(myfield: Field, bm: BeamModel, nstat: int = int(1e6),
+                             beam_direction: int = 1) -> str:
         """
         Build the TIME FEATURES section for a Topas file and return as a string.
         """
@@ -122,10 +123,19 @@ class TopasPlan:
         lines.append(
             f"d:Tf/TimelineEnd                     = {n_spots+1} s\n\n")
 
+        # Pre-compute BeamPositionRotY (RotY of the beam nozzle group) per spot:
+        #   pos-Z (beam_direction=1):  180.0 - angx  (Ry(180°) baseline flips emission to -Z)
+        #   neg-Z (beam_direction=-1): -angx          (nozzle at -Z, beam travels +Z)
+        if beam_direction == 1:
+            beam_pos_roty = 180.0 - angx
+        else:
+            beam_pos_roty = -angx
+
         lines.append(_topas_array(times, energies_real, "Energy", "f", 3, "MeV"))
         lines.append(_topas_array(times, espreads, "EnergySpread", "f", 5, ""))
         lines.append(_topas_array(times, posx, "spotPositionX", "f", 2, "mm"))
         lines.append(_topas_array(times, angx, "spotAngleX", "f", 3, "deg"))
+        lines.append(_topas_array(times, beam_pos_roty, "BeamPositionRotY", "f", 3, "deg"))
         lines.append(_topas_array(times, posy, "spotPositionY", "f", 2, "mm"))
         lines.append(_topas_array(times, angy, "spotAngleY", "f", 3, "deg"))
         lines.append(_topas_array(times, sigx, "SigmaX", "f", 5, "mm"))

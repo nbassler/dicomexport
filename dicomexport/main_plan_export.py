@@ -62,11 +62,13 @@ def main(args=None) -> int:
         )
 
     elif parsed_args.export_fmt == 'topas':
+        beam_direction = 1 if parsed_args.nozzle_side == 'pos-z' else -1
         export_plan(pln, pln.beam_model, parsed_args.fout,
                     field_nr=parsed_args.field_nr,
                     nstat=parsed_args.nstat,
                     fmt=parsed_args.export_fmt,
-                    test_mode=parsed_args.test_mode)
+                    test_mode=parsed_args.test_mode,
+                    beam_direction=beam_direction)
 
     elif parsed_args.export_fmt == 'racehorse':
         # TODO

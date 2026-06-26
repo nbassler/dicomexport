@@ -258,29 +258,35 @@ class TopasText:
         return "\n".join(lines)
 
     @staticmethod
-    def geometry_beam_position_timefeature(beam_model_position: float = 500.0) -> str:
+    def geometry_beam_position_timefeature(beam_model_position: float = 500.0,
+                                           beam_direction: int = 1) -> str:
+        # RotY is pre-computed per spot into BeamPositionRotY time feature:
+        #   pos-Z (beam_direction=1):  180.0 - angx  (Ry(180°) baseline flips emission to -Z)
+        #   neg-Z (beam_direction=-1): -angx          (empirically verified)
+        transz = f"{beam_model_position}" if beam_direction == 1 else f"-{beam_model_position}"
         lines = [
             "##############################################",
             "###    GEOM.  B E A M   P O S I T I O N    ###",
             "##############################################",
             's:Ge/BeamPosition/Parent             = "Gantry"',
             's:Ge/BeamPosition/Type               = "Group"',
-            f"d:Ge/BeamPosition/TransZ             = {beam_model_position} mm",
+            f"d:Ge/BeamPosition/TransZ             = {transz} mm",
             "d:Ge/BeamPosition/TransX             = Tf/spotPositionX/Value mm",
             "d:Ge/BeamPosition/TransY             = -1.0 * Tf/spotPositionY/Value mm",
             "d:Ge/BeamPosition/RotX               = -1.0 * Tf/spotAngleY/Value deg",
-            "d:Ge/BeamPosition/RotY               = -1.0 * Tf/spotAngleX/Value deg",
+            "d:Ge/BeamPosition/RotY               = Tf/BeamPositionRotY/Value deg",
             "d:Ge/BeamPosition/RotZ               = 0.00 deg",
             "\n"
         ]
         return "\n".join(lines)
 
     @staticmethod
-    def geometry_range_shifter(myfield: Field) -> str:
+    def geometry_range_shifter(myfield: Field, beam_direction: int = 1) -> str:
         if myfield.range_shifter is None:
             return ""
 
         rs = myfield.range_shifter
+        transz = beam_direction * (rs.isocenter_distance + rs.thickness * 0.5)
 
         lines = [
             "##############################################",
@@ -295,8 +301,7 @@ class TopasText:
             f"d:Ge/RangeShifter/HLY                = {200:.2f} mm",
             f"d:Ge/RangeShifter/HLZ                = {rs.thickness*0.5:.2f} mm",
             's:Ge/RangeShifter/Color              = "Orange"',
-            # TODO: not to center of RS?
-            f'd:Ge/RangeShifter/TransZ            = {rs.isocenter_distance+rs.thickness*0.5:.2f} mm\n',
+            f'd:Ge/RangeShifter/TransZ            = {transz:.2f} mm\n',
             "\n"
         ]
         return "\n".join(lines)

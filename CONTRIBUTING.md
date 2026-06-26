@@ -35,7 +35,7 @@ This is the simplest way to catch a beam-direction regression (e.g. a sign error
 ```bash
 plan-export res/test_plans/temp_160MeV_10x10.dcm topas_beamcheck.txt \
   -b res/beam_models/DCPT_beam_model__v2.csv \
-  --test-mode -N 100 -f 1
+  --test-mode -N 1000 -f 1 --nozzle-side pos-z
 ```
 
 **2. Run the simulation with the [OpenTOPAS](https://github.com/OpenTOPAS/OpenTOPAS) Docker image:**
