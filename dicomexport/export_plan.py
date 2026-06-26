@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 
 # toplevel export plan method
 def export_plan(pln: Plan, bm: BeamModel, output_base_path: Path, field_nr: int = -1,
-                nstat: int = int(1e6), fmt: str = "topas") -> None:
+                nstat: int = int(1e6), fmt: str = "topas", test_mode: bool = False,
+                beam_direction: int = 1) -> None:
     """
     Export one or all fields from a Plan to output files.
     If field_nr >= 1, export only that field.
@@ -33,7 +34,8 @@ def export_plan(pln: Plan, bm: BeamModel, output_base_path: Path, field_nr: int 
                 p.write_text(text)
                 logger.debug(f"Exported field {field.number} layer {layer.number} to Racehorse format.")
         elif fmt == "topas":
-            text = TopasPlan.generate(field, bm, nstat=nstat)
+            text = TopasPlan.generate(field, bm, nstat=nstat, test_mode=test_mode,
+                                      beam_direction=beam_direction)
             _out_path(output_base_path, field.number).write_text(text)
             logger.debug(f"Exported field {field.number} to Topas format.")
         else:

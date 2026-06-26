@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 
 
 def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: Path,
-                       field_nr: int = 0, dose_path: Optional[Path] = None, nstat: int = int(1e6)) -> None:
+                       field_nr: int = 0, dose_path: Optional[Path] = None, nstat: int = int(1e6),
+                       beam_direction: int = 1) -> None:
     """
     Export the CT and RTStruct models to a Topas-compatible geometry file.
     """
@@ -30,18 +31,21 @@ def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: 
                 f"Exporting field {field.number} to Topas geometry file...")
             logger.info("=" * 50)
             _export_study_field_topas(
-                ct, rs, field, plan.beam_model, output_base_path, dose_path, nstat=nstat)
+                ct, rs, field, plan.beam_model, output_base_path, dose_path, nstat=nstat,
+                beam_direction=beam_direction)
             logger.info("-" * 50 + "\n")
     else:
         # Export a single field
         field = plan.fields[field_nr]
         _export_study_field_topas(
-            ct, rs, field, plan.beam_model, output_base_path, dose_path, nstat=nstat)
+            ct, rs, field, plan.beam_model, output_base_path, dose_path, nstat=nstat,
+            beam_direction=beam_direction)
 
 
 def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optional[BeamModel] = None,
                               output_base_path: Optional[Path] = None,
-                              dose_path: Optional[Path] = None, nstat: int = int(1e6)) -> None:
+                              dose_path: Optional[Path] = None, nstat: int = int(1e6),
+                              beam_direction: int = 1) -> None:
     """
     Export a single field to a Topas-compatible geometry file.
     """
@@ -69,11 +73,11 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     lines.append(TopasText.geometry_dcm_to_iec())
     if bm and bm.beam_model_position:
         lines.append(TopasText.geometry_beam_position_timefeature(
-            bm.beam_model_position))
+            bm.beam_model_position, beam_direction=beam_direction))
     else:
-        lines.append(TopasText.geometry_beam_position_timefeature(0.0))
+        lines.append(TopasText.geometry_beam_position_timefeature(0.0, beam_direction=beam_direction))
 
-    lines.append(TopasText.geometry_range_shifter(fld))
+    lines.append(TopasText.geometry_range_shifter(fld, beam_direction=beam_direction))
     lines.append(TopasText.field_beam_timefeature())
     lines.append(TopasText.scorer_setup_dicom(
         topas_output_path=str(topas_output_file_str_no_suffix)))
@@ -84,7 +88,7 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     # and move the load beam model from __init__.py to a new dedicated function in BeamModel class.
     if bm:
         lines.append(TopasPlan.time_features_string(
-            fld, bm, nstat=nstat))
+            fld, bm, nstat=nstat, beam_direction=beam_direction))
         topas_string = "\n".join(lines)
 
         # show some information about the field

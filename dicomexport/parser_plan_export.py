@@ -38,6 +38,16 @@ def create_parser():
                         help="Export spot X/Y positions at isocenter (z=0) instead of the beam model plane. "
                              "Spot sizes, divergences, and correlations are still taken from the beam model.")
 
+    parser.add_argument('--test-mode', action='store_true', dest='test_mode', default=False,
+                        help="Generate a self-contained Topas file (no DICOM patient) with a water box "
+                             "and isocenter dose scorer. Useful for CI beam-direction checks.")
+
+    parser.add_argument('--nozzle-side', dest='nozzle_side', choices=['pos-z', 'neg-z'],
+                        default='pos-z',
+                        help="Which side of the gantry the nozzle sits on (default: pos-z). "
+                             "pos-z: nozzle at +Z, beam travels toward -Z (IEC convention). "
+                             "neg-z: nozzle at -Z, beam travels toward +Z (empirically verified with TOPAS 3.9).")
+
     parser.add_argument('-v', '--verbosity', action='count', help="Increase verbosity", default=0)
     parser.add_argument('-V', '--version', action='version', version=__version__)
 

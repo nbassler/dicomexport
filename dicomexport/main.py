@@ -60,11 +60,13 @@ def main(args=None) -> int:
 
     # export the plan file
     if parsed_args.export_fmt == 'topas':
+        beam_direction = 1 if parsed_args.nozzle_side == 'pos-z' else -1
         export_study_topas(ct, rs, pn,
                            parsed_args.output_base_path,
                            field_nr=parsed_args.field_nr,
                            dose_path=rd_path,
-                           nstat=parsed_args.nstat)
+                           nstat=parsed_args.nstat,
+                           beam_direction=beam_direction)
     elif parsed_args.export_fmt == 'phasespace':
         logger.error("Phasespace export is not implemented yet in this build.")
         # Later: call your MCPL exporter here.

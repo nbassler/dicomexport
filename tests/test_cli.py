@@ -59,3 +59,48 @@ class TestPregdosCLI:
 
     def test_conversion_temp_sobp(self):
         self._run_conversion_test("temp_sobp_10x10.dcm")
+
+    def test_beam_direction_flag(self):
+        for direction in ('pos-z', 'neg-z'):
+            test_output_file = Path("plan_field01.txt")
+            test_output_file.unlink(missing_ok=True)
+
+            test_args = [
+                "-f1",
+                "-b=res/beam_models/DCPT_beam_model__v2.csv",
+                f"--nozzle-side={direction}",
+                "res/test_plans/temp_160MeV_10x10.dcm",
+            ]
+            assert main_plan_export.main(test_args) == 0, f"CLI failed for --nozzle-side={direction}"
+            assert test_output_file.exists()
+
+            content = test_output_file.read_text()
+            if direction == 'pos-z':
+                assert 'TransZ             = 500.0 mm' in content, "pos-z: expected +TransZ"
+            else:
+                assert 'TransZ             = -500.0 mm' in content, "neg-z: expected -TransZ"
+            assert 'BeamPositionRotY' in content, f"BeamPositionRotY time feature missing for {direction}"
+
+            test_output_file.unlink()
+
+    def test_test_mode_flag(self):
+        test_output_file = Path("plan_field01.txt")
+        test_output_file.unlink(missing_ok=True)
+
+        test_args = [
+            "-f1",
+            "-b=res/beam_models/DCPT_beam_model__v2.csv",
+            "--test-mode",
+            "res/test_plans/temp_160MeV_10x10.dcm",
+        ]
+
+        assert main_plan_export.main(test_args) == 0
+        assert test_output_file.exists()
+
+        content = test_output_file.read_text()
+        assert 'Ge/IsoBox' in content, "--test-mode output missing IsoBox geometry"
+        assert 'Sc/IsoScore' in content, "--test-mode output missing IsoScore scorer"
+        assert 'Ge/Gantry' in content, "--test-mode output missing gantry geometry"
+        assert 'Ge/World' in content, "--test-mode output missing world geometry"
+
+        test_output_file.unlink()

@@ -1,0 +1,46 @@
+name: Topas beam-direction check
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  beam-direction:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dicomexport
+        run: pip install ".[test]"
+
+      - name: Generate Topas input (test-mode, 1000 particles, pos-z convention)
+        run: |
+          plan-export \
+            res/test_plans/temp_160MeV_10x10.dcm \
+            topas_beamcheck.txt \
+            -b res/beam_models/DCPT_beam_model__v2.csv \
+            --test-mode -N 1000 -f 1 --nozzle-side pos-z
+
+      - name: Pull OpenTOPAS Docker image
+        run: docker pull opentopasmcpro/opentopas:latest
+
+      - name: Run Topas simulation
+        run: |
+          docker run --rm \
+            -v "$PWD":/work \
+            -w /work \
+            opentopasmcpro/opentopas:latest \
+            topas topas_beamcheck_field01.txt
+
+      - name: Assert non-zero dose at isocenter
+        run: python tests/check_isocenter.py
