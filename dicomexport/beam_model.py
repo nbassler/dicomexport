@@ -3,7 +3,7 @@ import re
 import numpy as np
 from pathlib import Path
 
-_BMODPOS_RE = re.compile(r'BMODPOS\s+([\d.]+)\s*([a-zA-Z\xb5\xc2\xb5µ]*)')
+_BMODPOS_RE = re.compile(r'BMODPOS\s+(-?[\d.]+)\s*([a-zA-Z\xb5\xc2\xb5µ]*)')
 
 logger = logging.getLogger(__name__)
 
@@ -106,3 +106,8 @@ class BeamModel():
                     "CLI beam model position (%.1f mm) overrides file BMODPOS (%.1f mm)",
                     beam_model_position, _file_position)
             self.beam_model_position = beam_model_position
+
+        if self.beam_model_position <= 0.0:
+            raise ValueError(
+                f"beam_model_position must be > 0.0 mm (distance upstream of isocenter, "
+                f"independent of beam transport direction), got {self.beam_model_position} mm")

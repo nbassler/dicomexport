@@ -75,3 +75,10 @@ class TestBeamModelPosition:
         f.write_text(_BM_6COL_DATA.format(pos=f"600.0 {bad_unit}"))
         with pytest.raises(ValueError, match="BMODPOS unit must be 'mm'"):
             BeamModel(f)
+
+    @pytest.mark.parametrize("bad_pos", [0.0, -1.0, -500.0])
+    def test_nonpositive_position_raises(self, tmp_path, bad_pos):
+        f = tmp_path / "bad_pos.csv"
+        f.write_text(_BM_6COL_DATA.format(pos=f"{bad_pos} mm"))
+        with pytest.raises(ValueError, match="distance upstream of isocenter"):
+            BeamModel(f)
