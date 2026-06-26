@@ -527,7 +527,7 @@ class TopasText:
             "##############################################",
             's:Ge/IsoBox/Type                     = "TsBox"',
             's:Ge/IsoBox/Parent                   = "World"',
-            's:Ge/IsoBox/Material                 = "G4_WATER"',
+            's:Ge/IsoBox/Material                 = "G4_Water"',
             "d:Ge/IsoBox/HLX                      = 200 mm",
             "d:Ge/IsoBox/HLY                      = 200 mm",
             "d:Ge/IsoBox/HLZ                      = 200 mm",

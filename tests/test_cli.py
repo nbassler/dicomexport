@@ -71,7 +71,7 @@ class TestPregdosCLI:
                 f"--nozzle-side={direction}",
                 "res/test_plans/temp_160MeV_10x10.dcm",
             ]
-            assert main_plan_export.main(test_args) == 0, f"CLI failed for --beam-direction={direction}"
+            assert main_plan_export.main(test_args) == 0, f"CLI failed for --nozzle-side={direction}"
             assert test_output_file.exists()
 
             content = test_output_file.read_text()
