@@ -41,7 +41,7 @@ You are then ready to convert dicom files to topas input scripts.
 Example:
 
 The test directory `res/test_studies/DCPT_headphantom/`has a set of CT files, a RS structure file, a RN plan file with 3 fields in it.
-You need also so specify a beam model. The beam model position is read automatically from the
+You also need to specify a beam model. The beam model position is read automatically from the
 `BMODPOS` key in the CSV header; you can override it with `-p` if needed.
 Finally you need to point to a Stopping power ratio to material table.
 

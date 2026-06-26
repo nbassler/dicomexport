@@ -19,7 +19,7 @@ Comment lines (prefixed with `#`) may contain the following optional key:
 
 - `BMODPOS <value> mm` — distance of the beam model plane upstream of the isocenter in mm.
   Must be positive. The unit suffix `mm` is required; other units (cm, m, µm) are rejected.
-  If absent, the value falls back to the `--beam-model-position` CLI argument (default 500.0 mm).
+  If absent, the code uses `--beam-model-position` if provided; otherwise it defaults to 500.0 mm.
 
 Example header line: `#"BMODPOS 600.0 mm"`
 

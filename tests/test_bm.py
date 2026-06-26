@@ -4,7 +4,7 @@ from pathlib import Path
 
 from dicomexport.beam_model import BeamModel, get_fwhm
 
-# Minimal 6-column beam model data (two rows so cubic interp doesn't break on first test)
+# Minimal 6-column beam model data (>=4 rows required for cubic interpolation)
 _BM_6COL_DATA = """\
 #"Test model"
 #"BMODPOS {pos}"
