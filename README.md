@@ -4,7 +4,6 @@
 [![Lint](https://github.com/nbassler/dicomexport/actions/workflows/lint.yml/badge.svg)](https://github.com/nbassler/dicomexport/actions/workflows/lint.yml)
 [![CodeQL](https://github.com/nbassler/dicomexport/actions/workflows/codeql.yml/badge.svg)](https://github.com/nbassler/dicomexport/actions/workflows/codeql.yml)
 [![Build Binaries](https://github.com/nbassler/dicomexport/actions/workflows/build-windows.yml/badge.svg)](https://github.com/nbassler/dicomexport/actions/workflows/build-windows.yml)
-[![TOPAS integration](https://github.com/nbassler/dicomexport/actions/workflows/topas-integration.yml/badge.svg)](https://github.com/nbassler/dicomexport/actions/workflows/topas-integration.yml)
 [![Dependabot](https://img.shields.io/badge/dependabot-enabled-025e8c?logo=dependabot)](https://github.com/nbassler/dicomexport/network/updates)
 
 A tool for exporting DICOM proton therapy studies.
