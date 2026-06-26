@@ -32,15 +32,15 @@ jobs:
             --test-mode -N 1000 -f 1 --nozzle-side pos-z
 
       - name: Pull OpenTOPAS Docker image
-        run: docker pull opentopas/opentopas:latest
+        run: docker pull opentopasmcpro/opentopas:latest
 
       - name: Run Topas simulation
         run: |
           docker run --rm \
             -v "$PWD":/work \
             -w /work \
-            opentopas/opentopas:latest \
-            topas_beamcheck_field01.txt
+            opentopasmcpro/opentopas:latest \
+            topas topas_beamcheck_field01.txt
 
       - name: Assert non-zero dose at isocenter
         run: python tests/check_isocenter.py
