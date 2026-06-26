@@ -514,7 +514,7 @@ class TopasText:
         """
         Self-contained water box + dose scorer centred at the IEC isocenter (World origin).
         Used in test_mode to verify that the beam actually reaches the isocenter.
-        The scorer writes a CSV file named 'isocenter_scorer'.
+        The scorer writes a CSV file named 'isocenter_scorer.csv' (TOPAS adds the .csv extension).
         """
         lines = [
             "##############################################",
