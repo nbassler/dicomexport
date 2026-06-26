@@ -69,7 +69,7 @@ class MainWindow(QMainWindow):
 
         # Populate defaults from the parser (single source of truth)
         _p = create_parser()
-        self.bm_position.setValue(_p.get_default("beam_model_position"))
+        self.bm_position.setValue(_p.get_default("beam_model_position") or 500.0)
         self.field_nr.setValue(_p.get_default("field_nr"))
         self.nstat.setValue(_p.get_default("nstat"))
         self.output_base.setText(str(_p.get_default("output_base_path")))

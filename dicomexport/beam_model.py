@@ -1,6 +1,9 @@
 import logging
+import re
 import numpy as np
 from pathlib import Path
+
+_BMODPOS_RE = re.compile(r'BMODPOS\s+([\d.]+)\s*([a-zA-Z\xb5\xc2\xb5µ]*)')
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +15,7 @@ def get_fwhm(sigma):
 class BeamModel():
     """Beam model from a given CSV file."""
 
-    def __init__(self, fn: Path, beam_model_position=500.0):
+    def __init__(self, fn: Path, beam_model_position=None):
         """
         Load a beam model given as a CSV file.
 
@@ -74,5 +77,32 @@ class BeamModel():
 
         self.data = data
         self.filename = Path(fn).name
-        # position of the beam model in mm, e.g. 600 mm upstream from isocenter
-        self.beam_model_position = beam_model_position  # in mm
+
+        # Parse optional BMODPOS from the CSV header
+        _file_position = None
+        with open(fn) as _f:
+            for _line in _f:
+                if not _line.startswith('#'):
+                    break
+                _m = _BMODPOS_RE.search(_line)
+                if _m:
+                    unit = _m.group(2)
+                    if unit and unit != 'mm':
+                        raise ValueError(
+                            f"BMODPOS unit must be 'mm', got '{unit}' in {Path(fn).name}")
+                    _file_position = float(_m.group(1))
+                    break
+
+        if beam_model_position is None:
+            if _file_position is not None:
+                self.beam_model_position = _file_position
+                logger.info("Beam model position from file header: %.1f mm", _file_position)
+            else:
+                self.beam_model_position = 500.0
+                logger.warning("No BMODPOS in beam model file; using default %.1f mm", 500.0)
+        else:
+            if _file_position is not None and _file_position != beam_model_position:
+                logger.warning(
+                    "CLI beam model position (%.1f mm) overrides file BMODPOS (%.1f mm)",
+                    beam_model_position, _file_position)
+            self.beam_model_position = beam_model_position
