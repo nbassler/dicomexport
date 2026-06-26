@@ -41,16 +41,17 @@ You are then ready to convert dicom files to topas input scripts.
 Example:
 
 The test directory `res/test_studies/DCPT_headphantom/`has a set of CT files, a RS structure file, a RN plan file with 3 fields in it.
-You need also so specify a beam model, optionally also at what distance it is defined in mm.
+You also need to specify a beam model. The beam model position is read automatically from the
+`BMODPOS` key in the CSV header; you can override it with `-p` if needed.
 Finally you need to point to a Stopping power ratio to material table.
 
 ```bash
-PYTHONPATH=. python3 dicomexport/main.py -v -b=res/beam_models/DCPT_beam_model__v2.csv -p 500.0 --nozzle-side pos-z -s=res/spr_tables/SPRtoMaterial__Brain.txt res/test_studies/DCPT_headphantom/
+PYTHONPATH=. python3 dicomexport/main.py -v -b=res/beam_models/DCPT_beam_model__v2.csv --nozzle-side pos-z -s=res/spr_tables/SPRtoMaterial__Brain.txt res/test_studies/DCPT_headphantom/
 ```
 which will produce three topas files, ready to run:
 
 ```
-$ PYTHONPATH=. python3 dicomexport/main.py -v -b=res/beam_models/DCPT_beam_model__v2.csv -p 500.0 --nozzle-side pos-z -s
+$ PYTHONPATH=. python3 dicomexport/main.py -v -b=res/beam_models/DCPT_beam_model__v2.csv --nozzle-side pos-z -s
 res/spr_tables/SPRtoMaterial__Brain.txt res/test_studies/DCPT_headphantom/
 INFO:dicomexport.import_rtstruct:Using RTSTRUCT file: RS.1.2.246.352.205.5439556202947041733.367077883804944283.dcm
 INFO:dicomexport.import_rtstruct:Imported RTSTRUCT: DCPT_headphantom with 11 ROIs
@@ -65,7 +66,7 @@ INFO:dicomexport.export_study_topas:Wrote Topas geometry file for field 3: /home
 Both the full study exporter (`dicomexport/main.py`, installed as `dicomexport`) and the plan-only exporter
 (`dicomexport/main_plan_export.py`, installed as `plan-export`) support:
 
-- `-p, --beam-model-position`: beam model distance in mm relative to isocenter. This value is positive upstream of the beam by convention and defaults to `500.0`.
+- `-p, --beam-model-position`: beam model distance in mm upstream of the isocenter (always positive, independent of beam transport direction). If omitted, the value is read from the `BMODPOS` key in the CSV header; if that key is also absent, it defaults to `500.0` mm.
 - `--nozzle-side {pos-z,neg-z}`: side of the gantry where the nozzle/source is placed. The default is `pos-z`, meaning source at `+Z` and beam travelling toward `-Z` in the IEC convention. `neg-z` places the source at `-Z` and the beam travels toward `+Z`.
 
 For TOPAS export, the range shifter position follows the selected nozzle side.
@@ -95,7 +96,7 @@ options:
   -s, --spr-to-material SPR_TO_MATERIAL_PATH
                         (required) SPR to material mapping CSV path
   -p, --beam-model-position BEAM_MODEL_POSITION
-                        Beam model position in mm, relative to isocenter, positive upstream.
+                        Beam model position in mm, relative to isocenter, positive upstream. If not given, the value is read from the BMODPOS key in the beam model file header, or defaults to 500.0 mm if absent.
   -f, --field FIELD_NR
                         Field number to export. If not specified, all fields will be exported.
   -N, --nstat NSTAT
@@ -131,7 +132,7 @@ options:
   -h, --help            show this help message and exit
   -b, --beam-model FBM  Beam model CSV path
   -p, --beam-model-position BEAM_MODEL_POSITION
-                        Beam model position in mm, relative to isocenter, positive upstream.
+                        Beam model position in mm, relative to isocenter, positive upstream. If not given, the value is read from the BMODPOS key in the beam model file header, or defaults to 500.0 mm if absent.
   -f, --field FIELD_NR  Field number to export. If not specified, all fields will be exported.
   -d, --diag            Print plan diagnostics and exit
   -s, --scale SCALE     additional scaling multiplier for MC plan

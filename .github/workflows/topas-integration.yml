@@ -1,4 +1,4 @@
-name: Topas beam-direction check
+name: TOPAS Check
 
 on:
   push:
@@ -32,14 +32,14 @@ jobs:
             --test-mode -N 1000 -f 1 --nozzle-side pos-z
 
       - name: Pull OpenTOPAS Docker image
-        run: docker pull opentopasmcpro/opentopas:latest
+        run: docker pull opentopas/opentopas:latest
 
       - name: Run Topas simulation
         run: |
           docker run --rm \
             -v "$PWD":/work \
             -w /work \
-            opentopasmcpro/opentopas:latest \
+            opentopas/opentopas:latest \
             topas topas_beamcheck_field01.txt
 
       - name: Assert non-zero dose at isocenter

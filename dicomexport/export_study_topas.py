@@ -71,7 +71,7 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     lines.append(TopasText.geometry_gantry())
     lines.append(TopasText.geometry_couch())
     lines.append(TopasText.geometry_dcm_to_iec())
-    if bm and bm.beam_model_position:
+    if bm:
         lines.append(TopasText.geometry_beam_position_timefeature(
             bm.beam_model_position, beam_direction=beam_direction))
     else:

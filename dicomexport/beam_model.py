@@ -1,6 +1,9 @@
 import logging
+import re
 import numpy as np
 from pathlib import Path
+
+_BMODPOS_RE = re.compile(r'BMODPOS\s+(-?[\d.]+)\s*([a-zA-Z\xb5\xc2\xb5µ]*)')
 
 logger = logging.getLogger(__name__)
 
@@ -9,10 +12,30 @@ def get_fwhm(sigma):
     return sigma * 2.0 * np.sqrt(2.0 * np.log(2.0))
 
 
+def read_bmodpos(fn: Path) -> float | None:
+    """Return the BMODPOS value in mm from the CSV header, or None if absent.
+
+    Raises ValueError if the key is present but the unit is not 'mm'.
+    """
+    with open(fn) as f:
+        for line in f:
+            if not line.startswith('#'):
+                break
+            m = _BMODPOS_RE.search(line)
+            if m:
+                unit = m.group(2)
+                if unit != 'mm':
+                    raise ValueError(
+                        f"BMODPOS unit must be 'mm', got "
+                        f"'{unit or '(none)'}' in {Path(fn).name}")
+                return float(m.group(1))
+    return None
+
+
 class BeamModel():
     """Beam model from a given CSV file."""
 
-    def __init__(self, fn: Path, beam_model_position=500.0):
+    def __init__(self, fn: Path, beam_model_position=None):
         """
         Load a beam model given as a CSV file.
 
@@ -74,5 +97,24 @@ class BeamModel():
 
         self.data = data
         self.filename = Path(fn).name
-        # position of the beam model in mm, e.g. 600 mm upstream from isocenter
-        self.beam_model_position = beam_model_position  # in mm
+
+        _file_position = read_bmodpos(fn)
+
+        if beam_model_position is None:
+            if _file_position is not None:
+                self.beam_model_position = _file_position
+                logger.info("Beam model position from file header: %.1f mm", _file_position)
+            else:
+                self.beam_model_position = 500.0
+                logger.warning("No BMODPOS in beam model file; using default %.1f mm", 500.0)
+        else:
+            if _file_position is not None and _file_position != beam_model_position:
+                logger.warning(
+                    "CLI beam model position (%.1f mm) overrides file BMODPOS (%.1f mm)",
+                    beam_model_position, _file_position)
+            self.beam_model_position = beam_model_position
+
+        if self.beam_model_position <= 0.0:
+            raise ValueError(
+                f"beam_model_position must be > 0.0 mm (distance upstream of isocenter, "
+                f"independent of beam transport direction), got {self.beam_model_position} mm")
