@@ -508,3 +508,32 @@ class TopasText:
             "\n"
         ]
         return "\n".join(lines)
+
+    @staticmethod
+    def geometry_isocenter_scorer() -> str:
+        """
+        Self-contained water box + dose scorer centred at the IEC isocenter (World origin).
+        Used in test_mode to verify that the beam actually reaches the isocenter.
+        The scorer writes a CSV file named 'isocenter_scorer'.
+        """
+        lines = [
+            "##############################################",
+            "###   I S O C E N T E R   S C O R E R      ###",
+            "##############################################",
+            's:Ge/IsoBox/Type                     = "TsBox"',
+            's:Ge/IsoBox/Parent                   = "World"',
+            's:Ge/IsoBox/Material                 = "G4_WATER"',
+            "d:Ge/IsoBox/HLX                      = 200 mm",
+            "d:Ge/IsoBox/HLY                      = 200 mm",
+            "d:Ge/IsoBox/HLZ                      = 200 mm",
+            "d:Ge/IsoBox/TransX                   = 0.0 mm",
+            "d:Ge/IsoBox/TransY                   = 0.0 mm",
+            "d:Ge/IsoBox/TransZ                   = 0.0 mm",
+            's:Sc/IsoScore/Quantity               = "DoseToWater"',
+            's:Sc/IsoScore/Component              = "IsoBox"',
+            's:Sc/IsoScore/OutputType             = "csv"',
+            's:Sc/IsoScore/IfOutputFileAlreadyExists = "Overwrite"',
+            's:Sc/IsoScore/OutputFile             = "isocenter_scorer"',
+            "\n"
+        ]
+        return "\n".join(lines)

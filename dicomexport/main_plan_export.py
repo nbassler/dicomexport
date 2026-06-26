@@ -65,7 +65,8 @@ def main(args=None) -> int:
         export_plan(pln, pln.beam_model, parsed_args.fout,
                     field_nr=parsed_args.field_nr,
                     nstat=parsed_args.nstat,
-                    fmt=parsed_args.export_fmt)
+                    fmt=parsed_args.export_fmt,
+                    test_mode=parsed_args.test_mode)
 
     elif parsed_args.export_fmt == 'racehorse':
         # TODO

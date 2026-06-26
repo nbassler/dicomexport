@@ -48,6 +48,7 @@ class TopasPlan:
             lines.append(TopasText.geometry_gantry())
             lines.append(TopasText.geometry_couch())
             lines.append(TopasText.geometry_dcm_to_iec())
+            lines.append(TopasText.geometry_isocenter_scorer())
         lines.append(TopasText.geometry_beam_position_timefeature(
             bm.beam_model_position))
         lines.append(TopasText.geometry_range_shifter(myfield))
