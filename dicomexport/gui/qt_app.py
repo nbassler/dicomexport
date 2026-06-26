@@ -6,6 +6,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
 
 from dicomexport.__version__ import __version__
+from dicomexport.beam_model import read_bmodpos
 from dicomexport.gui.utils import BEAM_MODELS_DIR, SPR_TABLES_DIR, list_files
 from dicomexport.main import main as dicomexport_main
 from dicomexport.parser_main import create_parser
@@ -69,15 +70,23 @@ class MainWindow(QMainWindow):
 
         # Populate defaults from the parser (single source of truth)
         _p = create_parser()
-        self.bm_position.setValue(_p.get_default("beam_model_position") or 500.0)
         self.field_nr.setValue(_p.get_default("field_nr"))
         self.nstat.setValue(_p.get_default("nstat"))
         self.output_base.setText(str(_p.get_default("output_base_path")))
+
+        self.beam_model.currentIndexChanged.connect(self._on_beam_model_changed)
+        self._on_beam_model_changed()  # populate position for the initial selection
 
         self.btn_study_dir.clicked.connect(self._browse_study_dir)
         self.btn_run.clicked.connect(self._run_export)
 
         self._worker = None
+
+    def _on_beam_model_changed(self):
+        bm_path = self._beam_models.get(self.beam_model.currentText())
+        if bm_path:
+            pos = read_bmodpos(bm_path)
+            self.bm_position.setValue(pos if pos is not None else 500.0)
 
     def _browse_study_dir(self):
         path = QFileDialog.getExistingDirectory(self, "Select study directory")

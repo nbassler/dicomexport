@@ -12,6 +12,26 @@ def get_fwhm(sigma):
     return sigma * 2.0 * np.sqrt(2.0 * np.log(2.0))
 
 
+def read_bmodpos(fn: Path) -> float | None:
+    """Return the BMODPOS value in mm from the CSV header, or None if absent.
+
+    Raises ValueError if the key is present but the unit is not 'mm'.
+    """
+    with open(fn) as f:
+        for line in f:
+            if not line.startswith('#'):
+                break
+            m = _BMODPOS_RE.search(line)
+            if m:
+                unit = m.group(2)
+                if unit != 'mm':
+                    raise ValueError(
+                        f"BMODPOS unit must be 'mm', got "
+                        f"'{unit or '(none)'}' in {Path(fn).name}")
+                return float(m.group(1))
+    return None
+
+
 class BeamModel():
     """Beam model from a given CSV file."""
 
@@ -78,20 +98,7 @@ class BeamModel():
         self.data = data
         self.filename = Path(fn).name
 
-        # Parse optional BMODPOS from the CSV header
-        _file_position = None
-        with open(fn) as _f:
-            for _line in _f:
-                if not _line.startswith('#'):
-                    break
-                _m = _BMODPOS_RE.search(_line)
-                if _m:
-                    unit = _m.group(2)
-                    if unit and unit != 'mm':
-                        raise ValueError(
-                            f"BMODPOS unit must be 'mm', got '{unit}' in {Path(fn).name}")
-                    _file_position = float(_m.group(1))
-                    break
+        _file_position = read_bmodpos(fn)
 
         if beam_model_position is None:
             if _file_position is not None:

@@ -76,6 +76,12 @@ class TestBeamModelPosition:
         with pytest.raises(ValueError, match="BMODPOS unit must be 'mm'"):
             BeamModel(f)
 
+    def test_missing_unit_raises(self, tmp_path):
+        f = tmp_path / "no_unit.csv"
+        f.write_text(_BM_6COL_DATA.format(pos="600.0"))
+        with pytest.raises(ValueError, match="BMODPOS unit must be 'mm'"):
+            BeamModel(f)
+
     @pytest.mark.parametrize("bad_pos", [0.0, -1.0, -500.0])
     def test_nonpositive_position_raises(self, tmp_path, bad_pos):
         f = tmp_path / "bad_pos.csv"
