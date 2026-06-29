@@ -4,7 +4,7 @@ import numpy as np
 from pathlib import Path
 from typing import List, Tuple
 
-from dicomexport.ds_get import req, opt, tuple_of_float, as_int, as_str
+from dicomexport.ds_get import req, opt, tuple_of_float_2, tuple_of_float_3, tuple_of_float_6, as_int, as_str
 
 from dicomexport.model_ct import CTModel, Image
 
@@ -28,8 +28,8 @@ def get_ct_files_sorted_by_instance_number(directory: Path) -> List[Path]:
     if len(parent_dirs) > 1:
         dirs_str = ", ".join(str(d) for d in sorted(parent_dirs))
         raise ValueError(
-            f"CT DICOM files found in multiple subdirectories: {dirs_str}. "
-            "Please pass the specific subdirectory containing the CT series."
+            f"CT DICOM files found in multiple subdirectories under {directory}: {dirs_str}. "
+            "Please ensure only one CT series is present under the study directory."
         )
 
     def get_instance_number(file: Path) -> int:
@@ -66,9 +66,9 @@ def load_ct(mydir: Path) -> CTModel:
         #
         img = Image(
             # REQUIRED — fail fast if missing/malformed
-            pixel_spacing=req(ds, "PixelSpacing", cast=tuple_of_float, n=2, file=file),  # TODO: fix pylance warning
-            image_orientation=req(ds, "ImageOrientationPatient", cast=tuple_of_float, n=6, file=file),
-            image_position_patient=req(ds, "ImagePositionPatient", cast=tuple_of_float, n=3, file=file),
+            pixel_spacing=req(ds, "PixelSpacing", cast=tuple_of_float_2, n=2, file=file),
+            image_orientation=req(ds, "ImageOrientationPatient", cast=tuple_of_float_6, n=6, file=file),
+            image_position_patient=req(ds, "ImagePositionPatient", cast=tuple_of_float_3, n=3, file=file),
             rows=req(ds, "Rows", cast=int, file=file),
             columns=req(ds, "Columns", cast=int, file=file),
             patient_position=req(ds, "PatientPosition", cast=as_str, file=file),

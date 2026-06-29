@@ -16,8 +16,11 @@ def load_plan(path: Path, **kwargs) -> Plan:
 
     # if path is a directory, look for a RN*.dcm file
     if path.is_dir():
-        plan_files = list(path.glob('**/RN*.dcm')) + \
-            list(path.glob('**/*.pld')) + list(path.glob('**/*.rst'))
+        plan_files = sorted(
+            list(path.glob('**/RN*.dcm')) +
+            list(path.glob('**/*.pld')) +
+            list(path.glob('**/*.rst'))
+        )
         if not plan_files:
             raise FileNotFoundError(
                 f"No plan files found in {path} or its subdirectories")
