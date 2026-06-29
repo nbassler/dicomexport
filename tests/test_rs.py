@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from dicomexport.model_rtstruct import RTStruct
 from dicomexport.import_rtstruct import load_rs
 
@@ -34,3 +36,11 @@ class TestRTStruct:
         assert rts.patient_id == PT_ID
         assert rts.n_rois == N_ROIS
         assert rts.rois[0].roi_name == ROI_NAME
+
+    def test_rts_multiple_raises(self, tmp_path):
+        (tmp_path / "RS001.dcm").touch()
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        (sub / "RS002.dcm").touch()
+        with pytest.raises(ValueError, match="Multiple RTSTRUCT"):
+            load_rs(tmp_path)

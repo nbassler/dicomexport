@@ -20,7 +20,6 @@ def load_plan_pld(file_pld: Path, scaling=1.0) -> Plan:
     current_plan = Plan()
     myfield = Field()  # avoid collision with dataclasses.field
     current_plan.fields = [myfield]
-    current_plan.n_fields = 1
 
     # # TODO: needs beam model to be applied for spot parameters and MU scaling.
     # # For now, we simply assume a constant factor for the number of particles per MU (which is not correct).
@@ -42,14 +41,14 @@ def load_plan_pld(file_pld: Path, scaling=1.0) -> Plan:
     tokens = pldlines[0].split(",")
     current_plan.patient_id = tokens[1].strip()
     current_plan.patient_name = tokens[2].strip()
-    current_plan.patient_initals = tokens[3].strip()
+    current_plan.patient_initials = tokens[3].strip()
     current_plan.patient_firstname = tokens[4].strip()
     current_plan.plan_label = tokens[5].strip()
     current_plan.beam_name = tokens[6].strip()
     # total amount of MUs in this field
-    myfield.cmu = float(tokens[7].strip())
+    myfield.cum_mu = float(tokens[7].strip())
     myfield.pld_csetweight = float(tokens[8].strip())
-    myfield.n_layers = int(tokens[9].strip())       # number of layers
+    # tokens[9] is expected layer count; actual count comes from parsing layers below
 
     espread = 0.0  # will be set by beam model
 
@@ -109,7 +108,6 @@ def load_plan_pld(file_pld: Path, scaling=1.0) -> Plan:
                 energy_measured=energy_nominal,
                 espread=espread,
                 cum_mu=cmu,
-                n_spots=len(spots),
                 repaint=nrepaint,
                 mu_to_part_coef=0.0  # to be set by beam model later
             )

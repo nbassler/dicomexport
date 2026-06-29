@@ -16,14 +16,20 @@ def load_plan(path: Path, **kwargs) -> Plan:
 
     # if path is a directory, look for a RN*.dcm file
     if path.is_dir():
-        plan_files = list(path.glob('RN*.dcm')) + \
-            list(path.glob('*.pld')) + list(path.glob('*.rst'))
+        plan_files = sorted(
+            list(path.glob('**/RN*.dcm')) +
+            list(path.glob('**/*.pld')) +
+            list(path.glob('**/*.rst'))
+        )
         if not plan_files:
             raise FileNotFoundError(
-                f"No plan files found in directory: {path}")
+                f"No plan files found in {path} or its subdirectories")
         if len(plan_files) > 1:
-            logger.warning(
-                f"Multiple plan files found in directory: {path}. Using the first one.")
+            files_str = ", ".join(str(f) for f in plan_files)
+            raise ValueError(
+                f"Multiple plan files found: {files_str}. "
+                "Please pass the specific plan file."
+            )
         path = plan_files[0]
 
     suffix = path.suffix.lower()

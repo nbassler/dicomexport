@@ -25,8 +25,7 @@ class TopasGeo:
         lines.append("# Topas geometry file\n")
         lines.append(TopasText.setup())
         lines.append(TopasText.world_setup())
-        lines.append(TopasText.geometry())
+        lines.append(TopasText.geometry_patient(ct, rs))
         lines.append(TopasText.scorer_setup_dicom())
-        lines.append(TopasText.footer())
         topas_string = "\n".join(lines)
         return topas_string

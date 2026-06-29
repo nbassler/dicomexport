@@ -58,6 +58,21 @@ def tuple_of_float(seq: Iterable[Any]) -> tuple[float, ...]:
     return tuple(float(x) for x in seq)
 
 
+def tuple_of_float_2(seq: Iterable[Any]) -> tuple[float, float]:
+    a, b = (float(x) for x in seq)
+    return a, b
+
+
+def tuple_of_float_3(seq: Iterable[Any]) -> tuple[float, float, float]:
+    a, b, c = (float(x) for x in seq)
+    return a, b, c
+
+
+def tuple_of_float_6(seq: Iterable[Any]) -> tuple[float, float, float, float, float, float]:
+    a, b, c, d, e, f = (float(x) for x in seq)
+    return a, b, c, d, e, f
+
+
 def as_int(x: Any) -> int:
     return int(x)
 
@@ -68,6 +83,7 @@ def as_str(x: Any) -> str:
 
 __all__ = [
     "req", "opt",
-    "tuple_of_float", "as_int", "as_str",
+    "tuple_of_float", "tuple_of_float_2", "tuple_of_float_3", "tuple_of_float_6",
+    "as_int", "as_str",
     "DicomAttributeMissingError", "DicomAttributeInvalidError",
 ]

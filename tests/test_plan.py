@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from dicomexport.model_plan import Plan
+from dicomexport.import_plan import load_plan
 
 TEST_PDG_PROTON = 2212
 
@@ -24,6 +25,16 @@ class TestPlan:
         p = Plan()
         assert isinstance(p.fields, list)
         assert len(p.fields) == 0
+
+    def test_load_plan_multiple_raises(self, tmp_path):
+        sub_a = tmp_path / "sub_a"
+        sub_b = tmp_path / "sub_b"
+        sub_a.mkdir()
+        sub_b.mkdir()
+        (sub_a / "RN001.dcm").touch()
+        (sub_b / "RN002.dcm").touch()
+        with pytest.raises(ValueError, match="Multiple plan files"):
+            load_plan(tmp_path)
 
 
 class TestMCPLExport:
