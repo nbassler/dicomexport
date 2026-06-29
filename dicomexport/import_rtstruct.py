@@ -18,10 +18,16 @@ def load_rs(rtstruct_path: Path) -> RTStruct:
 
     if rtstruct_path.is_dir():
         # Search for the first RS*.dcm file in the directory
-        rs_files = sorted(rtstruct_path.glob("RS*.dcm"))
+        rs_files = sorted(rtstruct_path.glob("**/RS*.dcm"))
         if not rs_files:
             raise FileNotFoundError(
-                f"No RS*.dcm file found in directory: {rtstruct_path}")
+                f"No RS*.dcm file found in {rtstruct_path} or its subdirectories")
+        if len(rs_files) > 1:
+            files_str = ", ".join(str(f) for f in rs_files)
+            raise ValueError(
+                f"Multiple RTSTRUCT files found: {files_str}. "
+                "Please pass the specific RS file."
+            )
         rtstruct_file = rs_files[0]
         logger.info(f"Using RTSTRUCT file: {rtstruct_file.name}")
     else:

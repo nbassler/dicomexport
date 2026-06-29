@@ -6,12 +6,27 @@ from io import StringIO
 import pytest
 
 import dicomexport.main as study
+from dicomexport.main import get_path_dicom_dose
 
 DICOM_TEST_DIR = Path("res/test_studies/DCPT_headphantom/")
 BEAM_MODEL_PATH = Path("res/beam_models/DCPT_beam_model__v2.csv")
 SPR_TABLE_PATH = Path("res/spr_tables/SPRtoMaterial__Brain.txt")
 
 _TOPAS_OUTPUT_FILES = [Path(f"topas_field{i:02d}.txt") for i in range(1, 4)]
+
+
+class TestDoseLookup:
+    def test_dose_found_in_subdir(self, tmp_path):
+        sub = tmp_path / "dose"
+        sub.mkdir()
+        rd_file = sub / "RD001.dcm"
+        rd_file.touch()
+        result = get_path_dicom_dose(tmp_path)
+        assert result == rd_file
+
+    def test_dose_not_found_raises(self, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            get_path_dicom_dose(tmp_path)
 
 
 class TestPregdosCLI:

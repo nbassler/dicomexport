@@ -19,10 +19,18 @@ def get_ct_files_sorted_by_instance_number(directory: Path) -> List[Path]:
     Reason: we cannot rely on the file names to be sorted correctly,
     e.g. when the files are copied from a PACS system or running numbering as 1 instead of 001.
     """
-    files = list(directory.glob("CT*.dcm"))
+    files = list(directory.glob("**/CT*.dcm"))
     if not files:
         raise FileNotFoundError(
-            f"No CT DICOM files matching 'CT*.dcm' found in {directory}")
+            f"No CT DICOM files matching 'CT*.dcm' found in {directory} or its subdirectories")
+
+    parent_dirs = {f.parent for f in files}
+    if len(parent_dirs) > 1:
+        dirs_str = ", ".join(str(d) for d in sorted(parent_dirs))
+        raise ValueError(
+            f"CT DICOM files found in multiple subdirectories: {dirs_str}. "
+            "Please pass the specific subdirectory containing the CT series."
+        )
 
     def get_instance_number(file: Path) -> int:
         ds = pydicom.dcmread(file, stop_before_pixels=True)

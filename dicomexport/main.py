@@ -18,10 +18,10 @@ def get_path_dicom_dose(study_dir: Path) -> Path:
     Get the path to the DICOM RTDOSE file in the study directory.
     The file should start with 'RD' and end with '.dcm'.
     """
-    dose_files = list(study_dir.glob('RD*.dcm'))
+    dose_files = list(study_dir.glob('**/RD*.dcm'))
     if not dose_files:
         raise FileNotFoundError(
-            "No DICOM RTDOSE file found in the study directory.")
+            f"No DICOM RTDOSE file (RD*.dcm) found in {study_dir} or its subdirectories.")
     if len(dose_files) > 1:
         # we will use the first one found
         logger.warning(
