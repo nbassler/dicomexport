@@ -145,10 +145,11 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                         myfield.range_shifter = copy.deepcopy(_rs)
                         # set remaining attributes
                         myfield.range_shifter.is_inserted = True
-                        myfield.range_shifter.water_equivalent_thickness = rss.get(
-                            'WaterEquivalentThickness', 0.0)
-                        myfield.range_shifter.isocenter_distance = rss.get(
-                            'IsocenterToRangeShifterDistance', 0.0)
+                        # (300A,0366), not 'WaterEquivalentThickness', which is a different tag
+                        myfield.range_shifter.water_equivalent_thickness = float(
+                            rss.get('RangeShifterWaterEquivalentThickness', 0.0) or 0.0)
+                        myfield.range_shifter.isocenter_distance = _rs_isocenter_distance(
+                            rss, myfield.number)
 
             # isocenter position and gantry counch angles are stored in each layer,
             # for now we assume they are the same for all layers in a field,
@@ -252,6 +253,28 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
             else:
                 logger.debug("Skipping empty layer index %i", icp_index)
     return p
+
+
+def _rs_isocenter_distance(rss, field_number: int) -> float:
+    """
+    Distance from the isocenter to the range shifter, positive upstream.
+
+    IBA plans store every distance along the beam line as positive upstream (snout position,
+    scanning magnets), but some vendors write IsocenterToRangeShifterDistance with the
+    opposite sign. A negative value would place the range shifter downstream of the
+    isocenter, i.e. inside the patient, so take the magnitude and warn when flipping.
+    """
+    distance = float(rss.get('IsocenterToRangeShifterDistance', 0.0))
+
+    if distance < 0.0:
+        logger.warning(
+            "Field %i: IsocenterToRangeShifterDistance is negative (%.2f mm), which would place "
+            "the range shifter downstream of the isocenter. Assuming a sign convention where "
+            "upstream is negative, and using %.2f mm instead.",
+            field_number, distance, -distance)
+        distance = -distance
+
+    return distance
 
 
 def _build_range_shifter(rs_item) -> RangeShifter:

@@ -15,6 +15,8 @@ class TestCT:
         assert isinstance(ct, CTModel)
         assert ct.patient_name == ""
         assert ct.rows == 0
+        assert ct.dicom_origin == (0.0, 0.0, 0.0)
+        assert ct.full_widths == (0.0, 0.0, 0.0)
 
     def test_ct_load(self):
         ct = load_ct(CT_TEST_PATH)
@@ -22,6 +24,23 @@ class TestCT:
         assert ct.images is not None
         assert ct.patient_id is not None
         assert ct.patient_name is not None
+
+    def test_ct_extent(self):
+        ct = load_ct(CT_TEST_PATH)
+        assert ct.n_slices == 177
+        assert ct.voxel_size == pytest.approx((0.5859375, 0.5859375, 1.5))
+        assert ct.full_widths == pytest.approx((300.0, 300.0, 265.5))
+        assert ct.half_widths == pytest.approx((150.0, 150.0, 132.75))
+
+    def test_ct_dicom_origin(self):
+        """The CT centre in DICOM coordinates, as TOPAS' TsDicomPatient computes it.
+
+        Cross-checked against OpenTOPAS 4.2.3: for an isocenter of (0, -170.16, -2.12) mm
+        it places this patient at "Iso Center [cm]: ( 0, 0.366, -0.488 )", i.e. at
+        dicom_origin - isocenter.
+        """
+        ct = load_ct(CT_TEST_PATH)
+        assert ct.dicom_origin == pytest.approx((0.0, -166.5, -7.0))
 
     def test_ct_multiple_subdirs_raises(self, tmp_path):
         sub_a = tmp_path / "ct_a"

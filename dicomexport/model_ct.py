@@ -47,9 +47,11 @@ class CTModel:
 
     Attributes:
         images: List of images in the CT model.
+        directory: Directory holding the CT slices. TOPAS does not search subdirectories,
+            so this may differ from the study directory.
 """
     images: List[Image] = field(default_factory=list)
-    dicom_origin: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    directory: Optional[Path] = None
     spr_to_material_path: Optional[Path] = None  # in fact mandatory as long we depend on the dose cube
 
     # In dicom format, the following data are per image, and could in princple be different
@@ -89,6 +91,51 @@ class CTModel:
             return self.images[1].slice_position - self.images[0].slice_position
         else:
             return 0.0
+
+    @property
+    def voxel_size(self) -> Tuple[float, float, float]:
+        """Voxel size (dx, dy, dz) in mm.
+
+        DICOM PixelSpacing is (row spacing, column spacing) = (dy, dx).
+        """
+        if not self.images:
+            return (0.0, 0.0, 0.0)
+        dy, dx = self.images[0].pixel_spacing
+        return (dx, dy, self.slice_thickness)
+
+    @property
+    def full_widths(self) -> Tuple[float, float, float]:
+        """Full extent (x, y, z) of the CT volume in mm."""
+        dx, dy, dz = self.voxel_size
+        return (self.columns * dx, self.rows * dy, self.n_slices * dz)
+
+    @property
+    def half_widths(self) -> Tuple[float, float, float]:
+        """Half extent (x, y, z) of the CT volume in mm."""
+        return tuple(w * 0.5 for w in self.full_widths)  # type: ignore[return-value]
+
+    @property
+    def dicom_origin(self) -> Tuple[float, float, float]:
+        """Centre of the CT volume, expressed in DICOM patient coordinates [mm].
+
+        This reproduces what TOPAS computes internally for
+        ``dc:Ge/Patient/DicomOrigin{X,Y,Z}`` (TsDicomPatient.cc), namely the
+        position of the first voxel centre relative to the DICOM origin minus
+        its position relative to the component centre.
+
+        It must be written into the TOPAS input file, because TOPAS defines these
+        parameters too late for its own geometry overlap check. See TopasText.variables().
+
+        Only valid for an evenly spaced CT series; see _check_uniform_slice_spacing().
+        """
+        if not self.images:
+            return (0.0, 0.0, 0.0)
+
+        dx, dy, dz = self.voxel_size
+        ipp = self.images[0].image_position_patient
+        return (ipp[0] + 0.5 * (self.columns - 1) * dx,
+                ipp[1] + 0.5 * (self.rows - 1) * dy,
+                ipp[2] + 0.5 * (self.full_widths[2] - dz))
 
     def __repr__(self):
         return (

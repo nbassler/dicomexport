@@ -43,8 +43,10 @@ class TopasPlan:
 
         lines.append(TopasText.variables(myfield))
         if test_mode:
+            # No patient in test mode: the world only has to hold the beam line and the IsoBox.
+            world_hl = TopasText.world_half_lengths(beam_reach=bm.beam_model_position)
             lines.append(TopasText.setup())
-            lines.append(TopasText.world_setup())
+            lines.append(TopasText.world_setup(world_hl))
             lines.append(TopasText.geometry_gantry())
             lines.append(TopasText.geometry_couch())
             lines.append(TopasText.geometry_dcm_to_iec())

@@ -49,6 +49,11 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     """
     Export a single field to a Topas-compatible geometry file.
     """
+    isocenter = fld.layers[0].isocenter
+    beam_reach = bm.beam_model_position if bm else 0.0
+    world_hl = TopasText.world_half_lengths(ct, isocenter, beam_reach)
+    logger.info("World half-lengths [cm]:      "
+                f"({world_hl[0] / 10:.1f}, {world_hl[1] / 10:.1f}, {world_hl[2] / 10:.1f})")
     # topas results will be written to output/field_number (no extension, will be handled by Topas
     # make target string for output file:
     if output_base_path:
@@ -63,11 +68,11 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     lines.append(TopasText.header2())
     if ct.spr_to_material_path:
         lines.append(TopasText.spr_to_material(ct.spr_to_material_path))
-    lines.append(TopasText.variables(fld))
+    lines.append(TopasText.variables(fld, ct.dicom_origin))
     lines.append(TopasText.setup())
-    lines.append(TopasText.world_setup())
+    lines.append(TopasText.world_setup(world_hl))
     if dose_path:
-        lines.append(TopasText.geometry_patient_dicom(dose_path))
+        lines.append(TopasText.geometry_patient_dicom(dose_path, ct.directory))
     lines.append(TopasText.geometry_gantry())
     lines.append(TopasText.geometry_couch())
     lines.append(TopasText.geometry_dcm_to_iec())
