@@ -7,7 +7,7 @@ from dicomexport.topas_text import TopasText, WORLD_MARGIN
 def _make_ct(columns: int, rows: int, n_slices: int,
              dx: float, dy: float, dz: float,
              ipp: tuple) -> CTModel:
-    """Build a CTModel with the given voxel grid, first slice centred at ipp."""
+    """Build a CTModel with the given voxel grid, with the first voxel centre at ipp."""
     images = []
     for i in range(n_slices):
         img = Image(pixel_spacing=(dy, dx), rows=rows, columns=columns,
