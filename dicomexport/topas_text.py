@@ -178,7 +178,9 @@ class TopasText:
     def geometry_patient_dicom(rd_path: Path, ct_dir: Optional[Path] = None) -> str:
         # TOPAS reads the CT series from DicomDirectory without descending into subdirectories,
         # so it must be the directory holding the slices, not necessarily the study directory.
-        dicom_dir = str((ct_dir if ct_dir else rd_path.parent).resolve())
+        # Emit POSIX separators: on Windows str(Path) yields backslashes, which TOPAS misparses.
+        dicom_dir = (ct_dir if ct_dir else rd_path.parent).resolve().as_posix()
+        rtdose_path = rd_path.resolve().as_posix()
         lines = [
             "##############################################",
             "###            G E O M E T R Y             ###",
@@ -187,7 +189,7 @@ class TopasText:
             's:Ge/Patient/Type                    = "TsDicomPatient"',
             f's:Ge/Patient/DicomDirectory          = "{dicom_dir}"',
             'sv:Ge/Patient/DicomModalityTags      = 1 "CT"',
-            f's:Ge/Patient/CloneRTDoseGridFrom     = "{rd_path.resolve()}"',
+            f's:Ge/Patient/CloneRTDoseGridFrom     = "{rtdose_path}"',
             'd:Ge/Patient/TransX                  = Ge/Patient/DicomOriginX - Rt/Plan/IsoCenterX mm',
             'd:Ge/Patient/TransY                  = Ge/Patient/DicomOriginY - Rt/Plan/IsoCenterY mm',
             'd:Ge/Patient/TransZ                  = Ge/Patient/DicomOriginZ - Rt/Plan/IsoCenterZ mm',

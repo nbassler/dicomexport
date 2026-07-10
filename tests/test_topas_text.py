@@ -100,8 +100,10 @@ class TestPatientDicomDirectory:
 
         text = TopasText.geometry_patient_dicom(rd_path, ct_dir)
 
-        assert f's:Ge/Patient/DicomDirectory          = "{ct_dir.resolve()}"' in text
-        assert f's:Ge/Patient/CloneRTDoseGridFrom     = "{rd_path.resolve()}"' in text
+        assert f's:Ge/Patient/DicomDirectory          = "{ct_dir.resolve().as_posix()}"' in text
+        assert f's:Ge/Patient/CloneRTDoseGridFrom     = "{rd_path.resolve().as_posix()}"' in text
+        # Paths emitted into the TOPAS file must use forward slashes (Windows portability).
+        assert "\\" not in text
 
     def test_falls_back_to_rtdose_directory(self, tmp_path):
         rd_path = tmp_path / "RD.plan.dcm"
@@ -109,4 +111,4 @@ class TestPatientDicomDirectory:
 
         text = TopasText.geometry_patient_dicom(rd_path)
 
-        assert f's:Ge/Patient/DicomDirectory          = "{tmp_path.resolve()}"' in text
+        assert f's:Ge/Patient/DicomDirectory          = "{tmp_path.resolve().as_posix()}"' in text

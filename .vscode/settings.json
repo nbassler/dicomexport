@@ -3,7 +3,5 @@
         "tests"
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true,
-    "chatgpt.openOnStartup": false,
-    "chatgpt.followUpQueueMode": "steer"
+    "python.testing.pytestEnabled": true
 }
