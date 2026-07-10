@@ -100,8 +100,8 @@ class TestPatientDicomDirectory:
 
         text = TopasText.geometry_patient_dicom(rd_path, ct_dir)
 
-        assert f's:Ge/Patient/DicomDirectory          = "{ct_dir.resolve().as_posix()}"' in text
-        assert f's:Ge/Patient/CloneRTDoseGridFrom     = "{rd_path.resolve().as_posix()}"' in text
+        assert f's:Ge/Patient/DicomDirectory          = "{ct_dir.as_posix()}"' in text
+        assert f's:Ge/Patient/CloneRTDoseGridFrom     = "{rd_path.as_posix()}"' in text
         # Paths emitted into the TOPAS file must use forward slashes (Windows portability).
         assert "\\" not in text
 
@@ -111,4 +111,17 @@ class TestPatientDicomDirectory:
 
         text = TopasText.geometry_patient_dicom(rd_path)
 
-        assert f's:Ge/Patient/DicomDirectory          = "{tmp_path.resolve().as_posix()}"' in text
+        assert f's:Ge/Patient/DicomDirectory          = "{tmp_path.as_posix()}"' in text
+
+    def test_relative_paths_pass_through_verbatim(self):
+        # Relative-in -> relative-out keeps the study directory relocatable (see #63):
+        # no .resolve()-to-absolute step, so no absolute path is baked into the output.
+        from pathlib import Path
+
+        rd_path = Path("../dicom/RD.plan.dcm")
+        ct_dir = Path("../dicom")
+
+        text = TopasText.geometry_patient_dicom(rd_path, ct_dir)
+
+        assert 's:Ge/Patient/DicomDirectory          = "../dicom"' in text
+        assert 's:Ge/Patient/CloneRTDoseGridFrom     = "../dicom/RD.plan.dcm"' in text
