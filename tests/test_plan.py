@@ -1,8 +1,10 @@
+import logging
 import math
 import os
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 
 import mcpl
 import numpy as np
@@ -10,6 +12,7 @@ import pytest
 
 from dicomexport.model_plan import Plan
 from dicomexport.import_plan import load_plan
+from dicomexport.import_plan_dicom import _rs_isocenter_distance
 
 TEST_PDG_PROTON = 2212
 
@@ -167,3 +170,35 @@ class TestSpotlistExport6ColBM:
                 for i in range(6, 10):
                     assert cols[i] == "0", \
                         f"Expected column {i + 1} to be 0 for 6-column beam model input"
+
+
+class TestRangeShifterDistance:
+    """IsocenterToRangeShifterDistance is positive upstream, but not for every vendor."""
+
+    def test_negative_distance_is_flipped_with_warning(self, caplog):
+        rss = {'IsocenterToRangeShifterDistance': -61.5}
+        with caplog.at_level(logging.WARNING):
+            distance = _rs_isocenter_distance(rss, field_number=2)
+        assert distance == pytest.approx(61.5)
+        assert "downstream of the isocenter" in caplog.text
+
+    def test_positive_distance_is_kept_without_warning(self, caplog):
+        rss = {'IsocenterToRangeShifterDistance': 275.53}
+        with caplog.at_level(logging.WARNING):
+            distance = _rs_isocenter_distance(rss, field_number=1)
+        assert distance == pytest.approx(275.53)
+        assert caplog.text == ""
+
+    def test_missing_distance_defaults_to_zero(self):
+        assert _rs_isocenter_distance({}, field_number=1) == pytest.approx(0.0)
+
+
+class TestRangeShifterWET:
+    """RangeShifterWaterEquivalentThickness is (300A,0366); 'WaterEquivalentThickness' is not."""
+
+    def test_wet_is_read_from_plan(self):
+        plan = load_plan(Path("res") / "test_studies" / "DCPT_headphantom")
+        rs = plan.fields[0].range_shifter
+        assert rs is not None
+        assert rs.water_equivalent_thickness == pytest.approx(57.0)
+        assert rs.isocenter_distance == pytest.approx(275.53, abs=0.01)

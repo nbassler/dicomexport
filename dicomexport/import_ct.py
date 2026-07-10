@@ -52,7 +52,8 @@ def load_ct(mydir: Path) -> CTModel:
 
     ct_files = get_ct_files_sorted_by_instance_number(mydir)
 
-    ct_model = CTModel()
+    # get_ct_files_sorted_by_instance_number() guarantees a single parent directory.
+    ct_model = CTModel(directory=ct_files[0].parent)
 
     for file in ct_files:
         ds = pydicom.dcmread(file, stop_before_pixels=False)
@@ -91,7 +92,33 @@ def load_ct(mydir: Path) -> CTModel:
     # Sort images by z-position if needed:
     ct_model.images.sort(key=lambda img: img.slice_position)
 
+    _check_uniform_slice_spacing(ct_model)
+
     return ct_model
+
+
+def _check_uniform_slice_spacing(ct: CTModel, tolerance: float = 0.002) -> None:
+    """
+    Warn if the CT slices are not evenly spaced.
+
+    TOPAS splits such a series into several "slice thickness sections" and derives the
+    patient origin from the first section only. dicomexport assumes a single section
+    when it computes CTModel.dicom_origin, so an uneven series would be misplaced.
+    The tolerance matches the one used in TOPAS' TsDicomPatient.cc.
+    """
+    if len(ct.images) < 3:
+        return
+
+    positions = np.array([img.slice_position for img in ct.images])
+    separations = np.diff(positions)
+    spread = float(separations.max() - separations.min())
+
+    if spread > tolerance:
+        logger.warning(
+            "CT slice spacing is not uniform (varies by %.4f mm, from %.4f to %.4f mm). "
+            "TOPAS will split this series into multiple slice thickness sections, and the "
+            "patient may be misplaced along z. Consider resampling the CT to a uniform grid.",
+            spread, float(separations.min()), float(separations.max()))
 
 
 def _get_slice_position(ipp: Tuple[float, float, float], iop: Tuple[float, float, float, float, float, float]) -> float:

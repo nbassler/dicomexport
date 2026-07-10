@@ -24,7 +24,8 @@ class TopasGeo:
         lines = []
         lines.append("# Topas geometry file\n")
         lines.append(TopasText.setup())
-        lines.append(TopasText.world_setup())
+        # No plan here, so the isocenter is unknown and assumed to be at the DICOM origin.
+        lines.append(TopasText.world_setup(TopasText.world_half_lengths(ct)))
         lines.append(TopasText.geometry_patient(ct, rs))
         lines.append(TopasText.scorer_setup_dicom())
         topas_string = "\n".join(lines)

@@ -1,11 +1,18 @@
 import datetime
 import getpass  # used for recording the user who generated the file
 from pathlib import Path
+from typing import Optional, Tuple
 
 from dicomexport.model_plan import Field
 from dicomexport.model_ct import CTModel
 from dicomexport.model_rtstruct import RTStruct
 from dicomexport.__version__ import __version__
+
+
+# Air padding added around everything that must fit inside the world volume [mm].
+# An oversized world is cheap and is more correct for out-of-field dosimetry: particles
+# leaving the world are killed rather than allowed to scatter back into the patient.
+WORLD_MARGIN = 500.0
 
 
 class TopasText:
@@ -49,14 +56,13 @@ class TopasText:
         return "\n".join(lines)
 
     @staticmethod
-    def variables(myfield: Field) -> str:
+    def variables(myfield: Field, dicom_origin: Tuple[float, float, float] = (0.0, 0.0, 0.0)) -> str:
         # Extract isocenter, gantry, couch, and snout_position from the first layer
         # varying isocenter, gantry, couch, snout_position per controlpoint is not supported.
         layer = myfield.layers[0]
         isocenter = getattr(layer, "isocenter", [0.0, 0.0, 0.0])
         gantry_angle = getattr(layer, "gantry_angle", 0.0)
         couch_angle = getattr(layer, "couch_angle", 0.0)
-        dicom_origin = getattr(layer, "dicom_origin", [0.0, 0.0, 0.0])
         snout_position = getattr(layer, "snout_position", 421.0)
 
         lines = [
@@ -70,9 +76,16 @@ class TopasText:
             f"d:Ge/snoutPosition                   = {snout_position:.2f} mm",
             f"d:Ge/gantryAngle                     = {gantry_angle:.2f} deg",
             f"d:Ge/couchAngle                      = {couch_angle:.2f} deg",
-            f"dc:Ge/Patient/DicomOriginX           = {dicom_origin[0]:.2f} mm",
-            f"dc:Ge/Patient/DicomOriginY           = {dicom_origin[1]:.2f} mm",
-            f"dc:Ge/Patient/DicomOriginZ           = {dicom_origin[2]:.2f} mm",
+            "",
+            "# Centre of the CT volume in DICOM coordinates. TsDicomPatient redefines these itself,",
+            "# but only while reading the image, which is after it has calculated the initial patient",
+            "# placement from Ge/Patient/Trans*. TOPAS recalculates the placement before the first run,",
+            "# so these values do not affect the tracking geometry -- but the geometry overlap check",
+            "# runs on the initial placement. Left at 0 the patient is checked at -IsoCenter instead of",
+            "# CTcentre - IsoCenter, which aborts TOPAS on a spurious overlap for a long CT (issue #61).",
+            f"dc:Ge/Patient/DicomOriginX           = {dicom_origin[0]:.4f} mm",
+            f"dc:Ge/Patient/DicomOriginY           = {dicom_origin[1]:.4f} mm",
+            f"dc:Ge/Patient/DicomOriginZ           = {dicom_origin[2]:.4f} mm",
             "\n"
         ]
         return "\n".join(lines)
@@ -119,25 +132,53 @@ class TopasText:
         return "\n".join(lines)
 
     @staticmethod
-    def world_setup() -> str:
+    def world_half_lengths(ct: Optional[CTModel] = None,
+                           isocenter: Tuple[float, float, float] = (0.0, 0.0, 0.0),
+                           beam_reach: float = 0.0,
+                           margin: float = WORLD_MARGIN) -> Tuple[float, float, float]:
+        """
+        Half-lengths [mm] of a world box that contains both the patient and the beam line.
+
+        The patient box is centred at ``dicom_origin - isocenter`` (see geometry_patient_dicom())
+        and the beam line extends up to ``beam_reach`` from the isocenter at the world origin,
+        in any direction the gantry can rotate to.
+
+        ct: CT model, or None if the study has no patient (e.g. test mode).
+        isocenter: plan isocenter in DICOM coordinates [mm].
+        beam_reach: distance from the isocenter to the most upstream beam element [mm].
+        margin: air padding added on every side [mm].
+        """
+        reach = [beam_reach] * 3
+
+        if ct is not None and ct.images:
+            centre = [o - i for o, i in zip(ct.dicom_origin, isocenter)]
+            reach = [max(r, abs(c) + h)
+                     for r, c, h in zip(reach, centre, ct.half_widths)]
+
+        return (reach[0] + margin, reach[1] + margin, reach[2] + margin)
+
+    @staticmethod
+    def world_setup(half_lengths: Tuple[float, float, float]) -> str:
+        hlx, hly, hlz = half_lengths
         lines = [
             "##############################################",
             "###         W O R L D    S E T U P         ###",
             "##############################################",
             's:Ge/World/Type            = "TsBox"',
             's:Ge/World/Material        = "Air"',
-            "d:Ge/World/HLX             = 90. cm",
-            "d:Ge/World/HLY             = 90. cm",
-            "d:Ge/World/HLZ             = 90. cm",
+            f"d:Ge/World/HLX             = {hlx:.2f} mm",
+            f"d:Ge/World/HLY             = {hly:.2f} mm",
+            f"d:Ge/World/HLZ             = {hlz:.2f} mm",
             'b:Ge/World/Invisible       = "True"',
             "\n"
         ]
         return "\n".join(lines)
 
     @staticmethod
-    def geometry_patient_dicom(rd_path: Path) -> str:
-        dicom_dir = str(rd_path.parent)
-        rtdose_file = rd_path.name
+    def geometry_patient_dicom(rd_path: Path, ct_dir: Optional[Path] = None) -> str:
+        # TOPAS reads the CT series from DicomDirectory without descending into subdirectories,
+        # so it must be the directory holding the slices, not necessarily the study directory.
+        dicom_dir = str((ct_dir if ct_dir else rd_path.parent).resolve())
         lines = [
             "##############################################",
             "###            G E O M E T R Y             ###",
@@ -146,7 +187,7 @@ class TopasText:
             's:Ge/Patient/Type                    = "TsDicomPatient"',
             f's:Ge/Patient/DicomDirectory          = "{dicom_dir}"',
             'sv:Ge/Patient/DicomModalityTags      = 1 "CT"',
-            f's:Ge/Patient/CloneRTDoseGridFrom     = Ge/Patient/DicomDirectory + "/{rtdose_file}"',
+            f's:Ge/Patient/CloneRTDoseGridFrom     = "{rd_path.resolve()}"',
             'd:Ge/Patient/TransX                  = Ge/Patient/DicomOriginX - Rt/Plan/IsoCenterX mm',
             'd:Ge/Patient/TransY                  = Ge/Patient/DicomOriginY - Rt/Plan/IsoCenterY mm',
             'd:Ge/Patient/TransZ                  = Ge/Patient/DicomOriginZ - Rt/Plan/IsoCenterZ mm',
@@ -297,8 +338,10 @@ class TopasText:
             f's:Ge/RangeShifter/Material           = "{rs.material}"',
             'b:Ge/RangeShifter/Isparallel         = "True"',
             'sv:Ph/Default/LayeredMassGeometryWorlds = 2 "Patient/RTDoseGrid" "RangeShifter"',
-            f"d:Ge/RangeShifter/HLX                = {200:.2f} mm",
-            f"d:Ge/RangeShifter/HLY                = {200:.2f} mm",
+            # DICOM specifies only the thickness and position of the range shifter, not its
+            # lateral size. 45 x 45 cm covers the maximum beam deflection of 40 cm at isocenter.
+            f"d:Ge/RangeShifter/HLX                = {225:.2f} mm",
+            f"d:Ge/RangeShifter/HLY                = {225:.2f} mm",
             f"d:Ge/RangeShifter/HLZ                = {rs.thickness*0.5:.2f} mm",
             's:Ge/RangeShifter/Color              = "Orange"',
             f'd:Ge/RangeShifter/TransZ            = {transz:.2f} mm\n',

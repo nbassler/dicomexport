@@ -18,14 +18,16 @@ def get_path_dicom_dose(study_dir: Path) -> Path:
     Get the path to the DICOM RTDOSE file in the study directory.
     The file should start with 'RD' and end with '.dcm'.
     """
-    dose_files = list(study_dir.glob('**/RD*.dcm'))
+    # Path.glob() does not return a sorted list, so sort to make the choice reproducible.
+    dose_files = sorted(study_dir.glob('**/RD*.dcm'))
     if not dose_files:
         raise FileNotFoundError(
             f"No DICOM RTDOSE file (RD*.dcm) found in {study_dir} or its subdirectories.")
     if len(dose_files) > 1:
-        # we will use the first one found
+        # Only the dose grid geometry is cloned from this file, not the dose values,
+        # so any of them will do as long as the choice does not vary between runs.
         logger.warning(
-            "Multiple DICOM RTDOSE files found, using the first one.")
+            "Multiple DICOM RTDOSE files found, using the first one: %s", dose_files[0].name)
     return dose_files[0]
 
 
