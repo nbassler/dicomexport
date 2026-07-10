@@ -179,8 +179,10 @@ class TopasText:
         # TOPAS reads the CT series from DicomDirectory without descending into subdirectories,
         # so it must be the directory holding the slices, not necessarily the study directory.
         # Emit POSIX separators: on Windows str(Path) yields backslashes, which TOPAS misparses.
-        dicom_dir = (ct_dir if ct_dir else rd_path.parent).resolve().as_posix()
-        rtdose_path = rd_path.resolve().as_posix()
+        # Pass paths through verbatim (no .resolve()): relative-in -> relative-out keeps study
+        # directories relocatable; a caller wanting absolute paths passes absolute ones (see #63).
+        dicom_dir = (ct_dir if ct_dir else rd_path.parent).as_posix()
+        rtdose_path = rd_path.as_posix()
         lines = [
             "##############################################",
             "###            G E O M E T R Y             ###",
