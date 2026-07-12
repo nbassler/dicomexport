@@ -45,12 +45,12 @@ You also need to specify a beam model. The beam model position is read automatic
 Finally you need to point to a Stopping power ratio to material table.
 
 ```bash
-PYTHONPATH=. python3 dicomexport/main.py -v -b=res/beam_models/DCPT_beam_model__v2.csv --nozzle-side pos-z -s=res/spr_tables/SPRtoMaterial__Brain.txt res/test_studies/DCPT_headphantom/
+PYTHONPATH=. python3 dicomexport/main.py -v -b=res/beam_models/DCPT_beam_model__v2.csv -s=res/spr_tables/SPRtoMaterial__Brain.txt res/test_studies/DCPT_headphantom/
 ```
 which will produce three topas files, ready to run:
 
 ```
-$ PYTHONPATH=. python3 dicomexport/main.py -v -b=res/beam_models/DCPT_beam_model__v2.csv --nozzle-side pos-z -s
+$ PYTHONPATH=. python3 dicomexport/main.py -v -b=res/beam_models/DCPT_beam_model__v2.csv -s
 res/spr_tables/SPRtoMaterial__Brain.txt res/test_studies/DCPT_headphantom/
 INFO:dicomexport.import_rtstruct:Using RTSTRUCT file: RS.1.2.246.352.205.5439556202947041733.367077883804944283.dcm
 INFO:dicomexport.import_rtstruct:Imported RTSTRUCT: DCPT_headphantom with 11 ROIs
@@ -66,7 +66,9 @@ Both the full study exporter (`dicomexport/main.py`, installed as `dicomexport`)
 (`dicomexport/main_plan_export.py`, installed as `plan-export`) support:
 
 - `-p, --beam-model-position`: beam model distance in mm upstream of the isocenter (always positive, independent of beam transport direction). If omitted, the value is read from the `BMODPOS` key in the CSV header; if that key is also absent, it defaults to `500.0` mm.
-- `--nozzle-side {pos-z,neg-z}`: side of the gantry where the nozzle/source is placed. The default is `pos-z`, meaning source at `+Z` and beam travelling toward `-Z` in the IEC convention. `neg-z` places the source at `-Z` and the beam travels toward `+Z`.
+- `--nozzle-side {pos-z,neg-z}`: side of the gantry-local `Z` axis where the nozzle/source is placed. The default, `neg-z`, is the setting that reproduces IEC 61217: at gantry 0 the beam enters a head-first-supine patient from the anterior side, and at gantry 90 from the patient's left. This is verified against OpenTOPAS 4.2.3 by `tests/test_topas_beam_direction.py`.
+
+  `pos-z` mirrors the source to the opposite side of the isocenter, i.e. every field behaves as if the gantry were rotated by 180°. It is only meaningful for non-patient research setups, and the exporter warns when it is selected. It was the default up to and including v1.4.3, which made all patient dose distributions mirrored — see issue #66.
 
 For TOPAS export, the range shifter position follows the selected nozzle side.
 
@@ -103,8 +105,9 @@ options:
   --export-fmt {topas,phasespace,racehorse}
                         Export format (default: topas). Formats: topas (*.txt), phasespace (*.mcpl), racehorse (*.csv).
   --nozzle-side {pos-z,neg-z}
-                        Which side of the gantry the nozzle sits on (default: pos-z). pos-z: nozzle at +Z, beam travels toward -Z
-                        (IEC convention). neg-z: nozzle at -Z, beam travels toward +Z.
+                        Which side of the gantry-local Z axis the nozzle sits on (default: neg-z). neg-z reproduces IEC 61217: at
+                        gantry 0 the beam enters an HFS patient from the anterior side (verified against OpenTOPAS 4.2.3, issue
+                        #66). pos-z mirrors the source to gantry+180 deg and is only meant for non-patient research setups.
   -v, --verbosity       Increase verbosity (can use -v, -vv, etc.).
   -V, --version         Show version and exit.
   ```
@@ -143,8 +146,9 @@ options:
   --spot-pos-iso        Export spot X/Y positions at isocenter (z=0) instead of the beam model plane.
   --test-mode           Generate a self-contained Topas file (no DICOM patient) with a water box and isocenter dose scorer.
   --nozzle-side {pos-z,neg-z}
-                        Which side of the gantry the nozzle sits on (default: pos-z). pos-z: nozzle at +Z, beam travels toward -Z
-                        (IEC convention). neg-z: nozzle at -Z, beam travels toward +Z.
+                        Which side of the gantry-local Z axis the nozzle sits on (default: neg-z). neg-z reproduces IEC 61217: at
+                        gantry 0 the beam enters an HFS patient from the anterior side (verified against OpenTOPAS 4.2.3, issue
+                        #66). pos-z mirrors the source to gantry+180 deg and is only meant for non-patient research setups.
   -v, --verbosity       Increase verbosity
   -V, --version         show program's version number and exit
 ```

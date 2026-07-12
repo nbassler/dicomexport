@@ -63,6 +63,11 @@ def main(args=None) -> int:
 
     elif parsed_args.export_fmt == 'topas':
         beam_direction = 1 if parsed_args.nozzle_side == 'pos-z' else -1
+        if beam_direction == 1:
+            logger.warning(
+                "--nozzle-side pos-z places the beam source at gantry+180 deg, mirroring "
+                "every field (issue #66). Do not use it for patient plans; the IEC-correct "
+                "setting is neg-z (the default).")
         export_plan(pln, pln.beam_model, parsed_args.fout,
                     field_nr=parsed_args.field_nr,
                     nstat=parsed_args.nstat,

@@ -26,7 +26,9 @@ The `plan-export --test-mode` flag generates a **self-contained** Topas input fi
 - A `DoseToWater` scorer on `IsoBox` that writes `isocenter_scorer.csv`.
 - The complete gantry / couch / DCM-to-IEC coordinate frame.
 
-This is the simplest way to catch a beam-direction regression (e.g. a sign error in `BeamPosition/TransZ`): if the beam goes the wrong way the scorer records zero dose.
+This catches a beam that misses the isocenter entirely (e.g. a sign error in `BeamPosition/TransZ` combined with a wrong `RotY`): if the beam goes nowhere near the isocenter, the scorer records zero dose.
+
+It does **not** catch a beam that is mirrored to the opposite side of the isocenter, since both directions still converge there — that was issue #66. The side the beam enters from is covered by `tests/test_topas_beam_direction.py`, which runs automatically under `pytest` when a `topas` executable is on `PATH` and is skipped otherwise.
 
 ### Running the test locally
 
@@ -35,7 +37,7 @@ This is the simplest way to catch a beam-direction regression (e.g. a sign error
 ```bash
 plan-export res/test_plans/temp_160MeV_10x10.dcm topas_beamcheck.txt \
   -b res/beam_models/DCPT_beam_model__v2.csv \
-  --test-mode -N 1000 -f 1 --nozzle-side pos-z
+  --test-mode -N 1000 -f 1
 ```
 
 **2. Run the simulation with the [OpenTOPAS](https://github.com/OpenTOPAS/OpenTOPAS) Docker image:**
