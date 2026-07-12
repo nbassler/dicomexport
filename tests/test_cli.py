@@ -60,6 +60,35 @@ class TestPregdosCLI:
     def test_conversion_temp_sobp(self):
         self._run_conversion_test("temp_sobp_10x10.dcm")
 
+    def test_beam_direction_default_is_iec(self):
+        """Regression test for issue #66: the default nozzle side must be neg-z.
+
+        pos-z mirrors the source to gantry+180 deg, so a default output must place
+        the nozzle at gantry-local -Z (negative TransZ) and use per-spot RotY of the
+        -angx form (no 180 deg offset).
+        """
+        test_output_file = Path("plan_field01.txt")
+        test_output_file.unlink(missing_ok=True)
+
+        test_args = [
+            "-f1",
+            "-b=res/beam_models/DCPT_beam_model__v2.csv",
+            "res/test_plans/temp_160MeV_10x10.dcm",
+        ]
+        assert main_plan_export.main(test_args) == 0
+        content = test_output_file.read_text()
+
+        assert 'TransZ             = -500.0 mm' in content, \
+            "default output must place the nozzle at gantry-local -Z (issue #66)"
+
+        roty_match = re.search(r"dv:Tf/BeamPositionRotY/Values\s*=\s*\d+((?:\s+-?[\d.]+)+)", content)
+        assert roty_match, "BeamPositionRotY time feature missing"
+        roty_values = [float(v) for v in roty_match.group(1).split()]
+        assert all(abs(v) < 90.0 for v in roty_values), \
+            "default BeamPositionRotY must be -angx (no 180 deg offset, issue #66)"
+
+        test_output_file.unlink()
+
     def test_beam_direction_flag(self):
         for direction in ('pos-z', 'neg-z'):
             test_output_file = Path("plan_field01.txt")

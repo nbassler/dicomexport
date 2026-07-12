@@ -305,9 +305,15 @@ class TopasText:
     @staticmethod
     def geometry_beam_position_timefeature(beam_model_position: float = 500.0,
                                            beam_direction: int = 1) -> str:
-        # RotY is pre-computed per spot into BeamPositionRotY time feature:
-        #   pos-Z (beam_direction=1):  180.0 - angx  (Ry(180°) baseline flips emission to -Z)
-        #   neg-Z (beam_direction=-1): -angx          (empirically verified)
+        # RotY is pre-computed per spot into the BeamPositionRotY time feature.
+        # TOPAS rotation parameters are passive (TsVGeometryComponent composes
+        # fRotRelToWorld = R_child * R_parent and the local->world map uses the inverse),
+        # so the IEC-correct nozzle sits at gantry-local -Z emitting along its +Z:
+        #   neg-Z (beam_direction=-1): TransZ=-bmp, RotY=-angx   (IEC 61217, default).
+        #     Verified against OpenTOPAS 4.2.3: gantry 0 enters an HFS patient anterior,
+        #     gantry 90 from the patient's left (issue #66).
+        #   pos-Z (beam_direction=1):  TransZ=+bmp, RotY=180-angx. Source mirrored to
+        #     gantry+180°; only for non-patient research setups.
         transz = f"{beam_model_position}" if beam_direction == 1 else f"-{beam_model_position}"
         lines = [
             "##############################################",

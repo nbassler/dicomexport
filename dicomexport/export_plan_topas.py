@@ -125,9 +125,12 @@ class TopasPlan:
         lines.append(
             f"d:Tf/TimelineEnd                     = {n_spots+1} s\n\n")
 
-        # Pre-compute BeamPositionRotY (RotY of the beam nozzle group) per spot:
-        #   pos-Z (beam_direction=1):  180.0 - angx  (Ry(180°) baseline flips emission to -Z)
-        #   neg-Z (beam_direction=-1): -angx          (nozzle at -Z, beam travels +Z)
+        # Pre-compute BeamPositionRotY (RotY of the beam nozzle group) per spot.
+        # TOPAS rotation parameters are passive (the local->world map uses the inverse
+        # matrix), so the IEC-correct nozzle sits at gantry-local -Z with no 180° flip:
+        #   neg-Z (beam_direction=-1): -angx          (IEC 61217, default; issue #66)
+        #   pos-Z (beam_direction=1):  180.0 - angx  (source mirrored to gantry+180°,
+        #                                             non-patient research setups only)
         if beam_direction == 1:
             beam_pos_roty = 180.0 - angx
         else:

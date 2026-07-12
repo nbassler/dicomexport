@@ -45,10 +45,12 @@ def create_parser():
                              "and isocenter dose scorer. Useful for CI beam-direction checks.")
 
     parser.add_argument('--nozzle-side', dest='nozzle_side', choices=['pos-z', 'neg-z'],
-                        default='pos-z',
-                        help="Which side of the gantry the nozzle sits on (default: pos-z). "
-                             "pos-z: nozzle at +Z, beam travels toward -Z (IEC convention). "
-                             "neg-z: nozzle at -Z, beam travels toward +Z (empirically verified with TOPAS 3.9).")
+                        default='neg-z',
+                        help="Which side of the gantry-local Z axis the nozzle sits on (default: neg-z). "
+                             "neg-z reproduces IEC 61217: at gantry 0 the beam enters an HFS patient "
+                             "from the anterior side (verified against OpenTOPAS 4.2.3, issue #66). "
+                             "pos-z mirrors the source to gantry+180 deg and is only meant for "
+                             "non-patient research setups.")
 
     parser.add_argument('-v', '--verbosity', action='count', help="Increase verbosity", default=0)
     parser.add_argument('-V', '--version', action='version', version=__version__)
