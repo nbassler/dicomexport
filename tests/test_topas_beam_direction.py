@@ -61,8 +61,15 @@ s:Sc/EdepPosY/IfOutputFileAlreadyExists = "Overwrite"
 
 
 def _read_scorer_sum(csv_path: Path) -> float:
-    values = [float(line) for line in csv_path.read_text().splitlines()
-              if line.strip() and not line.startswith('#')]
+    values = []
+    for line in csv_path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+        try:
+            values.append(float(line.split(',')[0]))
+        except ValueError:
+            continue
     return sum(values)
 
 
