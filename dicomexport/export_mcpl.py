@@ -400,11 +400,12 @@ def _sample_mcpl_buffer_fused(
         t1 = sampler.t1[idx]
         t2 = sampler.t2[idx]
 
-        # Offset the position in the LOCAL transverse basis (t1/t2), matching the angular
-        # offsets below, so the position-angle correlation is direction-independent (#72).
+        # Offset the x/y position in the local transverse basis (t1/t2), matching the
+        # angular offsets below, so the position-angle correlation is direction-independent
+        # (#72). zg stays on the fixed source plane so the phase space remains planar at +D.
         xg = float(sampler.xbm[idx] + x_local * t1[0] + y_local * t2[0])
         yg = float(sampler.ybm[idx] + x_local * t1[1] + y_local * t2[1])
-        zg = float(z_plane + x_local * t1[2] + y_local * t2[2])
+        zg = z_plane
 
         vx = float(v0[0] + xprim * t1[0] + yprim * t2[0])
         vy = float(v0[1] + xprim * t1[1] + yprim * t2[1])
@@ -493,14 +494,15 @@ def _sample_mcpl_buffer_fused_numpy(
     y_local = Ly[:, 0, 0] * z2
     yprim = Ly[:, 1, 0] * z2 + Ly[:, 1, 1] * z3
 
-    # --- positions at the beam-model plane, offset in the LOCAL transverse basis ---
-    # The transverse position offsets must be applied in the SAME frame (t1/t2) as the
-    # angular offsets below. Adding them in global x/y instead inverts the position-angle
-    # (Twiss) correlation whenever t1/t2 flip sign relative to the global axes -- which
-    # they do for the -Z beam direction (t1 = -x_hat), breaking the X plane only (#72).
+    # --- positions at the fixed beam-model plane (z = z_plane), x/y in the local basis ---
+    # The transverse x/y offsets must use the SAME frame (t1/t2) as the angular offsets
+    # below; applying them in global x/y instead inverts the position-angle (Twiss)
+    # correlation whenever t1/t2 flip sign relative to the global axes -- which they do for
+    # the -Z beam direction (t1 = -x_hat), breaking the X plane only (#72). zg is pinned to
+    # the source plane so the phase space stays planar at +D (per the docs/logs framing).
     xg = (xbm + x_local * t1[:, 0] + y_local * t2[:, 0]) * np.float32(0.1)   # mm -> cm
     yg = (ybm + x_local * t1[:, 1] + y_local * t2[:, 1]) * np.float32(0.1)
-    zg = (z_plane + x_local * t1[:, 2] + y_local * t2[:, 2]) * np.float32(0.1)
+    zg = np.full(n, z_plane * np.float32(0.1), dtype=np.float32)
 
     # --- directions: v = v0 + xprim*t1 + yprim*t2, then normalize ---
     # compute components (all float32)
