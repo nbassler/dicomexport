@@ -121,6 +121,7 @@ usage: main_plan_export.py [-h] [-b FBM] [-p BEAM_MODEL_POSITION]
                            [-nc {5,6,7,9,11}]
                            [--export-fmt {topas,mcpl,racehorse,spotlist}]
                            [--spot-pos-iso] [--test-mode]
+                           [--mcpl-frame {iec,rotx180}]
                            [--nozzle-side {pos-z,neg-z}] [-v] [-V]
                            fin [fout]
 
@@ -145,6 +146,11 @@ options:
                         Export format (default: topas). Formats: topas (*.txt), mcpl (*.mcpl), racehorse (*.csv), spotlist (*.txt).
   --spot-pos-iso        Export spot X/Y positions at isocenter (z=0) instead of the beam model plane.
   --test-mode           Generate a self-contained Topas file (no DICOM patient) with a water box and isocenter dose scorer.
+  --mcpl-frame {iec,rotx180}
+                        Coordinate frame for MCPL phase-space output (default: iec). iec is the canonical IEC 61217
+                        gantry/nozzle frame (source plane at +D, beam travels toward -Z, isocenter at origin). rotx180
+                        rigidly rotates the beam 180 deg about X so it travels toward +Z (source at -D), which flips the
+                        sign of Y; use it for downstream codes that expect a +Z-forward beam. Only applies to MCPL export.
   --nozzle-side {pos-z,neg-z}
                         Which side of the gantry-local Z axis the nozzle sits on (default: neg-z). neg-z reproduces IEC 61217: at
                         gantry 0 the beam enters an HFS patient from the anterior side (verified against OpenTOPAS 4.2.3, issue
@@ -178,7 +184,25 @@ Written 1000000/1000000 particles (100.0%)
 
 This will process the specified DICOM plan and generate MCPL files for each field.
 
+#### Coordinate frame
 
+The MCPL phase space is **frame-relative (pre-gantry)**: no gantry or couch rotation is
+applied, and the particles are emitted in the beam's own frame. The receiving Monte Carlo
+is expected to place the phase space at the nozzle and apply the gantry transform. Because
+of this, `--nozzle-side` does not apply to MCPL export.
+
+By default (`--mcpl-frame iec`) the frame is the canonical **IEC 61217** gantry/nozzle
+frame:
+
+- axes: `X = Xg`, `Y = Yg`, `Z = Zg`;
+- the source plane is at `+D` (the beam-model position, upstream of isocenter);
+- the beam travels toward **−Z**;
+- the isocenter is at the origin.
+
+`--mcpl-frame rotx180` rigidly rotates the whole phase space 180° about X, so the beam
+travels toward **+Z** with the source at `−D`. A proper rotation cannot reverse Z alone, so
+this **flips the sign of Y**; it preserves all beam optics. Use it for downstream codes that
+expect a +Z-forward beam.
 
 For more details about the MCPL format, visit the [MCPL documentation](https://mctools.github.io/mcpl/).
 

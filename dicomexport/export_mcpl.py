@@ -77,6 +77,7 @@ def generate_mcpl_file(
     num_primaries: int = int(1e7),  # default 10 million particles to generate
     buffer_size: int = 1 << 20,  # approx 1 million particles for buffered writes
     rng_seed: int | None = None,
+    rot180x: bool = False,
 ) -> None:
     """
     Generate an MCPL (Monte Carlo Particle List) file for a given treatment plan.
@@ -101,6 +102,12 @@ def generate_mcpl_file(
             particles (1 << 20).
         rng_seed (int | None, optional): The seed for the random number generator.
             If None, a random seed will be used. Defaults to None.
+        rot180x (bool, optional): If False (default), particles are emitted in the
+            canonical IEC 61217 gantry/nozzle frame: source plane at +D, beam travelling
+            toward -Z, isocenter at the origin. If True, the whole phase space is rigidly
+            rotated 180 deg about X so the beam travels toward +Z (source at -D); this
+            necessarily flips the sign of Y. Use it for downstream codes that expect a
+            +Z-forward beam. It is a rigid rotation and preserves all beam optics.
 
     Returns:
         None
@@ -118,6 +125,11 @@ def generate_mcpl_file(
 
     rng = np.random.default_rng(rng_seed)
     header = _mcpl_header(num_primaries)
+
+    if rot180x:
+        logger.info("MCPL frame: rotx180 -- beam travels toward +Z (source at -D), Y sign flipped.")
+    else:
+        logger.info("MCPL frame: iec -- beam travels toward -Z (source at +D), isocenter at origin.")
 
     fields = plan.fields if field_list is None else [plan.fields[i - 1] for i in field_list]
 
@@ -145,7 +157,7 @@ def generate_mcpl_file(
                 n = min(buffer_size, num_primaries - wrote_count)
                 t0 = time.perf_counter()
                 # buf = _sample_mcpl_buffer_fused(sampler, cache, n, rng=rng)
-                buf = _sample_mcpl_buffer_fused_numpy(sampler, cache, n, rng=rng)
+                buf = _sample_mcpl_buffer_fused_numpy(sampler, cache, n, rng=rng, rot180x=rot180x)
                 t1 = time.perf_counter()
                 f.write(buf)
                 t2 = time.perf_counter()
@@ -347,6 +359,7 @@ def _sample_mcpl_buffer_fused(
     *,
     rng: np.random.Generator,
     pdg: int = PDG_PROTON,
+    rot180x: bool = False,
 ) -> bytearray:
     """
     MCPL buffer generation with fused loop for better CPU cache usage.
@@ -383,13 +396,16 @@ def _sample_mcpl_buffer_fused(
         y_local = Ly[0, 0] * z2
         yprim = Ly[1, 0] * z2 + Ly[1, 1] * z3  # yprim = dy/dz
 
-        xg = float(sampler.xbm[idx] + x_local)
-        yg = float(sampler.ybm[idx] + y_local)
-        zg = z_plane
-
         v0 = sampler.v0[idx]
         t1 = sampler.t1[idx]
         t2 = sampler.t2[idx]
+
+        # Offset the x/y position in the local transverse basis (t1/t2), matching the
+        # angular offsets below, so the position-angle correlation is direction-independent
+        # (#72). zg stays on the fixed source plane so the phase space remains planar at +D.
+        xg = float(sampler.xbm[idx] + x_local * t1[0] + y_local * t2[0])
+        yg = float(sampler.ybm[idx] + x_local * t1[1] + y_local * t2[1])
+        zg = z_plane
 
         vx = float(v0[0] + xprim * t1[0] + yprim * t2[0])
         vy = float(v0[1] + xprim * t1[1] + yprim * t2[1])
@@ -399,6 +415,13 @@ def _sample_mcpl_buffer_fused(
         vx *= invn
         vy *= invn
         vz *= invn
+
+        if rot180x:
+            # Rigid 180-deg rotation about X (see numpy path / #71): +Z travel, Y flipped.
+            yg = -yg
+            zg = -zg
+            vy = -vy
+            vz = -vz
 
         Emean = float(sampler.Emean[k])
         Esig = float(sampler.Esig[k])
@@ -427,6 +450,7 @@ def _sample_mcpl_buffer_fused_numpy(
     *,
     rng: np.random.Generator,
     pdg: int = PDG_PROTON,
+    rot180x: bool = False,
 ) -> bytes:
     """
     Vectorized MCPL buffer generation (pure NumPy).
@@ -470,9 +494,14 @@ def _sample_mcpl_buffer_fused_numpy(
     y_local = Ly[:, 0, 0] * z2
     yprim = Ly[:, 1, 0] * z2 + Ly[:, 1, 1] * z3
 
-    # --- positions at the fixed plane z = z_plane (global x/y) ---
-    xg = (xbm + x_local) * np.float32(0.1)   # mm -> cm
-    yg = (ybm + y_local) * np.float32(0.1)
+    # --- positions at the fixed beam-model plane (z = z_plane), x/y in the local basis ---
+    # The transverse x/y offsets must use the SAME frame (t1/t2) as the angular offsets
+    # below; applying them in global x/y instead inverts the position-angle (Twiss)
+    # correlation whenever t1/t2 flip sign relative to the global axes -- which they do for
+    # the -Z beam direction (t1 = -x_hat), breaking the X plane only (#72). zg is pinned to
+    # the source plane so the phase space stays planar at +D (per the docs/logs framing).
+    xg = (xbm + x_local * t1[:, 0] + y_local * t2[:, 0]) * np.float32(0.1)   # mm -> cm
+    yg = (ybm + x_local * t1[:, 1] + y_local * t2[:, 1]) * np.float32(0.1)
     zg = np.full(n, z_plane * np.float32(0.1), dtype=np.float32)
 
     # --- directions: v = v0 + xprim*t1 + yprim*t2, then normalize ---
@@ -485,6 +514,15 @@ def _sample_mcpl_buffer_fused_numpy(
     vx *= invn
     vy *= invn
     vz *= invn
+
+    if rot180x:
+        # Rigid 180-deg rotation about X: (x,y,z)->(x,-y,-z), (vx,vy,vz)->(vx,-vy,-vz).
+        # Reverses the beam to +Z travel for downstream codes that expect it; being a
+        # proper rotation it preserves all beam optics (#71). Y sign is flipped.
+        yg = -yg
+        zg = -zg
+        vy = -vy
+        vz = -vz
 
     # --- energy sampling ---
     Emean = sampler.Emean[k]
