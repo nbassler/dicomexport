@@ -65,7 +65,7 @@ The geometric emittance and Twiss parameters follow from this covariance matrix:
 ```math
 \epsilon_x = \sqrt{\det \Sigma_x}, \quad
 \beta_x = \frac{\sigma_x^2}{\epsilon_x}, \quad
-\alpha_x = -\frac{\operatorname{cov}(x,x')}{\epsilon_x}, \quad
+\alpha_x = -\frac{\mathrm{cov}(x,x')}{\epsilon_x}, \quad
 \gamma_x = \frac{\sigma_{x'}^2}{\epsilon_x}
 ```
 
