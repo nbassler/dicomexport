@@ -10,6 +10,7 @@ readable as DICOM. These helpers write a minimal but genuinely valid dataset
 from pathlib import Path
 
 from pydicom.dataset import Dataset, FileMetaDataset
+from pydicom.sequence import Sequence
 from pydicom.uid import UID, ExplicitVRLittleEndian, generate_uid
 
 # Any valid SOP Class works; the scanner keys on Modality, not on this.
@@ -123,3 +124,53 @@ def write_dicom_raw(path: Path, modality: str, instance_number, **identity) -> P
         warnings.simplefilter("ignore")
         ds.save_as(path, enforce_file_format=True)
     return Path(path)
+
+
+def make_ccb_style_plan(source: Path, out_path: Path,
+                        ref_order=(4, 5, 1, 2, 3), with_delivery=(1, 2, 3),
+                        without_dose=(), defined_beams=None) -> Path:
+    """
+    Rewrite a real RTPLAN so its fraction group mirrors the CCB case of issue #75.
+
+    ``ref_order`` is the order of ReferencedBeamNumber values written into the
+    ReferencedBeamSequence -- deliberately not the IonBeamSequence order. Only the
+    beams in ``with_delivery`` keep BeamDose/BeamMeterset; the rest carry just the
+    reference, as a plan does for beams that deliver nothing. Numbers in
+    ``without_dose`` keep their meterset but lose BeamDose.
+
+    IonBeamSequence covers every referenced number by default, so the two sequences
+    describe the same beams and differ only in order and completeness. Pass
+    ``defined_beams`` to break that deliberately -- either dropping a beam the fraction
+    group delivers on, or defining one it never references.
+    """
+    import pydicom
+    from copy import deepcopy
+
+    ds = pydicom.dcmread(source)
+    template_beam = ds.IonBeamSequence[0]
+
+    beams = []
+    for number in sorted(ref_order if defined_beams is None else defined_beams):
+        beam = deepcopy(template_beam)
+        beam.BeamNumber = number
+        beam.BeamName = f"Beam{number}"
+        beams.append(beam)
+    ds.IonBeamSequence = Sequence(beams)
+
+    references = []
+    for number in ref_order:
+        ref = Dataset()
+        ref.ReferencedBeamNumber = number
+        if number in with_delivery:
+            # Distinct values per beam, so a mis-pairing is visible in assertions.
+            if number not in without_dose:
+                ref.BeamDose = 10.0 + number
+            ref.BeamMeterset = 1000.0 * number
+        references.append(ref)
+
+    fg = ds.FractionGroupSequence[0]
+    fg.ReferencedBeamSequence = Sequence(references)
+    fg.NumberOfBeams = len(references)
+
+    ds.save_as(out_path, enforce_file_format=True)
+    return Path(out_path)

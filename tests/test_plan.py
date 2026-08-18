@@ -18,7 +18,7 @@ from dicomexport.export_plan_topas import TopasPlan
 from dicomexport.export_spotlist import _plan_to_spot_dataframe, export_spotlist
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence
-from tests.dicom_fixtures import write_dicom
+from tests.dicom_fixtures import write_dicom, make_ccb_style_plan
 
 TEST_PDG_PROTON = 2212
 
@@ -473,3 +473,105 @@ class TestSadValidationEdgeCases:
         with pytest.raises(ValueError, match="finite positive distance"):
             export_spotlist(plan, str(tmp_path / "s.txt"))
         assert not list(tmp_path.iterdir())
+
+
+class TestReferencedBeamPairing:
+    """Issue #75: pair beams by number, and skip those that deliver no MU."""
+
+    SOURCE = Path("res") / "test_plans" / "temp_160MeV_10x10.dcm"
+
+    def test_ccb_layout_pairs_by_beam_number(self, tmp_path):
+        """Refs arrive as 4,5,1,2,3 with only 1-3 delivering, as in the CCB plan."""
+        plan_path = make_ccb_style_plan(self.SOURCE, tmp_path / "ccb.dcm")
+        plan = load_plan(plan_path)
+
+        assert [f.number for f in plan.fields] == [1, 2, 3]
+        # Values are number-derived, so a positional pairing would mismatch them.
+        for field in plan.fields:
+            assert field.cum_mu == pytest.approx(1000.0 * field.number)
+            assert field.dose == pytest.approx(10.0 + field.number)
+
+    def test_scrambled_order_still_pairs_correctly(self, tmp_path):
+        """Mis-pairing without any missing meterset: the silent half of #75."""
+        plan_path = make_ccb_style_plan(
+            self.SOURCE, tmp_path / "scrambled.dcm",
+            ref_order=(3, 1, 2), with_delivery=(1, 2, 3))
+        plan = load_plan(plan_path)
+
+        assert [f.number for f in plan.fields] == [1, 2, 3]
+        for field in plan.fields:
+            assert field.cum_mu == pytest.approx(1000.0 * field.number)
+
+    def test_field_number_is_the_dicom_beam_number(self, tmp_path):
+        """Non-consecutive numbering must survive, not be renumbered positionally."""
+        plan_path = make_ccb_style_plan(
+            self.SOURCE, tmp_path / "sparse.dcm",
+            ref_order=(7, 3), with_delivery=(3, 7))
+        plan = load_plan(plan_path)
+
+        assert [f.number for f in plan.fields] == [3, 7]
+
+    def test_missing_beam_dose_keeps_the_beam(self, tmp_path, caplog):
+        """Only MU is needed to export; dose is informational."""
+        plan_path = make_ccb_style_plan(
+            self.SOURCE, tmp_path / "nodose.dcm",
+            ref_order=(1, 2), with_delivery=(1, 2), without_dose=(2,))
+        with caplog.at_level(logging.INFO):
+            plan = load_plan(plan_path)
+
+        assert [f.number for f in plan.fields] == [1, 2]
+        assert plan.fields[1].dose == pytest.approx(0.0)
+        assert plan.fields[1].cum_mu == pytest.approx(2000.0)
+        assert "has no BeamDose" in caplog.text
+
+    def test_beam_without_meterset_is_skipped_with_a_warning(self, tmp_path, caplog):
+        plan_path = make_ccb_style_plan(
+            self.SOURCE, tmp_path / "nomu.dcm",
+            ref_order=(1, 2), with_delivery=(1,))
+        with caplog.at_level(logging.WARNING):
+            plan = load_plan(plan_path)
+
+        assert [f.number for f in plan.fields] == [1]
+        assert "no BeamMeterset" in caplog.text
+
+    def test_plan_delivering_nothing_raises(self, tmp_path):
+        plan_path = make_ccb_style_plan(
+            self.SOURCE, tmp_path / "empty.dcm",
+            ref_order=(1, 2), with_delivery=())
+        with pytest.raises(ValueError, match="delivers nothing that can be exported"):
+            load_plan(plan_path)
+
+    def test_delivered_beam_missing_from_ion_beam_sequence_is_reported(self, tmp_path, caplog):
+        """A beam with MU that the plan never defines must not vanish silently."""
+        plan_path = make_ccb_style_plan(
+            self.SOURCE, tmp_path / "gap.dcm",
+            ref_order=(1, 7), with_delivery=(1, 7), defined_beams=(1,))
+        with caplog.at_level(logging.WARNING):
+            plan = load_plan(plan_path)
+
+        assert [f.number for f in plan.fields] == [1]
+        assert "beam(s) 7" in caplog.text
+        assert "7000.0 MU" in caplog.text
+        assert "deliver less than the plan prescribes" in caplog.text
+
+    def test_unreferenced_beam_is_skipped_with_its_own_reason(self, tmp_path, caplog):
+        """A defined-but-unreferenced beam is a different case from a missing meterset."""
+        plan_path = make_ccb_style_plan(
+            self.SOURCE, tmp_path / "extra.dcm",
+            ref_order=(1,), with_delivery=(1,), defined_beams=(1, 9))
+        with caplog.at_level(logging.WARNING):
+            plan = load_plan(plan_path)
+
+        assert [f.number for f in plan.fields] == [1]
+        assert "does not reference it" in caplog.text
+        assert "no BeamMeterset" not in caplog.text
+
+    def test_missing_meterset_is_warned_once(self, tmp_path, caplog):
+        """The skip must not repeat the warning the delivery reader already gave."""
+        plan_path = make_ccb_style_plan(
+            self.SOURCE, tmp_path / "once.dcm",
+            ref_order=(1, 2), with_delivery=(1,))
+        with caplog.at_level(logging.WARNING):
+            load_plan(plan_path)
+
+        assert caplog.text.count("has no BeamMeterset") == 1
