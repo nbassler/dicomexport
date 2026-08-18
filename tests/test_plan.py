@@ -300,6 +300,20 @@ class TestSourceAxisDistance:
         assert "disagree" in caplog.text
         assert "Using the deflection magnets" in caplog.text
 
+    def test_pydicom_collapses_single_valued_vsad(self):
+        """Pin the pydicom behaviour the VM=1 case above relies on.
+
+        A one-element assignment reads back as a bare float, not a length-1 sequence.
+        That is what makes a malformed single-valued tag land in the "not numeric"
+        branch rather than the length check, so if pydicom ever changes it this test
+        fails first and explains why the other one did.
+        """
+        beam, _ = self._beam(vsad=(2216.5,))
+        assert isinstance(beam.VirtualSourceAxisDistances, float)
+
+        beam, _ = self._beam(vsad=(2216.5, 1816.0))
+        assert len(beam.VirtualSourceAxisDistances) == 2
+
     def test_no_source_raises(self):
         """The #79 failure: neither source present must abort, not yield 0.0."""
         beam, icps = self._beam(vsad=None, lsd=None)
@@ -313,8 +327,12 @@ class TestSourceAxisDistance:
             _resolve_sad(beam, icps, field_nr=1)
 
     @pytest.mark.parametrize("bad_vsad,expected_warning", [
+        # Three values: read back as a MultiValue, caught by the length check.
         ((2216.5, 1816.0, 900.0), "should have 2 values"),
-        ((2216.5,), "not numeric"),          # VM=1 -> pydicom stores a bare float
+        # One value: pydicom collapses it to a bare float on read-back regardless of
+        # being assigned as a list, so iterating it raises TypeError and the "not
+        # numeric" branch catches it. See test_pydicom_collapses_single_valued_vsad.
+        ((2216.5,), "not numeric"),
     ])
     def test_malformed_vsad_falls_back(self, caplog, bad_vsad, expected_warning):
         beam, icps = self._beam(vsad=bad_vsad, lsd=(2000.0, 2560.0))
@@ -324,7 +342,7 @@ class TestSourceAxisDistance:
         assert expected_warning in caplog.text
 
     def test_real_plan_sad_is_populated(self):
-        """End-to-end: the bundled DCPT plan carries SAD on field and every layer."""
+        """End-to-end: the bundled DCPT plan carries SAD on every field."""
         plan = load_plan(Path("res") / "test_plans" / "temp_160MeV_10x10.dcm")
         for field in plan.fields:
             assert field.sad == pytest.approx((2000.0, 2560.0))
@@ -363,8 +381,10 @@ class TestBackprojectionUsesSad:
         d = df[(df.field == 1) & (df.x_iso_mm.abs() > 1.0)]
 
         assert not d.empty
+        bm = plan.beam_model
+        assert bm is not None            # _plan() always attaches one
         # Backprojected positions must be scaled by (sad - D)/sad, not copied.
-        expected = (field.sad[0] - plan.beam_model.beam_model_position) / field.sad[0]
+        expected = (field.sad[0] - bm.beam_model_position) / field.sad[0]
         assert (d.x_bm_mm / d.x_iso_mm).mean() == pytest.approx(expected, rel=1e-6)
 
     def test_spotlist_falls_back_to_parallel_without_sad(self, caplog):
@@ -441,3 +461,15 @@ class TestSadValidationEdgeCases:
         assert "assuming parallel beam" in caplog.text
         assert df["x_bm_mm"].notna().all()
         assert (df["x_bm_mm"] == df["x_iso_mm"]).all()
+
+    @pytest.mark.parametrize("bad", [0.0, -500.0, float("nan"), float("inf")])
+    def test_spotlist_rejects_bad_beam_model_position(self, tmp_path, bad):
+        """Must fail before announcing an export plane; nan used to slip through."""
+        plan = load_plan(Path("res") / "test_plans" / "temp_160MeV_10x10.dcm")
+        bm = BeamModel(Path("res") / "beam_models" / "DCPT_beam_model__v2.csv")
+        plan.beam_model = bm
+        plan.apply_beammodel()
+        bm.beam_model_position = bad
+        with pytest.raises(ValueError, match="finite positive distance"):
+            export_spotlist(plan, str(tmp_path / "s.txt"))
+        assert not list(tmp_path.iterdir())

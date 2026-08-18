@@ -95,8 +95,9 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
         layer_nr = 1
         logger.debug(f"Processing field number: {field_nr}")
 
-        # Source-to-axis distances, resolved once per beam. Must happen before the
-        # control point loop, since every layer records them (issue #79).
+        # Source-to-axis distances: a machine property of the beam, so it is resolved
+        # once here and stored on the Field as the single source of truth for the
+        # divergence geometry that the exporters back-project with (issue #79).
         myfield.sad = _resolve_sad(ibm, icps, field_nr)
 
         # init some values which may only be changed once or not at all.
