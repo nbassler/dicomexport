@@ -69,7 +69,6 @@ class Layer:
         gantry_angle: [deg]
         couch_angle: [deg]
         snout_position: [mm]
-        sad: (x, y) source-to-axis distance [mm].
         table_position: (vert, long, lat) [mm].
         meterset_rate: MU/min (optional).
         number: Layer number (int).
@@ -90,7 +89,6 @@ class Layer:
     gantry_angle: float = 0.0  # [deg]
     couch_angle: float = 0.0   # [deg]
     snout_position: float = 0.0  # [mm]
-    sad: Tuple[float, float] = (0.0, 0.0)  # [mm]
     table_position: Tuple[float, float, float] = (0.0, 0.0, 0.0)  # [mm]
     meterset_rate: float = 0.0
 
@@ -164,9 +162,13 @@ class Field:
     meterset_weight_final: float = 0.0
     meterset_per_weight: float = 0.0
 
-    has_spreading_device: bool = False
-    lateral_spreading_device_distanceX: float = 0.0
-    lateral_spreading_device_distanceY: float = 0.0
+    #: (x, y) source-to-axis distance [mm]: the point the scanned ray pivots about,
+    #: taken from the deflection magnets where the plan names them and otherwise from
+    #: VirtualSourceAxisDistances. This is the ONLY home for the value -- it is a
+    #: per-beam machine property and does not vary between layers. (0.0, 0.0) means
+    #: unknown: PLD and RST plans carry no SAD, and consumers must then assume a
+    #: parallel beam rather than dividing by it (see issue #79).
+    sad: Tuple[float, float] = (0.0, 0.0)
     sop_instance_uid: str = ""
     number: int = 0
 

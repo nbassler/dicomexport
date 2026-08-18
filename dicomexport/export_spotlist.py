@@ -108,26 +108,28 @@ def export_spotlist(
         location(s). Logs information about each file written.
     """
 
+    # Spot positions are backprojected to the beam model plane, so its position is
+    # required. Check it up front: the error is clearer here than from deep inside
+    # _plan_to_spot_dataframe(), and it establishes that bmpos is a number below.
+    bm = plan.beam_model
+    position = getattr(bm, "beam_model_position", None) if bm is not None else None
+    if position is None:
+        raise ValueError(
+            "plan.beam_model with a beam_model_position must be set before exporting a "
+            "spotlist; spot positions are backprojected to that plane.")
+    bmpos = float(position)
+    bmfile = getattr(bm, "filename", None)
+
+    logger.info(
+        "Spotlist positions will be exported at the beam model plane (backprojected): D = %.1f mm.",
+        bmpos,
+    )
+
     # Build canonical spot table from plan (assumes beam model already applied)
     df = _plan_to_spot_dataframe(plan)
 
     # Add derived export columns (GeV/cm/FWHM/mrad + Weight)
     df = _add_spotlist_export_columns(df, spot_pos_iso=spot_pos_iso)
-
-    bm = getattr(plan, "beam_model", None)
-    bmpos = getattr(bm, "beam_model_position", None) if bm is not None else None
-    bmfile = getattr(bm, "filename", None) if bm is not None else None
-
-    if bmpos is not None:
-        logger.info(
-            "Spotlist positions will be exported at the beam model plane (backprojected): D = %.1f mm.",
-            float(bmpos),
-        )
-    else:
-        logger.warning(
-            "Plan beam model is missing beam_model_position; spotlist will assume parallel beam "
-            "(no backprojection)."
-        )
 
     # Optional subset of fields (expects 1-based field numbers as in your CLI)
     if field_list is not None:
@@ -202,19 +204,18 @@ def _plan_to_spot_dataframe(plan) -> pd.DataFrame:
         raise ValueError(f"Beam model position must be positive (upstream). Got {D}")
 
     for field_idx, myfield in enumerate(plan.fields, start=1):
-        # Determine backprojection geometry for this field
-        has_sd = bool(getattr(myfield, "has_spreading_device", False))
-        if has_sd:
-            dx = float(getattr(myfield, "lateral_spreading_device_distanceX", 0.0))
-            dy = float(getattr(myfield, "lateral_spreading_device_distanceY", 0.0))
-            if dx == 0.0 or dy == 0.0:
-                logger.warning(
-                    "Field %02d: has_spreading_device=True but dx/dy is zero -> assuming parallel beam.",
-                    myfield.number if getattr(myfield, "number", None) else field_idx
-                )
-                has_sd = False
-        else:
-            dx = dy = 0.0  # unused
+        # Determine backprojection geometry for this field. Keying this off
+        # has_spreading_device meant plans that name no lateral spreading device but do
+        # carry VirtualSourceAxisDistances -- RayStation PBS -- were backprojected as a
+        # parallel beam (issue #79). Use the SAD the importer resolved; it is only unset
+        # for formats that genuinely carry none (PLD, RST).
+        dx, dy = (float(v) for v in myfield.sad)
+        has_sd = dx > 0.0 and dy > 0.0
+        if not has_sd:
+            logger.warning(
+                "Field %02d: no source-to-axis distance -> assuming parallel beam.",
+                myfield.number if getattr(myfield, "number", None) else field_idx
+            )
 
         for layer_idx, layer in enumerate(myfield.layers, start=1):
             if layer.n_spots == 0:

@@ -12,7 +12,12 @@ import pytest
 
 from dicomexport.model_plan import Plan
 from dicomexport.import_plan import load_plan
-from dicomexport.import_plan_dicom import _rs_isocenter_distance
+from dicomexport.import_plan_dicom import _rs_isocenter_distance, _resolve_sad
+from dicomexport.beam_model import BeamModel
+from dicomexport.export_plan_topas import TopasPlan
+from dicomexport.export_spotlist import _plan_to_spot_dataframe, export_spotlist
+from pydicom.dataset import Dataset
+from pydicom.sequence import Sequence
 from tests.dicom_fixtures import write_dicom
 
 TEST_PDG_PROTON = 2212
@@ -224,3 +229,160 @@ class TestRangeShifterWET:
         assert rs is not None
         assert rs.water_equivalent_thickness == pytest.approx(57.0)
         assert rs.isocenter_distance == pytest.approx(275.53, abs=0.01)
+
+
+class TestSourceAxisDistance:
+    """Issue #79: SAD must come from VirtualSourceAxisDistances, never default to 0."""
+
+    @staticmethod
+    def _beam(vsad=None, lsd=None, device_type="MAGNET"):
+        """A stand-in IonBeamSequence item plus its control points."""
+        beam = Dataset()
+        if vsad is not None:
+            beam.VirtualSourceAxisDistances = list(vsad)
+        icp = Dataset()
+        if lsd is not None:
+            devices, settings = [], []
+            for number, value in enumerate(lsd, start=1):
+                device = Dataset()
+                device.LateralSpreadingDeviceNumber = number
+                device.LateralSpreadingDeviceType = device_type
+                devices.append(device)
+
+                setting = Dataset()
+                setting.ReferencedLateralSpreadingDeviceNumber = number
+                setting.IsocenterToLateralSpreadingDeviceDistance = value
+                settings.append(setting)
+            beam.LateralSpreadingDeviceSequence = Sequence(devices)
+            icp.LateralSpreadingDeviceSettingsSequence = Sequence(settings)
+        return beam, [icp]
+
+    def test_uses_vsad_when_no_spreading_device(self):
+        """The #79 case: RayStation PBS writes no lateral spreading device."""
+        beam, icps = self._beam(vsad=(2216.5, 1816.0))
+        assert _resolve_sad(beam, icps, field_nr=1) == pytest.approx((2216.5, 1816.0))
+
+    def test_vsad_fallback_is_logged(self, caplog):
+        beam, icps = self._beam(vsad=(2216.5, 1816.0))
+        with caplog.at_level(logging.INFO):
+            _resolve_sad(beam, icps, field_nr=1)
+        assert "no lateral spreading device in plan" in caplog.text
+        assert "VirtualSourceAxisDistances" in caplog.text
+
+    def test_scatterer_is_not_used_as_scanning_pivot(self, caplog):
+        """A SCATTERER is not a deflection point; VSAD must win."""
+        beam, icps = self._beam(vsad=(2216.5, 1816.0), lsd=(1000.0, 1000.0),
+                                device_type="SCATTERER")
+        with caplog.at_level(logging.INFO):
+            sad = _resolve_sad(beam, icps, field_nr=1)
+        assert sad == pytest.approx((2216.5, 1816.0))
+        assert "not a deflection magnet" in caplog.text
+
+    def test_falls_back_to_lateral_spreading_device(self):
+        """Plans predating the required tag, or with it unusable, still work."""
+        beam, icps = self._beam(vsad=None, lsd=(2000.0, 2560.0))
+        assert _resolve_sad(beam, icps, field_nr=1) == pytest.approx((2000.0, 2560.0))
+
+    def test_agreeing_sources_do_not_warn(self, caplog):
+        """The DCPT case: the magnet distance duplicates the required tag."""
+        beam, icps = self._beam(vsad=(2000.0, 2560.0), lsd=(2000.0, 2560.0))
+        with caplog.at_level(logging.WARNING):
+            sad = _resolve_sad(beam, icps, field_nr=1)
+        assert sad == pytest.approx((2000.0, 2560.0))
+        assert "disagree" not in caplog.text
+
+    def test_disagreeing_sources_warn_and_prefer_the_magnet(self, caplog):
+        """An explicitly named deflection magnet beats the derived virtual source."""
+        beam, icps = self._beam(vsad=(2216.5, 1816.0), lsd=(2000.0, 2560.0))
+        with caplog.at_level(logging.WARNING):
+            sad = _resolve_sad(beam, icps, field_nr=1)
+        assert sad == pytest.approx((2000.0, 2560.0))
+        assert "disagree" in caplog.text
+        assert "Using the deflection magnets" in caplog.text
+
+    def test_no_source_raises(self):
+        """The #79 failure: neither source present must abort, not yield 0.0."""
+        beam, icps = self._beam(vsad=None, lsd=None)
+        with pytest.raises(ValueError, match="no source-to-axis distance"):
+            _resolve_sad(beam, icps, field_nr=3)
+
+    @pytest.mark.parametrize("bad", [(0.0, 1816.0), (2216.5, 0.0), (-1.0, -1.0)])
+    def test_non_positive_vsad_is_rejected(self, bad):
+        beam, icps = self._beam(vsad=bad)
+        with pytest.raises(ValueError, match="no source-to-axis distance"):
+            _resolve_sad(beam, icps, field_nr=1)
+
+    @pytest.mark.parametrize("bad_vsad,expected_warning", [
+        ((2216.5, 1816.0, 900.0), "should have 2 values"),
+        ((2216.5,), "not numeric"),          # VM=1 -> pydicom stores a bare float
+    ])
+    def test_malformed_vsad_falls_back(self, caplog, bad_vsad, expected_warning):
+        beam, icps = self._beam(vsad=bad_vsad, lsd=(2000.0, 2560.0))
+        with caplog.at_level(logging.WARNING):
+            sad = _resolve_sad(beam, icps, field_nr=1)
+        assert sad == pytest.approx((2000.0, 2560.0))
+        assert expected_warning in caplog.text
+
+    def test_real_plan_sad_is_populated(self):
+        """End-to-end: the bundled DCPT plan carries SAD on field and every layer."""
+        plan = load_plan(Path("res") / "test_plans" / "temp_160MeV_10x10.dcm")
+        for field in plan.fields:
+            assert field.sad == pytest.approx((2000.0, 2560.0))
+
+
+class TestTopasRejectsZeroSad:
+    """Defence in depth: a zero SAD must never reach the divergence maths (#79)."""
+
+    def test_zero_sad_raises_instead_of_writing_inf(self, tmp_path):
+        plan = load_plan(Path("res") / "test_plans" / "temp_160MeV_10x10.dcm")
+        plan.beam_model = BeamModel(Path("res") / "beam_models" / "DCPT_beam_model__v2.csv")
+        plan.apply_beammodel()
+        field = plan.fields[0]
+        field.sad = (0.0, 0.0)              # simulate the pre-fix state
+
+        with pytest.raises(ValueError, match="source-to-axis distance must be positive"):
+            TopasPlan.time_features_string(field, plan.beam_model, nstat=1000)
+
+
+class TestBackprojectionUsesSad:
+    """All exporters that place spots at the beam-model plane need SAD (#79)."""
+
+    @staticmethod
+    def _plan(path):
+        plan = load_plan(path)
+        plan.beam_model = BeamModel(Path("res") / "beam_models" / "DCPT_beam_model__v2.csv")
+        plan.apply_beammodel()
+        return plan
+
+    def test_spotlist_backprojects_from_field_sad(self):
+        """Backprojection must follow Field.sad, the single source of truth."""
+        plan = self._plan(Path("res") / "test_plans" / "temp_160MeV_10x10.dcm")
+        field = plan.fields[0]
+
+        df = _plan_to_spot_dataframe(plan)
+        d = df[(df.field == 1) & (df.x_iso_mm.abs() > 1.0)]
+
+        assert not d.empty
+        # Backprojected positions must be scaled by (sad - D)/sad, not copied.
+        expected = (field.sad[0] - plan.beam_model.beam_model_position) / field.sad[0]
+        assert (d.x_bm_mm / d.x_iso_mm).mean() == pytest.approx(expected, rel=1e-6)
+
+    def test_spotlist_falls_back_to_parallel_without_sad(self, caplog):
+        """PLD and RST plans carry no SAD; the parallel assumption must be announced."""
+        plan = self._plan(Path("res") / "test_plans" / "temp_160MeV_10x10.dcm")
+        for field in plan.fields:
+            field.sad = (0.0, 0.0)
+
+        with caplog.at_level(logging.WARNING):
+            df = _plan_to_spot_dataframe(plan)
+
+        assert "assuming parallel beam" in caplog.text
+        d = df[df.field == 1]
+        assert (d.x_bm_mm == d.x_iso_mm).all()
+
+    def test_spotlist_requires_a_beam_model_position(self, tmp_path):
+        """Backprojection needs D; the error must name the cause, not fail deeper in."""
+        plan = self._plan(Path("res") / "test_plans" / "temp_160MeV_10x10.dcm")
+        plan.beam_model = None
+        with pytest.raises(ValueError, match="beam_model_position must be set"):
+            export_spotlist(plan, str(tmp_path / "s.txt"))
