@@ -88,3 +88,60 @@ class TestBeamModelPosition:
         f.write_text(_BM_6COL_DATA.format(pos=f"{bad_pos} mm"))
         with pytest.raises(ValueError, match="distance upstream of isocenter"):
             BeamModel(f)
+
+
+# Minimal 10-column beam model data; {cx}/{cy} are the correlation coefficients.
+_BM_10COL_DATA = """\
+#"Test model"
+#"BMODPOS 500.0 mm"
+70,71.38,1.23,2106924,4.472,3.629,0.0061,0.0056,{cx},{cy}
+90,90.94,1.18,2500367,3.983,3.29,0.0058,0.0053,{cx},{cy}
+110,110.76,1.08,2854807,3.778,3.072,0.0055,0.0050,{cx},{cy}
+130,130.56,0.89,3204641,3.78,2.875,0.0052,0.0047,{cx},{cy}
+150,150.4,0.73,3519991,3.886,2.802,0.0049,0.0044,{cx},{cy}
+"""
+
+
+class TestCorrelationBounds:
+    """Columns 9/10 are dimensionless correlation coefficients and must be in [-1, 1]."""
+
+    def test_shipped_models_are_in_range(self):
+        for name in ("DCPT_beam_model__v2.csv", "DCPT_beam_model__v5.csv"):
+            bm = BeamModel(beam_models_dir / name)
+            for col in (8, 9):
+                assert np.all(np.abs(bm.data[:, col]) <= 1.0)
+
+    @pytest.mark.parametrize("cx,cy", [(1.5, 0.3), (0.3, 1.5), (-1.5, 0.3), (0.3, -1.5)])
+    def test_out_of_range_raises(self, tmp_path, cx, cy):
+        f = tmp_path / "bad_cor.csv"
+        f.write_text(_BM_10COL_DATA.format(cx=cx, cy=cy))
+        with pytest.raises(ValueError, match="must be a correlation coefficient in"):
+            BeamModel(f)
+
+    def test_error_names_the_offending_column(self, tmp_path):
+        f = tmp_path / "bad_cory.csv"
+        f.write_text(_BM_10COL_DATA.format(cx=0.3, cy=2.0))
+        with pytest.raises(ValueError, match=r"cor\(y y'\)"):
+            BeamModel(f)
+
+    @pytest.mark.parametrize("rho", ["nan", "inf", "-inf"])
+    def test_nonfinite_correlation_raises(self, tmp_path, rho):
+        f = tmp_path / "nonfinite_cor.csv"
+        f.write_text(_BM_10COL_DATA.format(cx=rho, cy=0.3))
+        with pytest.raises(ValueError, match="must be a correlation coefficient in"):
+            BeamModel(f)
+
+    @pytest.mark.parametrize("rho", [1.0, -1.0, 0.999999, 1.0 + 1e-9])
+    def test_boundary_values_accepted(self, tmp_path, rho):
+        """|rho| == 1 is degenerate but legal; float noise past it must not hard-fail."""
+        f = tmp_path / "edge_cor.csv"
+        f.write_text(_BM_10COL_DATA.format(cx=rho, cy=rho))
+        bm = BeamModel(f)
+        assert bm.has_divergence
+
+    def test_covariance_sized_values_still_load(self, tmp_path):
+        """A legacy file holding covariances (~0.02) is inside [-1, 1] and must not break."""
+        f = tmp_path / "cov_cor.csv"
+        f.write_text(_BM_10COL_DATA.format(cx=0.024, cy=0.019))
+        bm = BeamModel(f)
+        assert float(bm.f_corx(110.0)) == pytest.approx(0.024)

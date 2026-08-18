@@ -1,7 +1,5 @@
-#"Reduced test model",,,,,,,,,
-#"Do not use",,,,,,,,,
-#"valid at -50 cm from ISO",,,,,,,,,
-# 6 column format
+#"TEST FIXTURE -- not a beam model. Do not use for production or clinical work.",,,,,,,,,
+#"  Synthetic 6-column data for the test suite; carries no beam optics.",,,,,,,,,
 #"Energy nominal [MeV]","# E real [MeV]","# E real sigma [MeV]","# protons/MU","# sigma x [mm]","# sigma y [mm]"
 70,71.38,1.23,2106924,4.472,3.629
 90,90.94,1.18,2500367,3.983,3.29
