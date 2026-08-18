@@ -7,6 +7,7 @@ import pytest
 
 import dicomexport.main as study
 from dicomexport.main import get_path_dicom_dose
+from tests.dicom_fixtures import write_dicom
 
 DICOM_TEST_DIR = Path("res/test_studies/DCPT_headphantom/")
 BEAM_MODEL_PATH = Path("res/beam_models/DCPT_beam_model__v2.csv")
@@ -19,14 +20,25 @@ class TestDoseLookup:
     def test_dose_found_in_subdir(self, tmp_path):
         sub = tmp_path / "dose"
         sub.mkdir()
-        rd_file = sub / "RD001.dcm"
-        rd_file.touch()
+        rd_file = write_dicom(sub / "RD001.dcm", "RTDOSE")
         result = get_path_dicom_dose(tmp_path)
         assert result == rd_file
 
     def test_dose_not_found_raises(self, tmp_path):
         with pytest.raises(FileNotFoundError):
             get_path_dicom_dose(tmp_path)
+
+    def test_dose_found_by_modality_not_filename(self, tmp_path):
+        """A dose file under a non-RD name must still be found (#77)."""
+        rd_file = write_dicom(tmp_path / "1.2.840.113619.42", "RTDOSE")
+        write_dicom(tmp_path / "CT001.dcm", "CT", instance_number=1)
+        assert get_path_dicom_dose(tmp_path) == rd_file
+
+    def test_dose_multiple_picks_first_reproducibly(self, tmp_path):
+        write_dicom(tmp_path / "RD002.dcm", "RTDOSE")
+        first = write_dicom(tmp_path / "RD001.dcm", "RTDOSE")
+        assert get_path_dicom_dose(tmp_path) == first
+        assert get_path_dicom_dose(tmp_path) == first
 
 
 class TestPregdosCLI:

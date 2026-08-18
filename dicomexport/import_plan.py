@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 
+from dicomexport.dicom_scan import RTPLAN, scan_study, exactly_one
 from dicomexport.model_plan import Plan
 from dicomexport.import_plan_pld import load_plan_pld
 from dicomexport.import_plan_dicom import load_plan_dicom
@@ -14,23 +15,18 @@ def load_plan(path: Path, **kwargs) -> Plan:
     Load a treatment plan from a file (PLD, DICOM RT Ion Plan, RST) and return a Plan object.
     """
 
-    # if path is a directory, look for a RN*.dcm file
+    # If path is a directory, find the plan by Modality header (issue #77) rather
+    # than an RN*.dcm glob, which missed RayStation's RP*.dcm. The .pld and .rst
+    # globs stay: those are not DICOM and carry no Modality tag.
     if path.is_dir():
         plan_files = sorted(
-            list(path.glob('**/RN*.dcm')) +
+            scan_study(path).get(RTPLAN) +
             list(path.glob('**/*.pld')) +
             list(path.glob('**/*.rst'))
         )
-        if not plan_files:
-            raise FileNotFoundError(
-                f"No plan files found in {path} or its subdirectories")
-        if len(plan_files) > 1:
-            files_str = ", ".join(str(f) for f in plan_files)
-            raise ValueError(
-                f"Multiple plan files found: {files_str}. "
-                "Please pass the specific plan file."
-            )
-        path = plan_files[0]
+        path = exactly_one(
+            plan_files, "plan files", path, "Please pass the specific plan file.")
+        logger.info("Using plan file: %s", path.name)
 
     suffix = path.suffix.lower()
     if suffix == '.pld':
