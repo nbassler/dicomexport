@@ -210,7 +210,7 @@ def _plan_to_spot_dataframe(plan) -> pd.DataFrame:
         # parallel beam (issue #79). Use the SAD the importer resolved; it is only unset
         # for formats that genuinely carry none (PLD, RST).
         dx, dy = (float(v) for v in myfield.sad)
-        has_sd = dx > 0.0 and dy > 0.0
+        has_sd = all(np.isfinite(v) and v > 0.0 for v in (dx, dy))
         if not has_sd:
             logger.warning(
                 "Field %02d: no source-to-axis distance -> assuming parallel beam.",

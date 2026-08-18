@@ -204,7 +204,7 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
     # exported as a parallel beam (issue #79). Use the SAD the importer resolved;
     # it is only unset for formats that genuinely carry none (PLD, RST).
     dx, dy = (float(v) for v in field.sad)
-    diverging = dx > 0.0 and dy > 0.0
+    diverging = all(np.isfinite(v) and v > 0.0 for v in (dx, dy))
 
     if diverging:
         if D > dx or D > dy:

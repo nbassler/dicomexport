@@ -232,6 +232,16 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
 _SAD_AGREEMENT_RTOL = 1e-3
 
 
+def _is_usable_sad(values) -> bool:
+    """True if both distances are finite and positive.
+
+    NaN and inf must be rejected explicitly: ``nan <= 0.0`` is False, and inf passes a
+    plain positivity test while ``(inf - D) / inf`` then yields nan, so either would
+    slip through into the divergence maths (issue #79).
+    """
+    return all(np.isfinite(v) and v > 0.0 for v in values)
+
+
 def _virtual_source_axis_distances(ibm, field_nr: int) -> tuple[float, float] | None:
     """
     Read VirtualSourceAxisDistances (300A,030A) from an IonBeamSequence item.
@@ -253,8 +263,8 @@ def _virtual_source_axis_distances(ibm, field_nr: int) -> tuple[float, float] | 
         logger.warning("Field %d: VirtualSourceAxisDistances should have 2 values, found %d; ignoring it.",
                        field_nr, len(values))
         return None
-    if values[0] <= 0.0 or values[1] <= 0.0:
-        logger.warning("Field %d: VirtualSourceAxisDistances must be positive, got %s; ignoring it.",
+    if not _is_usable_sad(values):
+        logger.warning("Field %d: VirtualSourceAxisDistances must be finite and positive, got %s; ignoring it.",
                        field_nr, values)
         return None
     return (values[0], values[1])
@@ -297,8 +307,13 @@ def _lateral_spreading_device_distances(
             logger.debug("Field %d: lateral spreading device types %s are not both MAGNET.",
                          field_nr, types)
 
-        return (float(lss[0]['IsocenterToLateralSpreadingDeviceDistance'].value),
-                float(lss[1]['IsocenterToLateralSpreadingDeviceDistance'].value)), all_magnets
+        distances = (float(lss[0]['IsocenterToLateralSpreadingDeviceDistance'].value),
+                     float(lss[1]['IsocenterToLateralSpreadingDeviceDistance'].value))
+        if not _is_usable_sad(distances):
+            logger.warning("Field %d: lateral spreading device distances must be finite and "
+                           "positive, got %s; ignoring them.", field_nr, list(distances))
+            return None, False
+        return distances, all_magnets
     return None, False
 
 
@@ -326,8 +341,10 @@ def _resolve_sad(ibm, icps, field_nr: int) -> tuple[float, float]:
     vsad = _virtual_source_axis_distances(ibm, field_nr)
     lsd, lsd_is_magnet = _lateral_spreading_device_distances(ibm, icps, field_nr)
 
+    # A non-magnet device (a scatterer) is not the pivot a scanned ray turns about, so
+    # it is never used as one -- not even as a last resort when VSAD is missing.
     prefer_lsd = lsd is not None and lsd_is_magnet
-    sad = lsd if prefer_lsd else (vsad if vsad is not None else lsd)
+    sad = lsd if prefer_lsd else vsad
 
     if not prefer_lsd and vsad is not None:
         reason = ("no lateral spreading device in plan" if lsd is None
@@ -346,15 +363,18 @@ def _resolve_sad(ibm, icps, field_nr: int) -> tuple[float, float]:
                 "the deflection magnets" if prefer_lsd else "VirtualSourceAxisDistances")
 
     if sad is None:
+        detail = ("a lateral spreading device is present but is not a deflection magnet, "
+                  "so it cannot serve as the scanning pivot"
+                  if lsd is not None else
+                  "no LateralSpreadingDeviceSettingsSequence is present either")
         raise ValueError(
-            f"Field {field_nr}: no source-to-axis distance in the plan. Neither "
-            f"VirtualSourceAxisDistances (300A,030A) nor a "
-            f"LateralSpreadingDeviceSettingsSequence is present, so the beam "
-            f"divergence cannot be determined.")
-    if sad[0] <= 0.0 or sad[1] <= 0.0:
+            f"Field {field_nr}: no usable source-to-axis distance in the plan. "
+            f"VirtualSourceAxisDistances (300A,030A) is missing or unusable, and "
+            f"{detail}. The beam divergence cannot be determined.")
+    if not _is_usable_sad(sad):
         raise ValueError(
-            f"Field {field_nr}: source-to-axis distance must be positive, got "
-            f"{sad[0]} / {sad[1]} mm.")
+            f"Field {field_nr}: source-to-axis distance must be finite and positive, "
+            f"got {sad[0]} / {sad[1]} mm.")
 
     logger.debug("Field %d: SAD X/Y = %.2f / %.2f mm (source: %s)", field_nr, sad[0], sad[1],
                  "deflection magnets" if prefer_lsd else "VirtualSourceAxisDistances")

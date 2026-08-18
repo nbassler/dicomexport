@@ -165,9 +165,15 @@ class Field:
     #: (x, y) source-to-axis distance [mm]: the point the scanned ray pivots about,
     #: taken from the deflection magnets where the plan names them and otherwise from
     #: VirtualSourceAxisDistances. This is the ONLY home for the value -- it is a
-    #: per-beam machine property and does not vary between layers. (0.0, 0.0) means
-    #: unknown: PLD and RST plans carry no SAD, and consumers must then assume a
-    #: parallel beam rather than dividing by it (see issue #79).
+    #: per-beam machine property and does not vary between layers.
+    #:
+    #: (0.0, 0.0) means unknown, as for PLD and RST plans, which carry no SAD. DICOM
+    #: plans never leave it unset: the importer raises instead. Consumers must never
+    #: divide by it unchecked, and they differ deliberately in what they do instead
+    #: (issue #79): the MCPL and spotlist exporters fall back to a parallel beam and
+    #: warn, since a phase space without divergence is still usable; the TOPAS
+    #: exporter raises, because it must emit a per-spot angle and a silently
+    #: zero-angle beam would be indistinguishable from a real one in the output.
     sad: Tuple[float, float] = (0.0, 0.0)
     sop_instance_uid: str = ""
     number: int = 0

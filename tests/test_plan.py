@@ -303,13 +303,13 @@ class TestSourceAxisDistance:
     def test_no_source_raises(self):
         """The #79 failure: neither source present must abort, not yield 0.0."""
         beam, icps = self._beam(vsad=None, lsd=None)
-        with pytest.raises(ValueError, match="no source-to-axis distance"):
+        with pytest.raises(ValueError, match="no usable source-to-axis distance"):
             _resolve_sad(beam, icps, field_nr=3)
 
     @pytest.mark.parametrize("bad", [(0.0, 1816.0), (2216.5, 0.0), (-1.0, -1.0)])
     def test_non_positive_vsad_is_rejected(self, bad):
         beam, icps = self._beam(vsad=bad)
-        with pytest.raises(ValueError, match="no source-to-axis distance"):
+        with pytest.raises(ValueError, match="no usable source-to-axis distance"):
             _resolve_sad(beam, icps, field_nr=1)
 
     @pytest.mark.parametrize("bad_vsad,expected_warning", [
@@ -340,7 +340,7 @@ class TestTopasRejectsZeroSad:
         field = plan.fields[0]
         field.sad = (0.0, 0.0)              # simulate the pre-fix state
 
-        with pytest.raises(ValueError, match="source-to-axis distance must be positive"):
+        with pytest.raises(ValueError, match="source-to-axis distance must be finite and positive"):
             TopasPlan.time_features_string(field, plan.beam_model, nstat=1000)
 
 
@@ -386,3 +386,58 @@ class TestBackprojectionUsesSad:
         plan.beam_model = None
         with pytest.raises(ValueError, match="beam_model_position must be set"):
             export_spotlist(plan, str(tmp_path / "s.txt"))
+
+
+class TestSadValidationEdgeCases:
+    """Guards that a plain positivity test would miss (#79 review)."""
+
+    def test_scatterer_alone_raises(self):
+        """A scatterer is not a scanning pivot, even when there is nothing else."""
+        beam, icps = TestSourceAxisDistance._beam(
+            vsad=None, lsd=(1000.0, 1000.0), device_type="SCATTERER")
+        with pytest.raises(ValueError, match="not a deflection magnet"):
+            _resolve_sad(beam, icps, field_nr=1)
+
+    def test_magnet_alone_is_still_accepted(self):
+        """The fallback must stay open for magnets, only closed for other devices."""
+        beam, icps = TestSourceAxisDistance._beam(vsad=None, lsd=(2000.0, 2560.0))
+        assert _resolve_sad(beam, icps, field_nr=1) == pytest.approx((2000.0, 2560.0))
+
+    @pytest.mark.parametrize("bad", [
+        (float("nan"), 1816.0), (2216.5, float("nan")),
+        (float("inf"), 1816.0), (2216.5, float("inf")),
+    ])
+    def test_non_finite_vsad_is_rejected(self, bad):
+        """nan fails '<= 0.0' and inf passes it, so both need an explicit check."""
+        beam, icps = TestSourceAxisDistance._beam(vsad=bad)
+        with pytest.raises(ValueError, match="no usable source-to-axis distance"):
+            _resolve_sad(beam, icps, field_nr=1)
+
+    @pytest.mark.parametrize("bad", [(float("nan"), 2560.0), (float("inf"), 2560.0)])
+    def test_non_finite_magnet_distance_is_rejected(self, bad):
+        beam, icps = TestSourceAxisDistance._beam(vsad=None, lsd=bad)
+        with pytest.raises(ValueError, match="no usable source-to-axis distance"):
+            _resolve_sad(beam, icps, field_nr=1)
+
+    @pytest.mark.parametrize("bad", [(float("nan"), 2560.0), (float("inf"), 2560.0)])
+    def test_topas_rejects_non_finite_sad(self, bad):
+        plan = load_plan(Path("res") / "test_plans" / "temp_160MeV_10x10.dcm")
+        plan.beam_model = BeamModel(Path("res") / "beam_models" / "DCPT_beam_model__v2.csv")
+        plan.apply_beammodel()
+        field = plan.fields[0]
+        field.sad = bad
+        with pytest.raises(ValueError, match="must be finite and positive"):
+            TopasPlan.time_features_string(field, plan.beam_model, nstat=1000)
+
+    @pytest.mark.parametrize("bad", [(float("nan"), 2560.0), (float("inf"), 2560.0)])
+    def test_spotlist_treats_non_finite_sad_as_parallel(self, bad, caplog):
+        plan = load_plan(Path("res") / "test_plans" / "temp_160MeV_10x10.dcm")
+        plan.beam_model = BeamModel(Path("res") / "beam_models" / "DCPT_beam_model__v2.csv")
+        plan.apply_beammodel()
+        for field in plan.fields:
+            field.sad = bad
+        with caplog.at_level(logging.WARNING):
+            df = _plan_to_spot_dataframe(plan)
+        assert "assuming parallel beam" in caplog.text
+        assert df["x_bm_mm"].notna().all()
+        assert (df["x_bm_mm"] == df["x_iso_mm"]).all()

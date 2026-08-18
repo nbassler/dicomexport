@@ -79,10 +79,13 @@ class TopasPlan:
         # and emit inf spot positions in a file that otherwise looked fine. The plan
         # importer now refuses to produce one, so this should be unreachable from
         # DICOM -- but fail loudly rather than write inf.
-        if sad_x <= 0.0 or sad_y <= 0.0:
+        # np.isfinite is required, not just a positivity test: nan fails "<= 0.0" and
+        # inf passes it, yet both yield nan geometry downstream (issue #79).
+        if not all(np.isfinite(v) and v > 0.0 for v in (sad_x, sad_y)):
             raise ValueError(
-                f"Field {myfield.number}: source-to-axis distance must be positive, "
-                f"got {sad_x} / {sad_y} mm. Cannot compute spot positions or angles.")
+                f"Field {myfield.number}: source-to-axis distance must be finite and "
+                f"positive, got {sad_x} / {sad_y} mm. Cannot compute spot positions "
+                f"or angles.")
 
         _spot_index = 0
         for mylayer in myfield.layers:
