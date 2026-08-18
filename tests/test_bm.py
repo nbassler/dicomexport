@@ -124,6 +124,13 @@ class TestCorrelationBounds:
         with pytest.raises(ValueError, match=r"cor\(y y'\)"):
             BeamModel(f)
 
+    @pytest.mark.parametrize("rho", ["nan", "inf", "-inf"])
+    def test_nonfinite_correlation_raises(self, tmp_path, rho):
+        f = tmp_path / "nonfinite_cor.csv"
+        f.write_text(_BM_10COL_DATA.format(cx=rho, cy=0.3))
+        with pytest.raises(ValueError, match="must be a correlation coefficient in"):
+            BeamModel(f)
+
     @pytest.mark.parametrize("rho", [1.0, -1.0, 0.999999, 1.0 + 1e-9])
     def test_boundary_values_accepted(self, tmp_path, rho):
         """|rho| == 1 is degenerate but legal; float noise past it must not hard-fail."""

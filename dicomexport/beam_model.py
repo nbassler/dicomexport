@@ -105,15 +105,23 @@ class BeamModel():
             # instead. |rho| == 1 (a degenerate, zero-emittance plane) is allowed; _RHO_TOL
             # keeps float noise just past the boundary from tripping the check.
             for col, name in ((8, "cor(x x')"), (9, "cor(y y')")):
-                bad = np.abs(data[:, col]) > 1.0 + _RHO_TOL
+                vals = data[:, col]
+                finite = np.isfinite(vals)
+                bad = ~finite | (np.abs(vals) > 1.0 + _RHO_TOL)
                 if bad.any():
                     energies = ", ".join(f"{e:g}" for e in energy[bad][:5])
                     if int(bad.sum()) > 5:
                         energies += ", ..."
+                    finite_vals = vals[finite]
+                    minmax = (
+                        f"min {finite_vals.min():.4g}, max {finite_vals.max():.4g}"
+                        if finite_vals.size
+                        else "no finite values"
+                    )
                     raise ValueError(
                         f"{Path(fn).name}: {name} must be a correlation coefficient in "
                         f"[-1, 1], but {int(bad.sum())} of {len(energy)} rows are outside it "
-                        f"(min {data[:, col].min():.4g}, max {data[:, col].max():.4g}; "
+                        f"({minmax}; "
                         f"nominal energies {energies} MeV). Columns 9 and 10 are dimensionless "
                         f"correlation coefficients, not covariances.")
 
