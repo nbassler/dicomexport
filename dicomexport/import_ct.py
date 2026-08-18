@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Tuple
 
 from dicomexport.ds_get import req, opt, tuple_of_float_2, tuple_of_float_3, tuple_of_float_6, as_int, as_str
+from dicomexport.dicom_scan import CT, scan_study, raise_if_unreadable, check_single_study
 
 from dicomexport.model_ct import CTModel, Image
 
@@ -16,13 +17,27 @@ def get_ct_files_sorted_by_instance_number(directory: Path) -> List[Path]:
     Return a list of CT DICOM file paths in the directory,
     sorted by the DICOM 'InstanceNumber' tag.
 
-    Reason: we cannot rely on the file names to be sorted correctly,
+    Files are selected by their Modality header, not by filename (issue #77), so
+    PACS exports without a 'CT' prefix work and a structure set named 'CTV.dcm' is
+    no longer handed to the CT reader.
+
+    Reason for the sort: we cannot rely on the file names to be sorted correctly,
     e.g. when the files are copied from a PACS system or running numbering as 1 instead of 001.
     """
-    files = list(directory.glob("**/CT*.dcm"))
+    scan = scan_study(directory)
+
+    # A damaged file here is most likely a CT slice; see raise_if_unreadable().
+    raise_if_unreadable(scan)
+
+    # This is the one place that scans the whole study directory, so it is also where
+    # "did the user drop two exports in here?" is caught -- two CT series in a single
+    # directory would otherwise merge silently into one geometry.
+    check_single_study(scan)
+
+    files = list(scan.get(CT))
     if not files:
         raise FileNotFoundError(
-            f"No CT DICOM files matching 'CT*.dcm' found in {directory} or its subdirectories")
+            f"No CT DICOM files (Modality=CT) found in {directory} or its subdirectories")
 
     parent_dirs = {f.parent for f in files}
     if len(parent_dirs) > 1:
@@ -33,13 +48,15 @@ def get_ct_files_sorted_by_instance_number(directory: Path) -> List[Path]:
         )
 
     def get_instance_number(file: Path) -> int:
-        ds = pydicom.dcmread(file, stop_before_pixels=True)
-        if not hasattr(ds, 'InstanceNumber'):
+        # Harvested by scan_study() in the same header pass that classified the file.
+        number = scan.instance_number_of(file)
+        if number is None:
             raise AttributeError(
                 f"File {file} is missing 'InstanceNumber' DICOM tag.")
-        return int(ds.InstanceNumber)
+        return number
 
     files.sort(key=get_instance_number)
+    logger.info("Using %d CT slices from %s", len(files), files[0].parent)
     return files
 
 

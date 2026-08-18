@@ -13,6 +13,7 @@ import pytest
 from dicomexport.model_plan import Plan
 from dicomexport.import_plan import load_plan
 from dicomexport.import_plan_dicom import _rs_isocenter_distance
+from tests.dicom_fixtures import write_dicom
 
 TEST_PDG_PROTON = 2212
 
@@ -34,10 +35,31 @@ class TestPlan:
         sub_b = tmp_path / "sub_b"
         sub_a.mkdir()
         sub_b.mkdir()
-        (sub_a / "RN001.dcm").touch()
-        (sub_b / "RN002.dcm").touch()
+        write_dicom(sub_a / "RN001.dcm", "RTPLAN")
+        write_dicom(sub_b / "RN002.dcm", "RTPLAN")
         with pytest.raises(ValueError, match="Multiple plan files"):
             load_plan(tmp_path)
+
+    def test_load_plan_none_found_raises(self, tmp_path):
+        write_dicom(tmp_path / "CT001.dcm", "CT", instance_number=1)
+        with pytest.raises(FileNotFoundError, match="No plan files found"):
+            load_plan(tmp_path)
+
+    def test_load_plan_finds_raystation_rp_prefix(self, tmp_path):
+        """RayStation writes RP*.dcm, which the old RN*.dcm glob missed (#77)."""
+        write_dicom(tmp_path / "RP001.dcm", "RTPLAN")
+        write_dicom(tmp_path / "CT001.dcm", "CT", instance_number=1)
+        # The scan selects RP001.dcm; parsing then fails on the minimal fixture,
+        # which is enough to prove the file was found rather than invisible.
+        with pytest.raises((KeyError, AttributeError, ValueError)):
+            load_plan(tmp_path)
+
+    def test_load_plan_still_finds_pld(self, tmp_path):
+        """.pld has no Modality tag, so its glob must survive the scan change."""
+        (tmp_path / "plan.pld").write_text("not really a pld\n")
+        with pytest.raises(Exception) as exc:
+            load_plan(tmp_path)
+        assert not isinstance(exc.value, FileNotFoundError)
 
 
 class TestMCPLExport:

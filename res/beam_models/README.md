@@ -92,7 +92,7 @@ geometry.
 ## Available files
 
 | File | Description | Position |
-|------|-------------|----------|
+| ----- | ----------- | --------- |
 | `DCPT_beam_model__v2.csv` | DCPT beam model reverse-engineered from experimental data and TOPAS simulations | 500.0 mm upstream |
 | `DCPT_beam_model__v5.csv` | Updated DCPT beam model (emittance source type) | 600.0 mm upstream |
 | `bm_test_6col.csv` | **Test fixture, not a beam model.** Synthetic 6-column data used by the test suite; carries no beam optics | no BMODPOS (falls back to default) |
