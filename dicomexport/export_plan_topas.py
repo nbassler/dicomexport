@@ -18,23 +18,11 @@ class TopasPlan:
         logger.debug(
             f"Generating Topas input for field {myfield.number} with nstat={nstat}")
 
-        # sad_x = myfield.layers[0].sad[0]
-        # sad_y = myfield.layers[0].sad[1]
-
         # calculate scaling factor for number of particles
         nstat_scale = TopasPlan.calculate_scaling_factor(myfield, nstat)
 
         # show some information about the field
         TopasPlan.show_plan_data(myfield, bm, nstat=nstat)
-        # logger.info(f"Beam model position:          {bm.beam_model_position} mm upstream of isocenter")
-        # logger.info(f"SAD X: {sad_x:.2f} mm, SAD Y:     {sad_y:.2f} mm")
-        # logger.info(f"Proton budget for this plan:  {myfield.n_particles:.3e} protons")
-        # logger.info(f"Requested histories:          {nstat:.3e}")
-        # logger.info(f"Scaling factor:               {nstat_scale:.4e}")
-        # logger.info(f"Number of spots:              {myfield.n_spots}")
-        # logger.info(f"Number of energy layers:      {myfield.n_layers}")
-        # logger.debug(f"Beam Meterset Weight:         {myfield.meterset_weight_final:.2f}")
-        # logger.info(f"Beam Meterset:                {myfield.cum_mu:.2f} MU")
 
         # build output lines instead of writing to file
         lines = []
@@ -85,13 +73,26 @@ class TopasPlan:
         cory = np.zeros(n_spots)
         nparts = np.zeros(n_spots)
 
+        sad_x, sad_y = myfield.sad
+
+        # Defence in depth for issue #79: a zero SAD used to reach the divisions below
+        # and emit inf spot positions in a file that otherwise looked fine. The plan
+        # importer now refuses to produce one, so this should be unreachable from
+        # DICOM -- but fail loudly rather than write inf.
+        # np.isfinite is required, not just a positivity test: nan fails "<= 0.0" and
+        # inf passes it, yet both yield nan geometry downstream (issue #79).
+        if not all(np.isfinite(v) and v > 0.0 for v in (sad_x, sad_y)):
+            raise ValueError(
+                f"Field {myfield.number}: source-to-axis distance must be finite and "
+                f"positive, got {sad_x} / {sad_y} mm. Cannot compute spot positions "
+                f"or angles.")
+
         _spot_index = 0
         for mylayer in myfield.layers:
 
             # layer.espread is an absolute energy spread in MeV at the beam model position;
             # convert it to a relative (%) spread for TOPAS (which expects relative energy spread).
             espread_percent = (mylayer.espread / mylayer.energy_measured) * 100.0  # [%]
-            sad_x, sad_y = mylayer.sad
 
             for spot in mylayer.spots:
                 times[_spot_index] = _spot_index + 1
@@ -165,8 +166,7 @@ class TopasPlan:
 
     @staticmethod
     def show_plan_data(myfield: Field, bm: BeamModel, nstat: int = int(1e6)) -> None:
-        sad_x = myfield.layers[0].sad[0]
-        sad_y = myfield.layers[0].sad[1]
+        sad_x, sad_y = myfield.sad
         nstat_scale = TopasPlan.calculate_scaling_factor(myfield, nstat)
 
         # show some information about the field

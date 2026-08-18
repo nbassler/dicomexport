@@ -1,6 +1,5 @@
 import copy
 import logging
-# from attr import ib
 import numpy as np
 from pathlib import Path
 
@@ -96,9 +95,12 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
         layer_nr = 1
         logger.debug(f"Processing field number: {field_nr}")
 
+        # Source-to-axis distances: a machine property of the beam, so it is resolved
+        # once here and stored on the Field as the single source of truth for the
+        # divergence geometry that the exporters back-project with (issue #79).
+        myfield.sad = _resolve_sad(ibm, icps, field_nr)
+
         # init some values which may only be changed once or not at all.
-        sad_x = 0.0
-        sad_y = 0.0
         snout_position = 0.0
         isocenter = (0.0, 0.0, 0.0)
         gantry_angle = 0.0
@@ -107,30 +109,12 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
         size_x = 0.0  # dicom values are in FWHM mm, but will be ignored, if beam model is available.
         size_y = 0.0
 
-        myfield.has_spreading_device = False
-
         for icp_index, icp in enumerate(icps):
             logger.debug(f"  Processing control point index: {icp_index}")
             # Several attributes are only set once at the first ion control point.
             # The strategy here is then to still set them for every layer, even if they do not change.
             # This is to ensure that the field object has all necessary attributes set.
             # But also enables future stuff like arc therapy, where these values may change per layer.
-            if 'LateralSpreadingDeviceSettingsSequence' in icp:
-                if len(icp['LateralSpreadingDeviceSettingsSequence'].value) != 2:
-                    logger.error("LateralSpreadingDeviceSettingsSequence should contain exactly 2 elements, found %d.",
-                                 len(icp['LateralSpreadingDeviceSettingsSequence'].value))
-                    raise ValueError(
-                        "Invalid LateralSpreadingDeviceSettingsSequence in DICOM plan.")
-
-                lss = icp['LateralSpreadingDeviceSettingsSequence']
-                sad_x = float(
-                    lss[0]['IsocenterToLateralSpreadingDeviceDistance'].value)
-                sad_y = float(
-                    lss[1]['IsocenterToLateralSpreadingDeviceDistance'].value)
-                myfield.has_spreading_device = True
-
-                logger.debug("Set Lateral spreading device distances: X = %.2f mm, Y = %.2f mm",
-                             sad_x, sad_y)
 
             # check snout position
             if 'SnoutPosition' in icp:
@@ -237,22 +221,165 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                     gantry_angle=gantry_angle,
                     couch_angle=couch_angle,
                     snout_position=snout_position,
-                    sad=(sad_x, sad_y),
                     number=layer_nr
                 ))
-                # these are also set on field base, since they are only once set in ICP anyway.
-
-                if myfield.has_spreading_device:
-                    myfield.lateral_spreading_device_distanceX = sad_x
-                    myfield.lateral_spreading_device_distanceY = sad_y
-                else:
-                    myfield.lateral_spreading_device_distanceX = 0.0
-                    myfield.lateral_spreading_device_distanceY = 0.0
-
                 layer_nr += 1
             else:
                 logger.debug("Skipping empty layer index %i", icp_index)
     return p
+
+
+#: Relative tolerance when comparing the two DICOM sources of the source-axis distance.
+_SAD_AGREEMENT_RTOL = 1e-3
+
+
+def _is_usable_sad(values) -> bool:
+    """True if both distances are finite and positive.
+
+    NaN and inf must be rejected explicitly: ``nan <= 0.0`` is False, and inf passes a
+    plain positivity test while ``(inf - D) / inf`` then yields nan, so either would
+    slip through into the divergence maths (issue #79).
+    """
+    return all(np.isfinite(v) and v > 0.0 for v in values)
+
+
+def _virtual_source_axis_distances(ibm, field_nr: int) -> tuple[float, float] | None:
+    """
+    Read VirtualSourceAxisDistances (300A,030A) from an IonBeamSequence item.
+
+    This is Type 1 in the RT Ion Beams module and is the vendor-neutral source of the
+    (x, y) source-to-axis distances. Returns None if absent or unusable, so the caller
+    can fall back rather than fail here.
+    """
+    vsad = getattr(ibm, 'VirtualSourceAxisDistances', None)
+    if vsad is None:
+        return None
+    try:
+        values = [float(v) for v in vsad]
+    except (TypeError, ValueError):
+        logger.warning("Field %d: VirtualSourceAxisDistances is not numeric (%r); ignoring it.",
+                       field_nr, vsad)
+        return None
+    if len(values) != 2:
+        logger.warning("Field %d: VirtualSourceAxisDistances should have 2 values, found %d; ignoring it.",
+                       field_nr, len(values))
+        return None
+    if not _is_usable_sad(values):
+        logger.warning("Field %d: VirtualSourceAxisDistances must be finite and positive, got %s; ignoring it.",
+                       field_nr, values)
+        return None
+    return (values[0], values[1])
+
+
+def _lateral_spreading_device_distances(
+        ibm, icps, field_nr: int) -> tuple[tuple[float, float] | None, bool]:
+    """
+    Read the (x, y) IsocenterToLateralSpreadingDeviceDistance, if the plan has one.
+
+    Returns ``(distances_or_None, all_magnets)``. ``all_magnets`` is True only when
+    every referenced device is of LateralSpreadingDeviceType MAGNET, i.e. the plan
+    explicitly names the deflection magnets that bend the scanned beam. A SCATTERER
+    is a different thing and must not be used as a scanning pivot, so it reports
+    False and the caller falls back to the virtual source.
+
+    Distances are None when no control point carries a
+    LateralSpreadingDeviceSettingsSequence, the normal case for pure PBS plans
+    (e.g. RayStation).
+    """
+    device_types = {
+        getattr(d, 'LateralSpreadingDeviceNumber', None): getattr(d, 'LateralSpreadingDeviceType', None)
+        for d in getattr(ibm, 'LateralSpreadingDeviceSequence', [])
+    }
+
+    for icp in icps:
+        if 'LateralSpreadingDeviceSettingsSequence' not in icp:
+            continue
+        lss = icp['LateralSpreadingDeviceSettingsSequence']
+        if len(lss.value) != 2:
+            logger.error("LateralSpreadingDeviceSettingsSequence should contain exactly 2 elements, found %d.",
+                         len(lss.value))
+            raise ValueError(
+                "Invalid LateralSpreadingDeviceSettingsSequence in DICOM plan.")
+
+        referenced = [getattr(s, 'ReferencedLateralSpreadingDeviceNumber', None) for s in lss]
+        types = [device_types.get(ref) for ref in referenced]
+        all_magnets = bool(types) and all(t == 'MAGNET' for t in types)
+        if not all_magnets:
+            logger.debug("Field %d: lateral spreading device types %s are not both MAGNET.",
+                         field_nr, types)
+
+        distances = (float(lss[0]['IsocenterToLateralSpreadingDeviceDistance'].value),
+                     float(lss[1]['IsocenterToLateralSpreadingDeviceDistance'].value))
+        if not _is_usable_sad(distances):
+            logger.warning("Field %d: lateral spreading device distances must be finite and "
+                           "positive, got %s; ignoring them.", field_nr, list(distances))
+            return None, False
+        return distances, all_magnets
+    return None, False
+
+
+def _resolve_sad(ibm, icps, field_nr: int) -> tuple[float, float]:
+    """
+    Determine the (x, y) source-to-axis distances for one beam.
+
+    Both exporters use this as the pivot the scanned ray turns about, so what is
+    wanted is the effective deflection point.
+
+    When the plan explicitly names its deflection magnets (LateralSpreadingDeviceType
+    MAGNET, as Varian/DCPT do), those distances are used: an explicit inflection point
+    beats a derived one, and this keeps such plans bit-identical to previous releases.
+    Otherwise VirtualSourceAxisDistances is used -- it is required for ion beams and,
+    for a scanned beam, is defined as that same effective deflection point. A SCATTERER
+    is never used as a scanning pivot.
+
+    Pure PBS plans (e.g. RayStation) write no lateral spreading device at all. Reading
+    only that optional sequence is what made SAD fall back to 0.0 and produce inf spot
+    positions downstream (issue #79).
+
+    Raises ValueError if neither source yields a usable distance, rather than letting a
+    zero reach the divergence maths.
+    """
+    vsad = _virtual_source_axis_distances(ibm, field_nr)
+    lsd, lsd_is_magnet = _lateral_spreading_device_distances(ibm, icps, field_nr)
+
+    # A non-magnet device (a scatterer) is not the pivot a scanned ray turns about, so
+    # it is never used as one -- not even as a last resort when VSAD is missing.
+    prefer_lsd = lsd is not None and lsd_is_magnet
+    sad = lsd if prefer_lsd else vsad
+
+    if not prefer_lsd and vsad is not None:
+        reason = ("no lateral spreading device in plan" if lsd is None
+                  else "lateral spreading device is not a deflection magnet")
+        logger.info(
+            "Field %d: %s; taking the source-to-axis distance from "
+            "VirtualSourceAxisDistances (%.2f / %.2f mm).",
+            field_nr, reason, vsad[0], vsad[1])
+
+    if vsad is not None and lsd is not None:
+        if not np.allclose(vsad, lsd, rtol=_SAD_AGREEMENT_RTOL):
+            logger.warning(
+                "Field %d: VirtualSourceAxisDistances %s disagree with the lateral "
+                "spreading device distances %s. Using %s.",
+                field_nr, list(vsad), list(lsd),
+                "the deflection magnets" if prefer_lsd else "VirtualSourceAxisDistances")
+
+    if sad is None:
+        detail = ("a lateral spreading device is present but is not a deflection magnet, "
+                  "so it cannot serve as the scanning pivot"
+                  if lsd is not None else
+                  "no LateralSpreadingDeviceSettingsSequence is present either")
+        raise ValueError(
+            f"Field {field_nr}: no usable source-to-axis distance in the plan. "
+            f"VirtualSourceAxisDistances (300A,030A) is missing or unusable, and "
+            f"{detail}. The beam divergence cannot be determined.")
+    if not _is_usable_sad(sad):
+        raise ValueError(
+            f"Field {field_nr}: source-to-axis distance must be finite and positive, "
+            f"got {sad[0]} / {sad[1]} mm.")
+
+    logger.debug("Field %d: SAD X/Y = %.2f / %.2f mm (source: %s)", field_nr, sad[0], sad[1],
+                 "deflection magnets" if prefer_lsd else "VirtualSourceAxisDistances")
+    return sad
 
 
 def _rs_isocenter_distance(rss, field_number: int) -> float:

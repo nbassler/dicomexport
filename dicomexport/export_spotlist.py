@@ -66,6 +66,35 @@ SPOTLIST_COLUMN_LABELS = {
 }
 
 
+def _beam_model_position(plan) -> float:
+    """
+    Return the validated beam model plane distance D [mm].
+
+    Spot positions are backprojected to this plane, so D must be a finite positive
+    distance upstream of the isocenter. Finiteness is checked explicitly: ``nan <= 0.0``
+    is False, so a nan would otherwise pass and yield a spotlist full of nan positions
+    with a successful exit (issue #79).
+    """
+    bm = getattr(plan, "beam_model", None)
+    if bm is None:
+        raise ValueError(
+            "plan.beam_model with a beam_model_position must be set before exporting a "
+            "spotlist; spot positions are backprojected to that plane.")
+
+    position = getattr(bm, "beam_model_position", None)
+    if position is None:
+        raise ValueError(
+            "plan.beam_model with a beam_model_position must be set before exporting a "
+            "spotlist; spot positions are backprojected to that plane.")
+
+    value = float(position)
+    if not np.isfinite(value) or value <= 0.0:
+        raise ValueError(
+            f"Beam model position must be a finite positive distance upstream of the "
+            f"isocenter. Got {value}.")
+    return value
+
+
 # ---- public API ----
 def export_spotlist(
 
@@ -108,26 +137,22 @@ def export_spotlist(
         location(s). Logs information about each file written.
     """
 
+    # Validate up front: the error is clearer here than from deep inside
+    # _plan_to_spot_dataframe(), and it keeps the INFO line below from announcing an
+    # export plane that is about to be rejected.
+    bmpos = _beam_model_position(plan)
+    bmfile = getattr(plan.beam_model, "filename", None)
+
+    logger.info(
+        "Spotlist positions will be exported at the beam model plane (backprojected): D = %.1f mm.",
+        bmpos,
+    )
+
     # Build canonical spot table from plan (assumes beam model already applied)
     df = _plan_to_spot_dataframe(plan)
 
     # Add derived export columns (GeV/cm/FWHM/mrad + Weight)
     df = _add_spotlist_export_columns(df, spot_pos_iso=spot_pos_iso)
-
-    bm = getattr(plan, "beam_model", None)
-    bmpos = getattr(bm, "beam_model_position", None) if bm is not None else None
-    bmfile = getattr(bm, "filename", None) if bm is not None else None
-
-    if bmpos is not None:
-        logger.info(
-            "Spotlist positions will be exported at the beam model plane (backprojected): D = %.1f mm.",
-            float(bmpos),
-        )
-    else:
-        logger.warning(
-            "Plan beam model is missing beam_model_position; spotlist will assume parallel beam "
-            "(no backprojection)."
-        )
 
     # Optional subset of fields (expects 1-based field numbers as in your CLI)
     if field_list is not None:
@@ -190,31 +215,22 @@ def _plan_to_spot_dataframe(plan) -> pd.DataFrame:
       - Exporters should typically use BM-plane positions when instantiating particles at the beam-model plane.
     """
     rows = []
-    bm = getattr(plan, "beam_model", None)
-    if bm is None:
-        raise ValueError(
-            "plan.beam_model must be set before converting plan to a spot dataframe; "
-            "cannot compute particles per MU without a beam model."
-        )
-
-    D = float(getattr(bm, "beam_model_position", 0.0))
-    if D <= 0.0:
-        raise ValueError(f"Beam model position must be positive (upstream). Got {D}")
+    D = _beam_model_position(plan)
+    bm = plan.beam_model
 
     for field_idx, myfield in enumerate(plan.fields, start=1):
-        # Determine backprojection geometry for this field
-        has_sd = bool(getattr(myfield, "has_spreading_device", False))
-        if has_sd:
-            dx = float(getattr(myfield, "lateral_spreading_device_distanceX", 0.0))
-            dy = float(getattr(myfield, "lateral_spreading_device_distanceY", 0.0))
-            if dx == 0.0 or dy == 0.0:
-                logger.warning(
-                    "Field %02d: has_spreading_device=True but dx/dy is zero -> assuming parallel beam.",
-                    myfield.number if getattr(myfield, "number", None) else field_idx
-                )
-                has_sd = False
-        else:
-            dx = dy = 0.0  # unused
+        # Determine backprojection geometry for this field. Keying this off
+        # has_spreading_device meant plans that name no lateral spreading device but do
+        # carry VirtualSourceAxisDistances -- RayStation PBS -- were backprojected as a
+        # parallel beam (issue #79). Use the SAD the importer resolved; it is only unset
+        # for formats that genuinely carry none (PLD, RST).
+        dx, dy = (float(v) for v in myfield.sad)
+        has_sd = all(np.isfinite(v) and v > 0.0 for v in (dx, dy))
+        if not has_sd:
+            logger.warning(
+                "Field %02d: no source-to-axis distance -> assuming parallel beam.",
+                myfield.number if getattr(myfield, "number", None) else field_idx
+            )
 
         for layer_idx, layer in enumerate(myfield.layers, start=1):
             if layer.n_spots == 0:

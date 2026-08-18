@@ -198,17 +198,20 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
     z_plane = D
     logger.info("Beam model position D = %+.1f mm", D)
 
-    if field.has_spreading_device:
-        dx = float(field.lateral_spreading_device_distanceX)
-        dy = float(field.lateral_spreading_device_distanceY)
-    else:
-        dx = dy = float("nan")  # not used
-        logger.warning("No spreading device in plan; assuming parallel beam (no backprojection).")
+    # Backprojection needs the source-to-axis distance. Keying this off
+    # has_spreading_device meant RayStation PBS plans -- which write no lateral
+    # spreading device but do carry VirtualSourceAxisDistances -- were silently
+    # exported as a parallel beam (issue #79). Use the SAD the importer resolved;
+    # it is only unset for formats that genuinely carry none (PLD, RST).
+    dx, dy = (float(v) for v in field.sad)
+    diverging = all(np.isfinite(v) and v > 0.0 for v in (dx, dy))
 
-    if field.has_spreading_device:
+    if diverging:
         if D > dx or D > dy:
             logger.warning("Beam model plane is upstream of scan distance: D=%.1f dx=%.1f dy=%.1f -> sign flip possible",
                            D, dx, dy)
+    else:
+        logger.warning("No source-to-axis distance in plan; assuming parallel beam (no backprojection).")
 
     for layer in field.layers:
         Enom = float(layer.energy_nominal)
@@ -233,7 +236,7 @@ def _prepare_field_sampler(field: Field, bm: BeamModel) -> FieldSampler:
             x_iso = float(s.x)
             y_iso = float(s.y)
 
-            if field.has_spreading_device:
+            if diverging:
                 # backproject beam positions to beam model plane
                 x_bm = x_iso * (dx - D) / dx
                 y_bm = y_iso * (dy - D) / dy
