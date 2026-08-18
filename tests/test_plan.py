@@ -540,3 +540,38 @@ class TestReferencedBeamPairing:
             ref_order=(1, 2), with_delivery=())
         with pytest.raises(ValueError, match="delivers nothing that can be exported"):
             load_plan(plan_path)
+
+    def test_delivered_beam_missing_from_ion_beam_sequence_is_reported(self, tmp_path, caplog):
+        """A beam with MU that the plan never defines must not vanish silently."""
+        plan_path = make_ccb_style_plan(
+            self.SOURCE, tmp_path / "gap.dcm",
+            ref_order=(1, 7), with_delivery=(1, 7), defined_beams=(1,))
+        with caplog.at_level(logging.WARNING):
+            plan = load_plan(plan_path)
+
+        assert [f.number for f in plan.fields] == [1]
+        assert "beam(s) 7" in caplog.text
+        assert "7000.0 MU" in caplog.text
+        assert "deliver less than the plan prescribes" in caplog.text
+
+    def test_unreferenced_beam_is_skipped_with_its_own_reason(self, tmp_path, caplog):
+        """A defined-but-unreferenced beam is a different case from a missing meterset."""
+        plan_path = make_ccb_style_plan(
+            self.SOURCE, tmp_path / "extra.dcm",
+            ref_order=(1,), with_delivery=(1,), defined_beams=(1, 9))
+        with caplog.at_level(logging.WARNING):
+            plan = load_plan(plan_path)
+
+        assert [f.number for f in plan.fields] == [1]
+        assert "does not reference it" in caplog.text
+        assert "no BeamMeterset" not in caplog.text
+
+    def test_missing_meterset_is_warned_once(self, tmp_path, caplog):
+        """The skip must not repeat the warning the delivery reader already gave."""
+        plan_path = make_ccb_style_plan(
+            self.SOURCE, tmp_path / "once.dcm",
+            ref_order=(1, 2), with_delivery=(1,))
+        with caplog.at_level(logging.WARNING):
+            load_plan(plan_path)
+
+        assert caplog.text.count("has no BeamMeterset") == 1

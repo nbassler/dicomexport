@@ -54,23 +54,22 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
     # That sequence is NOT necessarily in the same order as IonBeamSequence -- plans
     # occur with the references out of order (e.g. 4, 5, 1, 2, 3) -- so pairing the two
     # positionally silently puts dose and MU on the wrong beams (issue #75).
-    delivery = _referenced_beam_delivery(fraction_group)
+    delivery, referenced = _referenced_beam_delivery(fraction_group)
 
     ibs = d['IonBeamSequence']  # ion beam sequence, contains all beams defined by the plan
-    if len(ibs.value) != n_referenced:
-        # Not fatal: beams are matched by number below, and one defined but not
-        # referenced simply delivers nothing and is skipped.
-        logger.warning("IonBeamSequence defines %d beams but the fraction group references %d.",
-                       len(ibs.value), n_referenced)
 
     for ibm in ibs.value:
         field_nr = int(ibm['BeamNumber'].value)
         beam_name = str(ibm['BeamName'].value) if 'BeamName' in ibm else ''
 
         if field_nr not in delivery:
-            logger.warning(
-                "Skipping beam %d ('%s'): the fraction group gives it no BeamMeterset, "
-                "so it delivers no monitor units.", field_nr, beam_name)
+            if field_nr in referenced:
+                # _referenced_beam_delivery() already warned why; do not repeat it.
+                logger.debug("Skipping beam %d ('%s'): no BeamMeterset.", field_nr, beam_name)
+            else:
+                logger.warning(
+                    "Skipping beam %d ('%s'): the fraction group does not reference it, "
+                    "so it is not part of this fraction.", field_nr, beam_name)
             continue
 
         myfield = Field()
@@ -236,6 +235,19 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                 layer_nr += 1
             else:
                 logger.debug("Skipping empty layer index %i", icp_index)
+
+    # The loop above visits IonBeamSequence, so a beam the fraction group delivers MU on
+    # but which the plan never defines would otherwise be dropped without a word, and the
+    # export would silently under-deliver.
+    undefined = sorted(set(delivery) - {f.number for f in p.fields})
+    if undefined:
+        logger.warning(
+            "The fraction group delivers monitor units on beam(s) %s (%s MU) that "
+            "IonBeamSequence does not define. They cannot be exported, so this plan is "
+            "incomplete: the exported fields deliver less than the plan prescribes.",
+            ", ".join(str(n) for n in undefined),
+            ", ".join(f"{delivery[n][1]:.1f}" for n in undefined))
+
     return p
 
 
@@ -253,21 +265,29 @@ def _is_usable_sad(values) -> bool:
     return all(np.isfinite(v) and v > 0.0 for v in values)
 
 
-def _referenced_beam_delivery(fraction_group) -> dict[int, tuple[float, float]]:
+def _referenced_beam_delivery(fraction_group) -> tuple[dict[int, tuple[float, float]], set[int]]:
     """
-    Map ReferencedBeamNumber -> (beam dose [Gy], beam meterset [MU]).
+    Read what the fraction group prescribes per beam.
 
-    Only beams that carry a BeamMeterset are included: without monitor units nothing
-    is delivered and there is nothing to export, so the caller skips them.
+    Returns ``(delivery, referenced)`` where ``delivery`` maps ReferencedBeamNumber ->
+    (beam dose [Gy], beam meterset [MU]) and ``referenced`` is every number the sequence
+    mentions at all. The caller needs both so it can tell a beam that was referenced but
+    delivers nothing from one that is not part of this fraction -- different situations
+    that warrant different messages.
+
+    Only beams that carry a BeamMeterset reach ``delivery``: without monitor units
+    nothing is delivered and there is nothing to export.
 
     BeamDose is treated as informational and defaults to 0.0 when absent. Building a
     plan needs only the MU, and some planning systems leave the dose off beams they
     still deliver, so requiring it would reject usable plans (issue #75).
     """
     delivery: dict[int, tuple[float, float]] = {}
+    referenced: set[int] = set()
 
     for rb in fraction_group['ReferencedBeamSequence']:
         number = int(rb['ReferencedBeamNumber'].value)
+        referenced.add(number)
 
         meterset = rb.get('BeamMeterset', None)
         if meterset is None:
@@ -288,7 +308,7 @@ def _referenced_beam_delivery(fraction_group) -> dict[int, tuple[float, float]]:
         raise ValueError(
             "No beam in the fraction group has a BeamMeterset, so the plan delivers "
             "nothing that can be exported.")
-    return delivery
+    return delivery, referenced
 
 
 def _virtual_source_axis_distances(ibm, field_nr: int) -> tuple[float, float] | None:

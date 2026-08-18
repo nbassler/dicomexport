@@ -128,7 +128,7 @@ def write_dicom_raw(path: Path, modality: str, instance_number, **identity) -> P
 
 def make_ccb_style_plan(source: Path, out_path: Path,
                         ref_order=(4, 5, 1, 2, 3), with_delivery=(1, 2, 3),
-                        without_dose=()) -> Path:
+                        without_dose=(), defined_beams=None) -> Path:
     """
     Rewrite a real RTPLAN so its fraction group mirrors the CCB case of issue #75.
 
@@ -138,8 +138,10 @@ def make_ccb_style_plan(source: Path, out_path: Path,
     reference, as a plan does for beams that deliver nothing. Numbers in
     ``without_dose`` keep their meterset but lose BeamDose.
 
-    IonBeamSequence is extended to cover every referenced number so the two sequences
-    describe the same beams, differing only in order and completeness.
+    IonBeamSequence covers every referenced number by default, so the two sequences
+    describe the same beams and differ only in order and completeness. Pass
+    ``defined_beams`` to break that deliberately -- either dropping a beam the fraction
+    group delivers on, or defining one it never references.
     """
     import pydicom
     from copy import deepcopy
@@ -148,7 +150,7 @@ def make_ccb_style_plan(source: Path, out_path: Path,
     template_beam = ds.IonBeamSequence[0]
 
     beams = []
-    for number in sorted(ref_order):
+    for number in sorted(ref_order if defined_beams is None else defined_beams):
         beam = deepcopy(template_beam)
         beam.BeamNumber = number
         beam.BeamName = f"Beam{number}"
@@ -156,7 +158,7 @@ def make_ccb_style_plan(source: Path, out_path: Path,
     ds.IonBeamSequence = Sequence(beams)
 
     references = []
-    for position, number in enumerate(ref_order):
+    for number in ref_order:
         ref = Dataset()
         ref.ReferencedBeamNumber = number
         if number in with_delivery:
