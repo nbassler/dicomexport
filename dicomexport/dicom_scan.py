@@ -116,6 +116,28 @@ def _str_or_none(ds, tag: str) -> str | None:
     return text or None
 
 
+def _instance_number_of(ds, path: Path) -> int | None:
+    """
+    InstanceNumber as an int, or None when absent or unusable.
+
+    InstanceNumber is Type 2, so it may legitimately be present but empty (pydicom
+    hands back None). It may also be malformed -- a multi-valued IS raises TypeError
+    on int(). Letting that propagate would abort the whole scan, taking down callers
+    that never look at InstanceNumber at all: the dose lookup, the structure set and
+    the plan are all resolved from the same pass. A CT series still refuses to load
+    without it, so nothing is silently degraded -- see get_ct_files_sorted_by_instance_number.
+    """
+    raw = getattr(ds, "InstanceNumber", None)
+    if raw is None:
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        # Malformed patient data, not a routine skip: say so at warning level.
+        logger.warning("Ignoring unusable InstanceNumber %r in %s", raw, path)
+        return None
+
+
 def _is_dicomdir(ds) -> bool:
     """True for a DICOMDIR index file, which has no Modality by design."""
     file_meta = getattr(ds, "file_meta", None)
@@ -174,10 +196,9 @@ def scan_study(root: Path) -> StudyScan:
             continue
 
         scan.files[modality].append(path)
-        raw = getattr(ds, "InstanceNumber", None)
         scan.info[path] = FileInfo(
             modality=modality,
-            instance_number=None if raw is None else int(raw),
+            instance_number=_instance_number_of(ds, path),
             study_uid=_str_or_none(ds, "StudyInstanceUID"),
             series_uid=_str_or_none(ds, "SeriesInstanceUID"),
             patient_id=_str_or_none(ds, "PatientID"),

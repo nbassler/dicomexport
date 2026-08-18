@@ -1,10 +1,14 @@
+import logging
 from pathlib import Path
 
 import pytest
 
 from dicomexport.model_ct import CTModel
 from dicomexport.import_ct import load_ct, get_ct_files_sorted_by_instance_number
+from dicomexport.dicom_scan import scan_study
+from dicomexport.main import get_path_dicom_dose
 from tests.dicom_fixtures import (write_dicom, write_ct_series, write_dicomdir,
+                                  write_dicom_raw,
                                   OTHER_STUDY_UID, OTHER_SERIES_UID, OTHER_FRAME_UID)
 
 CT_TEST_PATH = Path("res") / "test_studies" / "DCPT_headphantom"
@@ -182,3 +186,32 @@ class TestCT:
         files = get_ct_files_sorted_by_instance_number(tmp_path)
 
         assert len(files) == 2
+
+
+class TestMalformedInstanceNumber:
+    """A malformed InstanceNumber must not abort the whole scan (Copilot, PR #80)."""
+
+    def test_bad_instance_number_does_not_break_other_modalities(self, tmp_path):
+        """The dose and structure set are resolved from the same pass and must survive."""
+        write_dicom(tmp_path / "RS001.dcm", "RTSTRUCT")
+        rd = write_dicom(tmp_path / "RD001.dcm", "RTDOSE")
+        write_dicom(tmp_path / "CT001.dcm", "CT", instance_number=1)
+        write_dicom_raw(tmp_path / "CT002.dcm", "CT", [1, 2])
+
+        scan = scan_study(tmp_path)
+
+        assert len(scan.get("CT")) == 2
+        assert get_path_dicom_dose(tmp_path) == rd
+
+    def test_bad_instance_number_warns(self, tmp_path, caplog):
+        write_dicom_raw(tmp_path / "CT001.dcm", "CT", [1, 2])
+        with caplog.at_level(logging.WARNING):
+            scan_study(tmp_path)
+        assert "unusable InstanceNumber" in caplog.text
+
+    def test_ct_series_still_refuses_to_load(self, tmp_path):
+        """Robust scanning must not become silent mis-ordering of a CT series."""
+        write_dicom(tmp_path / "CT001.dcm", "CT", instance_number=1)
+        write_dicom_raw(tmp_path / "CT002.dcm", "CT", [1, 2])
+        with pytest.raises(AttributeError, match="no usable 'InstanceNumber'"):
+            get_ct_files_sorted_by_instance_number(tmp_path)

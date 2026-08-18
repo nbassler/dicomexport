@@ -51,8 +51,10 @@ def get_ct_files_sorted_by_instance_number(directory: Path) -> List[Path]:
         # Harvested by scan_study() in the same header pass that classified the file.
         number = scan.instance_number_of(file)
         if number is None:
+            # Absent, empty, or malformed -- scan_study() warns which. Either way the
+            # slice order is unknown, and guessing it would misplace the patient.
             raise AttributeError(
-                f"File {file} is missing 'InstanceNumber' DICOM tag.")
+                f"File {file} has no usable 'InstanceNumber' DICOM tag.")
         return number
 
     files.sort(key=get_instance_number)

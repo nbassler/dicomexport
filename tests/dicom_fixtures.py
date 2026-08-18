@@ -94,3 +94,32 @@ def write_ct_series(directory: Path, n: int = 2, start: int = 1, **identity) -> 
         write_dicom(directory / f"CT{i:03d}.dcm", "CT", instance_number=i, **identity)
         for i in range(start, start + n)
     ]
+
+
+def write_dicom_raw(path: Path, modality: str, instance_number, **identity) -> Path:
+    """
+    Write a fixture whose InstanceNumber is deliberately malformed.
+
+    Used to prove the scanner survives vendor quirks; ``instance_number`` is written
+    verbatim (e.g. a list, producing a multi-valued IS that int() cannot convert).
+    """
+    import warnings
+    ds = Dataset()
+    ds.Modality = modality
+    ds.InstanceNumber = instance_number
+    ds.StudyInstanceUID = identity.get("study_uid", STUDY_UID)
+    ds.SeriesInstanceUID = identity.get("series_uid", SERIES_UID)
+    ds.FrameOfReferenceUID = identity.get("frame_uid", FRAME_UID)
+    ds.PatientID = identity.get("patient_id", PATIENT_ID)
+
+    file_meta = FileMetaDataset()
+    file_meta.MediaStorageSOPClassUID = _SOP_CLASS_UID
+    file_meta.MediaStorageSOPInstanceUID = generate_uid()
+    file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+    ds.file_meta = file_meta
+    ds.preamble = b"\0" * 128
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        ds.save_as(path, enforce_file_format=True)
+    return Path(path)
