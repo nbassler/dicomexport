@@ -23,10 +23,7 @@ columns (full transverse phase-space data):
 
 Columns 9 and 10 are dimensionless correlation coefficients; do not confuse
 them with covariances. The correlation coefficients should lie in the interval
-`[-1, 1]`. The covariance used internally is computed as
-`cov(x,x') = rho_xx' * sigma_x * sigma_x'` and equivalently for y. Here
-`cov(x,x')` is the central second moment of the sampled distribution,
-`< (x - <x>) (x' - <x'>) >`; it is not the product of mean values.
+`[-1, 1]`.
 
 ## Header keys
 
@@ -50,7 +47,21 @@ Example header line: `#"BMODPOS 600.0 mm"`
 ## Twiss/correlation interpretation
 
 For each transverse plane, the 10-column format defines a 2D Gaussian in
-position and angle at the beam model plane:
+position and angle at the beam model plane. The correlation coefficient is
+converted to a covariance before sampling:
+
+```math
+\mathrm{cov}(x,x') = \rho_{xx'} \sigma_x \sigma_{x'}
+```
+
+Here the covariance is the central second moment of the sampled distribution:
+
+```math
+\mathrm{cov}(x,x') =
+\left\langle (x - \langle x \rangle)(x' - \langle x' \rangle) \right\rangle
+```
+
+It is not the product of mean values. The y plane is treated analogously.
 
 ```math
 \Sigma_x =
@@ -60,7 +71,7 @@ position and angle at the beam model plane:
 \end{pmatrix}
 ```
 
-The geometric emittance and Twiss parameters follow from this covariance matrix:
+The geometric emittance and Twiss parameters follow from the covariance matrix:
 
 ```math
 \epsilon_x = \sqrt{\det \Sigma_x}, \quad
@@ -69,9 +80,9 @@ The geometric emittance and Twiss parameters follow from this covariance matrix:
 \gamma_x = \frac{\sigma_{x'}^2}{\epsilon_x}
 ```
 
-The y plane is treated analogously. Sampling uses these matrices to draw local
-transverse positions and angles before the resulting particles are oriented
-according to the selected beam geometry.
+Sampling uses these matrices to draw local transverse positions and angles
+before the resulting particles are oriented according to the selected beam
+geometry.
 
 ## Available files
 
