@@ -5,6 +5,9 @@ from pathlib import Path
 
 _BMODPOS_RE = re.compile(r'BMODPOS\s+(-?[\d.]+)\s*([a-zA-Z\xb5\xc2\xb5µ]*)')
 
+# Tolerance on |rho| <= 1, so float noise at the boundary is not a hard error.
+_RHO_TOL = 1e-6
+
 logger = logging.getLogger(__name__)
 
 
@@ -50,8 +53,8 @@ class BeamModel():
             6) 1 sigma spot size y [mm]
             7) 1 sigma divergence x [rad]
             8) 1 sigma divergence y [rad]
-            9) cor (x, x') [mm]
-            10) cor (y, y') [mm]
+            9) cor (x, x') correlation coefficient rho [-]
+            10) cor (y, y') correlation coefficient rho [-]
         """
         data = np.genfromtxt(fn, delimiter=",", invalid_raise=False, comments='#')
 
@@ -94,6 +97,25 @@ class BeamModel():
             self.f_divy = interp1d(energy, data[:, 7], kind=k)  # divergence y [rad]
             self.f_corx = interp1d(energy, data[:, 8], kind=k)  # correlation coef. rho (x, x') [-]
             self.f_cory = interp1d(energy, data[:, 9], kind=k)  # correlation coef. rho (y, y') [-]
+
+            # Columns 9 and 10 are dimensionless correlation coefficients, not covariances,
+            # and must lie in [-1, 1]. Out-of-range values describe no real distribution and
+            # give a non-positive-semidefinite covariance matrix, which the samplers silently
+            # repair -- yielding plausible-looking output with wrong beam optics. Fail here
+            # instead. |rho| == 1 (a degenerate, zero-emittance plane) is allowed; _RHO_TOL
+            # keeps float noise just past the boundary from tripping the check.
+            for col, name in ((8, "cor(x x')"), (9, "cor(y y')")):
+                bad = np.abs(data[:, col]) > 1.0 + _RHO_TOL
+                if bad.any():
+                    energies = ", ".join(f"{e:g}" for e in energy[bad][:5])
+                    if int(bad.sum()) > 5:
+                        energies += ", ..."
+                    raise ValueError(
+                        f"{Path(fn).name}: {name} must be a correlation coefficient in "
+                        f"[-1, 1], but {int(bad.sum())} of {len(energy)} rows are outside it "
+                        f"(min {data[:, col].min():.4g}, max {data[:, col].max():.4g}; "
+                        f"nominal energies {energies} MeV). Columns 9 and 10 are dimensionless "
+                        f"correlation coefficients, not covariances.")
 
         self.data = data
         self.filename = Path(fn).name

@@ -21,9 +21,11 @@ columns (full transverse phase-space data):
 9) `rho_xx'`: correlation coefficient between x and x' [-] *(10-column format only)*
 10) `rho_yy'`: correlation coefficient between y and y' [-] *(10-column format only)*
 
-Columns 9 and 10 are dimensionless correlation coefficients; do not confuse
-them with covariances. The correlation coefficients should lie in the interval
-`[-1, 1]`.
+Columns 9 and 10 are dimensionless correlation coefficients, not covariances,
+and must lie in `[-1, 1]`. Files outside that range are rejected.
+
+A 6-column file carries no beam optics: divergence and correlation are taken as
+zero, giving a perfectly parallel beam. Use the 10-column format in production.
 
 ## Header keys
 
@@ -43,6 +45,9 @@ legacy files without `BMODPOS`, `--beam-model-position` can provide the missing
 value; otherwise the code defaults to 500.0 mm.
 
 Example header line: `#"BMODPOS 600.0 mm"`
+
+`BMODPOS` is the only key the loader parses; all other comment lines are
+informational.
 
 ## Twiss/correlation interpretation
 
@@ -90,7 +95,7 @@ geometry.
 |------|-------------|----------|
 | `DCPT_beam_model__v2.csv` | DCPT beam model reverse-engineered from experimental data and TOPAS simulations | 500.0 mm upstream |
 | `DCPT_beam_model__v5.csv` | Updated DCPT beam model (emittance source type) | 600.0 mm upstream |
-| `bm_test_6col.csv` | Reduced test model — do not use for production | no BMODPOS (falls back to default) |
+| `bm_test_6col.csv` | **Test fixture, not a beam model.** Synthetic 6-column data used by the test suite; carries no beam optics | no BMODPOS (falls back to default) |
 
 ## Acknowledgements
 

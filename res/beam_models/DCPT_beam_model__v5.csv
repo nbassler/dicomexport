@@ -1,7 +1,8 @@
 #"DCPT beam model",,,,,,,,,
 #"Simon Norrig, DCPT",,,,,,,,,
 #"BMODPOS 600.0 mm",,,,,,,,,
-#"source type: emittance",,,,,,,,,
+#"source type: emittance -- a bi-Gaussian phase space: per energy, a 2D Gaussian in",,,,,,,,,
+#"  position and angle per transverse plane, correlated via cor(x x') and cor(y y').",,,,,,,,,
 #"Energy nominal [MeV]","# E real [MeV]","# E real sigma [MeV]","# protons/MU","# sigma x [mm]","# sigma y [mm]","# sigma x' [rad]","# sigma y' [rad]","# cor(x x')","# cor(y y')"
 70,70.13844937,0.8245064601,2029456,4.186392496,3.779520192,0.00678519595,0.00664468331,0.04545762851,0.2239972872
 70.1,70.23866361,0.8244363198,2031777,4.186188646,3.780429711,0.006780065387,0.006641007532,0.04462508386,0.2226151402
