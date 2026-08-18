@@ -51,6 +51,10 @@ def main(args=None) -> int:
 
     logger.debug("Exporting plan format...")
     if parsed_args.export_fmt == 'mcpl':
+        if parsed_args.nozzle_side != 'neg-z':
+            logger.info(
+                "--nozzle-side does not apply to MCPL export (the phase space is "
+                "frame-relative / pre-gantry). Use --mcpl-frame to choose the beam frame.")
         generate_mcpl_file(
             pln,
             pln.beam_model,
@@ -58,7 +62,8 @@ def main(args=None) -> int:
             field_list=[parsed_args.field_nr]
             if parsed_args.field_nr > 0 else None,
             num_primaries=parsed_args.nstat,
-            rng_seed=42
+            rng_seed=42,
+            rot180x=(parsed_args.mcpl_frame == 'rotx180'),
         )
 
     elif parsed_args.export_fmt == 'topas':

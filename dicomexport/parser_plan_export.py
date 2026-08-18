@@ -44,6 +44,17 @@ def create_parser():
                         help="Generate a self-contained Topas file (no DICOM patient) with a water box "
                              "and isocenter dose scorer. Useful for CI beam-direction checks.")
 
+    parser.add_argument('--mcpl-frame', dest='mcpl_frame', choices=['iec', 'rotx180'],
+                        default='iec',
+                        help="Coordinate frame for MCPL phase-space output (default: iec). "
+                             "iec: canonical IEC 61217 gantry/nozzle frame -- source plane at +D, "
+                             "beam travels toward -Z, isocenter at origin, pre-gantry (the receiving "
+                             "MC applies the gantry rotation). rotx180: the same beam rigidly rotated "
+                             "180 deg about X, i.e. beam travels toward +Z with the source at -D; this "
+                             "flips the sign of Y (a proper rotation cannot reverse Z alone). Use "
+                             "rotx180 for downstream codes that expect a +Z-forward beam. Only applies "
+                             "to MCPL export.")
+
     parser.add_argument('--nozzle-side', dest='nozzle_side', choices=['pos-z', 'neg-z'],
                         default='neg-z',
                         help="Which side of the gantry-local Z axis the nozzle sits on (default: neg-z). "
