@@ -10,11 +10,12 @@ import mcpl
 import numpy as np
 import pytest
 
-from dicomexport.model_plan import Plan
+from dicomexport.model_plan import Plan, RS_CATALOG, load_range_shifter_catalog
 from dicomexport.import_plan import load_plan
 from dicomexport.import_plan_dicom import _rs_isocenter_distance, _resolve_sad
 from dicomexport.beam_model import BeamModel
 from dicomexport.export_plan_topas import TopasPlan
+from dicomexport.topas_text import TopasText
 from dicomexport.export_spotlist import _plan_to_spot_dataframe, export_spotlist
 from pydicom.dataset import Dataset
 from pydicom.sequence import Sequence
@@ -575,3 +576,119 @@ class TestReferencedBeamPairing:
             load_plan(plan_path)
 
         assert caplog.text.count("has no BeamMeterset") == 1
+
+
+class TestRangeShifterCatalog:
+    """Issue #76: the catalog is built in, and a user CSV replaces it wholesale."""
+
+    PLAN = Path("res") / "test_plans" / "temp_160MeV_10x10.dcm"
+
+    @pytest.mark.parametrize("name,expected", [
+        ("rs_dcpt", {"RS_2CM", "RS_3CM", "RS_5CM"}),
+        ("rs_ccb", {"RS_Block"}),
+        ("rs_skandion", {"RS_3.5"}),
+        ("rs_wpe", {"RS51"}),
+    ])
+    def test_shipped_catalogs_load(self, name, expected):
+        catalog = load_range_shifter_catalog(Path("res") / "range_shifters" / f"{name}.csv")
+        assert set(catalog) - {"None"} == expected
+        for entry in catalog.values():
+            assert entry["thickness"] >= 0.0
+
+    def test_shipped_catalogs_agree_with_the_builtin(self):
+        """The example files mirror RS_CATALOG, so they cannot drift apart unnoticed."""
+        merged = {}
+        for name in ("rs_dcpt", "rs_ccb", "rs_skandion", "rs_wpe"):
+            merged.update(load_range_shifter_catalog(Path("res") / "range_shifters" / f"{name}.csv"))
+        assert merged == RS_CATALOG
+
+    def test_no_shifter_id_must_not_be_catalogued(self, tmp_path):
+        """'None' is the absence of a device, so a row for it is a mistake."""
+        f = tmp_path / "c.csv"
+        f.write_text("RS_X,10.0,Lexan\nNone,0.0,\n")
+        with pytest.raises(ValueError, match="must not be catalogued"):
+            load_range_shifter_catalog(f)
+
+    def test_catalogs_contain_only_real_devices(self, tmp_path):
+        f = tmp_path / "c.csv"
+        f.write_text("RS_X,10.0,Lexan\n")
+        assert set(load_range_shifter_catalog(f)) == {"RS_X"}
+
+    @pytest.mark.parametrize("body,match", [
+        ("RS_X,10.0\n", "expected 3 comma-separated columns"),
+        ("RS_X,abc,Lexan\n", "is not a number"),
+        ("RS_X,-1.0,Lexan\n", "must be >= 0"),
+        (",10.0,Lexan\n", "ID is empty"),
+        ("RS_X,10.0,Lexan\nRS_X,20.0,Lexan\n", "duplicate range shifter ID"),
+        ("# only a comment\n", "no range shifters defined"),
+    ])
+    def test_malformed_catalog_is_rejected(self, tmp_path, body, match):
+        f = tmp_path / "bad.csv"
+        f.write_text(body)
+        with pytest.raises(ValueError, match=match):
+            load_range_shifter_catalog(f)
+
+    def test_unknown_id_error_names_what_the_user_needs(self, tmp_path):
+        """The likely cause is a partial catalog, so say which beam and what is known."""
+        plan_path = make_ccb_style_plan(self.PLAN, tmp_path / "rs.dcm",
+                                        ref_order=(1,), with_delivery=(1,),
+                                        range_shifter_id="RS_NOT_KNOWN")
+        with pytest.raises(ValueError) as exc:
+            load_plan(plan_path)
+        message = str(exc.value)
+        assert "RS_NOT_KNOWN" in message
+        assert "on beam 1" in message
+        assert "built-in catalog" in message
+        assert "--range-shifter-catalog" in message
+
+    def test_supplied_catalog_replaces_the_builtin(self, tmp_path):
+        """A built-in ID must become unknown once a catalog that omits it is supplied."""
+        plan_path = make_ccb_style_plan(self.PLAN, tmp_path / "rs.dcm",
+                                        ref_order=(1,), with_delivery=(1,),
+                                        range_shifter_id="RS_5CM")
+        rs = load_plan(plan_path).fields[0].range_shifter
+        assert rs is not None                       # the plan inserts one
+        assert rs.thickness == pytest.approx(50.0)
+
+        only_ccb = load_range_shifter_catalog(Path("res") / "range_shifters" / "rs_ccb.csv")
+        with pytest.raises(ValueError, match="supplied with --range-shifter-catalog"):
+            load_plan(plan_path, rs_catalog=only_ccb)
+
+    def test_no_shifter_id_resolves_to_absence_not_a_zero_thickness_device(self, tmp_path):
+        """A plan declaring 'None' must export no range shifter geometry at all.
+
+        Catalogued as a 0 mm slab it used to emit a degenerate TsBox of material "None".
+        """
+        plan_path = make_ccb_style_plan(self.PLAN, tmp_path / "none.dcm",
+                                        ref_order=(1,), with_delivery=(1,),
+                                        range_shifter_id="None")
+        # Also with a hand-built catalog, as a programmatic caller might pass.
+        hand_made = {"RS_X": {"thickness": 10.0, "material": "Lexan"}}
+        for catalog in (None, hand_made):
+            field = load_plan(plan_path, rs_catalog=catalog).fields[0]
+            assert field.range_shifter is None
+            assert TopasText.geometry_range_shifter(field) == ""
+
+    def test_zero_thickness_shifter_emits_no_geometry(self, tmp_path, caplog):
+        """Defence in depth: a 0 mm device must not become a degenerate TsBox."""
+        plan_path = make_ccb_style_plan(self.PLAN, tmp_path / "zero.dcm",
+                                        ref_order=(1,), with_delivery=(1,),
+                                        range_shifter_id="RS_ZERO")
+        field = load_plan(plan_path,
+                          rs_catalog={"RS_ZERO": {"thickness": 0.0, "material": "Lexan"}}
+                          ).fields[0]
+        assert field.range_shifter is not None
+        with caplog.at_level(logging.WARNING):
+            assert TopasText.geometry_range_shifter(field) == ""
+        assert "emitting no geometry" in caplog.text
+
+    def test_dangling_range_shifter_reference_is_ignored(self, tmp_path, caplog):
+        """A control point may reference a device the sequence never defines."""
+        plan_path = make_ccb_style_plan(self.PLAN, tmp_path / "dangle.dcm",
+                                        ref_order=(1,), with_delivery=(1,),
+                                        range_shifter_id="RS_5CM",
+                                        range_shifter_ref_number=99)
+        with caplog.at_level(logging.WARNING):
+            field = load_plan(plan_path).fields[0]
+        assert field.range_shifter is None
+        assert "does not define" in caplog.text

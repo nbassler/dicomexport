@@ -1,0 +1,6 @@
+# Range shifter catalog -- DCPT, Danish Centre for Particle Therapy, Aarhus, Denmark
+#
+# id, thickness [mm], material
+RS_2CM,20.0,Lexan
+RS_3CM,30.0,Lexan
+RS_5CM,50.0,Lexan

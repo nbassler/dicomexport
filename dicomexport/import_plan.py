@@ -29,10 +29,12 @@ def load_plan(path: Path, **kwargs) -> Plan:
         logger.info("Using plan file: %s", path.name)
 
     suffix = path.suffix.lower()
+    # rs_catalog is DICOM-only: the PLD and RST formats carry no range shifter.
+    rs_catalog = kwargs.pop('rs_catalog', None)
     if suffix == '.pld':
         return load_plan_pld(path, **kwargs)
     elif suffix == '.dcm':
-        return load_plan_dicom(path, **kwargs)
+        return load_plan_dicom(path, rs_catalog=rs_catalog, **kwargs)
     elif suffix == '.rst':
         return load_plan_rst(path, **kwargs)
     else:

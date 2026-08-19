@@ -9,6 +9,7 @@ from dicomexport.dicom_scan import RTDOSE, scan_study
 from dicomexport.import_ct import load_ct
 from dicomexport.import_rtstruct import load_rs
 from dicomexport.import_plan import load_plan
+from dicomexport.model_plan import load_range_shifter_catalog
 from dicomexport.export_study_topas import export_study_topas
 
 logger = logging.getLogger(__name__)
@@ -57,7 +58,9 @@ def main(args=None) -> int:
     bm = BeamModel(parsed_args.bm,
                    beam_model_position=parsed_args.beam_model_position)
 
-    pn = load_plan(study_dir)
+    rs_catalog = (load_range_shifter_catalog(parsed_args.rs_catalog_path)
+                  if parsed_args.rs_catalog_path else None)
+    pn = load_plan(study_dir, rs_catalog=rs_catalog)
     pn.beam_model = bm
     pn.apply_beammodel()
 
@@ -77,9 +80,10 @@ def main(args=None) -> int:
                            dose_path=rd_path,
                            nstat=parsed_args.nstat,
                            beam_direction=beam_direction)
-    elif parsed_args.export_fmt == 'phasespace':
-        logger.error("Phasespace export is not implemented yet in this build.")
-        # Later: call your MCPL exporter here.
+    elif parsed_args.export_fmt == 'mcpl':
+        logger.error(
+            "MCPL export is not implemented in the study CLI. Use the plan export "
+            "instead: main_plan_export.py <plan.dcm> <out.mcpl> --export-fmt mcpl")
         return 2
     elif parsed_args.export_fmt == 'racehorse':
         logger.error("Racehorse export is not implemented yet in this build.")

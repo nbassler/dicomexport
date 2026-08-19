@@ -3,13 +3,22 @@ import logging
 import numpy as np
 from pathlib import Path
 
-from dicomexport.model_plan import Plan, Field, Layer, Spot, RangeShifter, RS_CATALOG
+from dicomexport.model_plan import (Plan, Field, Layer, Spot, RangeShifter,
+                                    RS_CATALOG, NO_RANGE_SHIFTER_ID)
 
 logger = logging.getLogger(__name__)
 
 
-def load_plan_dicom(file_dcm: Path) -> Plan:
-    """Load DICOM RTPLAN."""
+def load_plan_dicom(file_dcm: Path, rs_catalog: dict | None = None) -> Plan:
+    """Load DICOM RTPLAN.
+
+    Args:
+        file_dcm: the plan file.
+        rs_catalog: range shifter catalog to resolve RangeShifterID against.
+            None uses the built-in RS_CATALOG; a loaded catalog replaces it
+            entirely (see model_plan.load_range_shifter_catalog).
+    """
+    catalog = RS_CATALOG if rs_catalog is None else rs_catalog
 
     p = Plan()
     try:
@@ -95,11 +104,14 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
         logger.debug(
             "Checking for Range Shifter Sequence in field number %i", field_nr)
 
-        rs_dict: dict[int, RangeShifter] = {}
+        # A None value means the plan declared this device as "no shifter"; the number
+        # is still recorded so a control point referencing it resolves to absence
+        # rather than to a missing key.
+        rs_dict: dict[int, RangeShifter | None] = {}
         if 'RangeShifterSequence' in ibm:
             for rs_item in ibm['RangeShifterSequence']:
-                rs = _build_range_shifter(rs_item)
-                rs_dict[rs.number] = rs
+                number, rs = _build_range_shifter(rs_item, catalog, field_nr)
+                rs_dict[number] = rs
 
         layer_nr = 1
         logger.debug(f"Processing field number: {field_nr}")
@@ -133,8 +145,22 @@ def load_plan_dicom(file_dcm: Path) -> Plan:
                 for rss in icp['RangeShifterSettingsSequence']:
                     if getattr(rss, 'RangeShifterSetting', None) == "IN":
                         # lookup range shifter by number, and make a copy of it
-                        _rs_number = rss['ReferencedRangeShifterNumber'].value
+                        # int() to match the rs_dict keys. pydicom's IS already hashes as
+                        # an int, but a non-conformant plan could carry a plain string.
+                        _rs_number = int(rss['ReferencedRangeShifterNumber'].value)
+                        if _rs_number not in rs_dict:
+                            logger.warning(
+                                "Beam %d references range shifter number %s, which the "
+                                "RangeShifterSequence does not define; ignoring it.",
+                                field_nr, _rs_number)
+                            continue
                         _rs = rs_dict[_rs_number]
+                        if _rs is None:
+                            # Declared as "no shifter": leave field.range_shifter unset so
+                            # the exporters emit no geometry at all.
+                            logger.debug("Beam %d: range shifter %s is 'no shifter'.",
+                                         field_nr, _rs_number)
+                            continue
                         myfield.range_shifter = copy.deepcopy(_rs)
                         # set remaining attributes
                         myfield.range_shifter.is_inserted = True
@@ -472,7 +498,14 @@ def _rs_isocenter_distance(rss, field_number: int) -> float:
     return distance
 
 
-def _build_range_shifter(rs_item) -> RangeShifter:
+def _build_range_shifter(rs_item, catalog: dict | None = None,
+                         field_nr: int | None = None) -> tuple[int, RangeShifter | None]:
+    """Resolve one RangeShifterSequence item to (number, shifter-or-None).
+
+    None means the plan declared the device as "no shifter" -- an absence, which is
+    why it is not a catalog entry: a zero-thickness slab of material "None" is not
+    valid geometry, and the exporters must emit nothing for it.
+    """
     if 'RangeShifterNumber' not in rs_item:
         raise ValueError("RangeShifterNumber not found in DICOM plan")
 
@@ -483,12 +516,29 @@ def _build_range_shifter(rs_item) -> RangeShifter:
     rs_id = str(rs_item['RangeShifterID'].value)
     rs_type = str(rs_item['RangeShifterType'].value) if 'RangeShifterType' in rs_item else ""
 
-    # pattern matching is intentionally case-sensitive to IDs are used in practice
-    if rs_id not in RS_CATALOG:
-        raise ValueError(f"Unknown RangeShifterID '{rs_id}' encountered")
+    # "No shifter" describes the absence of a device, so it is answered here rather than
+    # looked up. Resolving it from a catalog entry would make the guarantee depend on
+    # what the catalog happens to contain, and a hand-built dict passed programmatically
+    # would break it.
+    if rs_id == NO_RANGE_SHIFTER_ID:
+        return number, None
 
-    spec = RS_CATALOG[rs_id]
-    return RangeShifter(
+    # matching is intentionally case-sensitive: IDs are site-local labels used verbatim
+    catalog = RS_CATALOG if catalog is None else catalog
+    if rs_id not in catalog:
+        where = f" on beam {field_nr}" if field_nr is not None else ""
+        known = ", ".join(sorted(k for k in catalog if k != NO_RANGE_SHIFTER_ID)) or "(none)"
+        source = ("the built-in catalog" if catalog is RS_CATALOG
+                  else "the range shifter catalog supplied with --range-shifter-catalog")
+        raise ValueError(
+            f"Unknown RangeShifterID '{rs_id}'{where}. It is not in {source}, which "
+            f"defines: {known}. A DICOM plan gives no thickness or material, so the "
+            f"shifter has to be looked up. Supply a catalog listing every shifter this "
+            f"plan uses with --range-shifter-catalog FILE; see "
+            f"res/range_shifters/README.md for the format and examples.")
+
+    spec = catalog[rs_id]
+    return number, RangeShifter(
         id=rs_id,
         number=number,
         type=rs_type,

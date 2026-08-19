@@ -128,7 +128,8 @@ def write_dicom_raw(path: Path, modality: str, instance_number, **identity) -> P
 
 def make_ccb_style_plan(source: Path, out_path: Path,
                         ref_order=(4, 5, 1, 2, 3), with_delivery=(1, 2, 3),
-                        without_dose=(), defined_beams=None) -> Path:
+                        without_dose=(), defined_beams=None,
+                        range_shifter_id=None, range_shifter_ref_number=1) -> Path:
     """
     Rewrite a real RTPLAN so its fraction group mirrors the CCB case of issue #75.
 
@@ -142,6 +143,9 @@ def make_ccb_style_plan(source: Path, out_path: Path,
     describe the same beams and differ only in order and completeness. Pass
     ``defined_beams`` to break that deliberately -- either dropping a beam the fraction
     group delivers on, or defining one it never references.
+
+    ``range_shifter_id`` gives every beam a range shifter with that ID, for exercising
+    the catalog lookup.
     """
     import pydicom
     from copy import deepcopy
@@ -154,6 +158,18 @@ def make_ccb_style_plan(source: Path, out_path: Path,
         beam = deepcopy(template_beam)
         beam.BeamNumber = number
         beam.BeamName = f"Beam{number}"
+        if range_shifter_id is not None:
+            rs = Dataset()
+            rs.RangeShifterNumber = 1
+            rs.RangeShifterID = range_shifter_id
+            rs.RangeShifterType = "BINARY"
+            beam.RangeShifterSequence = Sequence([rs])
+            setting = Dataset()
+            setting.RangeShifterSetting = "IN"
+            setting.IsocenterToRangeShifterDistance = 250.0
+            setting.ReferencedRangeShifterNumber = range_shifter_ref_number
+            for icp in beam.IonControlPointSequence:
+                icp.RangeShifterSettingsSequence = Sequence([setting])
         beams.append(beam)
     ds.IonBeamSequence = Sequence(beams)
 

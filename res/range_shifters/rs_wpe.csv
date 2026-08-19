@@ -1,0 +1,11 @@
+# Range shifter catalog -- WPE, Westdeutsches Protonentherapiezentrum Essen, Germany
+#
+# PROVISIONAL. The thickness below is assumed from the RangeShifterID ("RS51" -> 5.1 cm)
+# and has NOT been confirmed by the centre. The plans seen from this machine (GTR2-PBS)
+# carry no RangeShifterWaterEquivalentThickness (300A,0366) to cross-check against, and
+# an ID may quote a water-equivalent thickness rather than a physical one -- Skandion's
+# RS_3.5 is 30.62 mm, not 35 mm. If RS51 means 51 mm WET, the physical Lexan thickness
+# is nearer 45 mm. Confirm with the centre before trusting a computed range.
+#
+# id, thickness [mm], material
+RS51,51.0,Lexan
