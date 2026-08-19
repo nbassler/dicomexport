@@ -78,7 +78,7 @@ For TOPAS export, the range shifter position follows the selected nozzle side.
 $ PYTHONPATH=. python3 dicomexport/main.py --help
 usage: main.py [-h] [-b BM] [-s SPR_TO_MATERIAL_PATH] [-p BEAM_MODEL_POSITION]
                [-f FIELD_NR] [-N NSTAT]
-               [--export-fmt {topas,phasespace,racehorse}]
+               [--export-fmt {topas,mcpl,racehorse}]
                [--nozzle-side {pos-z,neg-z}] [-v] [-V]
                study_dir [output_base_path]
 
@@ -102,8 +102,8 @@ options:
                         Field number to export. If not specified, all fields will be exported.
   -N, --nstat NSTAT
                         Target protons for simulation
-  --export-fmt {topas,phasespace,racehorse}
-                        Export format (default: topas). Formats: topas (*.txt), phasespace (*.mcpl), racehorse (*.csv).
+  --export-fmt {topas,mcpl,racehorse}
+                        Export format (default: topas). Formats: topas (*.txt), mcpl (*.mcpl), racehorse (*.csv).
   --nozzle-side {pos-z,neg-z}
                         Which side of the gantry-local Z axis the nozzle sits on (default: neg-z). neg-z reproduces IEC 61217: at
                         gantry 0 the beam enters an HFS patient from the anterior side (verified against OpenTOPAS 4.2.3, issue
@@ -167,7 +167,7 @@ Here a 7-column spotlist is exported:
 $ PYTHONPATH=. python3 dicomexport/main_plan_export.py --export-fmt=spotlist -nc=7 res/test_plans/temp_sobp_10x10.dcm -v -b res/beam_models/DCPT_beam_model__v2.csv
 ```
 
-### Example for [MCPL](https://mctools.github.io/mcpl/) phasespace export
+### Example for [MCPL](https://mctools.github.io/mcpl/) phase space export
 The MCPL format is a standardized and efficient way to handle phase space files, commonly used in Monte Carlo simulations.
 
 To export a DICOM plan to the MCPL format, you can use the following command:

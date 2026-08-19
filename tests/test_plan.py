@@ -10,7 +10,7 @@ import mcpl
 import numpy as np
 import pytest
 
-from dicomexport.model_plan import Plan
+from dicomexport.model_plan import Plan, RS_CATALOG, load_range_shifter_catalog
 from dicomexport.import_plan import load_plan
 from dicomexport.import_plan_dicom import _rs_isocenter_distance, _resolve_sad
 from dicomexport.beam_model import BeamModel
@@ -575,3 +575,72 @@ class TestReferencedBeamPairing:
             load_plan(plan_path)
 
         assert caplog.text.count("has no BeamMeterset") == 1
+
+
+class TestRangeShifterCatalog:
+    """Issue #76: the catalog is built in, and a user CSV replaces it wholesale."""
+
+    PLAN = Path("res") / "test_plans" / "temp_160MeV_10x10.dcm"
+
+    @pytest.mark.parametrize("name,expected", [
+        ("rs_dcpt", {"RS_2CM", "RS_3CM", "RS_5CM"}),
+        ("rs_ccb", {"RS_Block"}),
+        ("rs_skandion", {"RS_3.5"}),
+        ("rs_wpe", {"RS51"}),
+    ])
+    def test_shipped_catalogs_load(self, name, expected):
+        catalog = load_range_shifter_catalog(Path("res") / "range_shifters" / f"{name}.csv")
+        assert set(catalog) - {"None"} == expected
+        for entry in catalog.values():
+            assert entry["thickness"] >= 0.0
+
+    def test_shipped_catalogs_agree_with_the_builtin(self):
+        """The example files mirror RS_CATALOG, so they cannot drift apart unnoticed."""
+        merged = {}
+        for name in ("rs_dcpt", "rs_ccb", "rs_skandion", "rs_wpe"):
+            merged.update(load_range_shifter_catalog(Path("res") / "range_shifters" / f"{name}.csv"))
+        assert merged == RS_CATALOG
+
+    def test_no_shifter_id_survives_replacement(self, tmp_path):
+        """'None' means no device, so it must resolve whatever the file lists."""
+        f = tmp_path / "c.csv"
+        f.write_text("RS_X,10.0,Lexan\n")
+        assert "None" in load_range_shifter_catalog(f)
+
+    @pytest.mark.parametrize("body,match", [
+        ("RS_X,10.0\n", "expected 3 comma-separated columns"),
+        ("RS_X,abc,Lexan\n", "is not a number"),
+        ("RS_X,-1.0,Lexan\n", "must be >= 0"),
+        (",10.0,Lexan\n", "ID is empty"),
+        ("RS_X,10.0,Lexan\nRS_X,20.0,Lexan\n", "duplicate range shifter ID"),
+        ("# only a comment\n", "no range shifters defined"),
+    ])
+    def test_malformed_catalog_is_rejected(self, tmp_path, body, match):
+        f = tmp_path / "bad.csv"
+        f.write_text(body)
+        with pytest.raises(ValueError, match=match):
+            load_range_shifter_catalog(f)
+
+    def test_unknown_id_error_names_what_the_user_needs(self, tmp_path):
+        """The likely cause is a partial catalog, so say which beam and what is known."""
+        plan_path = make_ccb_style_plan(self.PLAN, tmp_path / "rs.dcm",
+                                        ref_order=(1,), with_delivery=(1,),
+                                        range_shifter_id="RS_NOT_KNOWN")
+        with pytest.raises(ValueError) as exc:
+            load_plan(plan_path)
+        message = str(exc.value)
+        assert "RS_NOT_KNOWN" in message
+        assert "on beam 1" in message
+        assert "built-in catalog" in message
+        assert "--range-shifter-catalog" in message
+
+    def test_supplied_catalog_replaces_the_builtin(self, tmp_path):
+        """A built-in ID must become unknown once a catalog that omits it is supplied."""
+        plan_path = make_ccb_style_plan(self.PLAN, tmp_path / "rs.dcm",
+                                        ref_order=(1,), with_delivery=(1,),
+                                        range_shifter_id="RS_5CM")
+        assert load_plan(plan_path).fields[0].range_shifter.thickness == pytest.approx(50.0)
+
+        only_ccb = load_range_shifter_catalog(Path("res") / "range_shifters" / "rs_ccb.csv")
+        with pytest.raises(ValueError, match="supplied with --range-shifter-catalog"):
+            load_plan(plan_path, rs_catalog=only_ccb)

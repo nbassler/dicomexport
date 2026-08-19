@@ -4,6 +4,7 @@ import logging
 from dicomexport.parser_plan_export import create_parser
 from dicomexport.beam_model import BeamModel
 from dicomexport.import_plan import load_plan
+from dicomexport.model_plan import load_range_shifter_catalog
 from dicomexport.export_plan import export_plan
 from dicomexport.export_mcpl import generate_mcpl_file
 from dicomexport.export_spotlist import export_spotlist
@@ -31,7 +32,9 @@ def main(args=None) -> int:
         return 1
 
     # load the plan
-    pln = load_plan(parsed_args.fin)
+    rs_catalog = (load_range_shifter_catalog(parsed_args.rs_catalog_path)
+                  if parsed_args.rs_catalog_path else None)
+    pln = load_plan(parsed_args.fin, rs_catalog=rs_catalog)
 
     if parsed_args.diag:
         print("Plan diagnostics:")

@@ -1,0 +1,7 @@
+# Range shifter catalog -- Skandionkliniken, Uppsala, Sweden
+#
+# The ID quotes a water-equivalent thickness in cm, not the physical thickness:
+# "RS_3.5" is 30.62 mm of Lexan. Never infer a thickness from an ID.
+#
+# id, thickness [mm], material
+RS_3.5,30.62,Lexan

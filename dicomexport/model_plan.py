@@ -3,6 +3,7 @@ import logging
 from dataclasses import dataclass, field as dc_field
 from typing import List, Tuple, Optional
 from io import StringIO
+from pathlib import Path
 
 from dicomexport.beam_model import BeamModel, get_fwhm
 
@@ -11,14 +12,80 @@ logger = logging.getLogger(__name__)
 
 INDENT = "    "
 
+#: "No range shifter". Always resolvable, including when a user catalog replaces the
+#: built-in one, since it describes the absence of a device rather than a device.
+NO_RANGE_SHIFTER_ID = "None"
+
+#: Physical thickness [mm] and material of the range shifters dicomexport has met.
+#: A DICOM plan names only the RangeShifterID, so these have to be looked up.
+#: Mirrored as per-site CSVs under res/range_shifters/, which also serve as the
+#: worked examples for --range-shifter-catalog.
 RS_CATALOG = {
-    "None":    {"thickness": 0.0,   "material": None},
-    "RS_2CM":  {"thickness": 20.0,  "material": "Lexan"},
-    "RS_3CM":  {"thickness": 30.0,  "material": "Lexan"},
-    "RS_5CM":  {"thickness": 50.0,  "material": "Lexan"},
+    NO_RANGE_SHIFTER_ID: {"thickness": 0.0, "material": None},
+    "RS_2CM":  {"thickness": 20.0,  "material": "Lexan"},   # DCPT
+    "RS_3CM":  {"thickness": 30.0,  "material": "Lexan"},   # DCPT
+    "RS_5CM":  {"thickness": 50.0,  "material": "Lexan"},   # DCPT
     "RS_Block": {"thickness": 39.936, "material": "Lexan"},  # CCB
-    "RS_3.5": {"thickness": 30.62,  "material": "Lexan"},  # Skandion
+    "RS_3.5": {"thickness": 30.62,  "material": "Lexan"},  # Skandion, name quotes WET
+    # WPE. PROVISIONAL: assumed 5.1 cm Lexan from the ID, not confirmed by the centre.
+    # The plan carries no RangeShifterWaterEquivalentThickness to cross-check against,
+    # and Skandion's RS_3.5 above shows an ID can quote WET rather than thickness --
+    # if RS51 means 51 mm WET, the physical Lexan is nearer 45 mm. Confirm before
+    # trusting a range computed with it.
+    "RS51": {"thickness": 51.0, "material": "Lexan"},
 }
+
+
+def load_range_shifter_catalog(path: Path) -> dict:
+    """
+    Read a range shifter catalog CSV and return it in RS_CATALOG form.
+
+    The result *replaces* the built-in catalog rather than extending it, so the file
+    must list every shifter the plan uses. See res/range_shifters/README.md for why,
+    and for the format: ``id,thickness_mm,material`` with ``#`` comments.
+
+    The "no shifter" entry is always added, so a plan using that ID keeps working
+    whatever the file contains.
+    """
+    catalog: dict = {NO_RANGE_SHIFTER_ID: {"thickness": 0.0, "material": None}}
+
+    with open(path, newline="", encoding="utf-8") as f:
+        for lineno, raw in enumerate(f, start=1):
+            line = raw.split("#", 1)[0].strip()
+            if not line:
+                continue
+
+            parts = [c.strip() for c in line.split(",")]
+            if len(parts) != 3:
+                raise ValueError(
+                    f"{path}:{lineno}: expected 3 comma-separated columns "
+                    f"(id,thickness_mm,material), found {len(parts)}: {raw.strip()!r}")
+
+            rs_id, thickness, material = parts
+            if not rs_id:
+                raise ValueError(f"{path}:{lineno}: range shifter ID is empty")
+            if rs_id in catalog and rs_id != NO_RANGE_SHIFTER_ID:
+                raise ValueError(f"{path}:{lineno}: duplicate range shifter ID {rs_id!r}")
+
+            try:
+                thickness_mm = float(thickness)
+            except ValueError:
+                raise ValueError(
+                    f"{path}:{lineno}: thickness for {rs_id!r} is not a number: "
+                    f"{thickness!r}") from None
+            if not thickness_mm >= 0.0:
+                raise ValueError(
+                    f"{path}:{lineno}: thickness for {rs_id!r} must be >= 0 mm, "
+                    f"got {thickness_mm}")
+
+            catalog[rs_id] = {"thickness": thickness_mm, "material": material or None}
+
+    if len(catalog) == 1:
+        raise ValueError(f"{path}: no range shifters defined")
+
+    logger.info("Range shifter catalog %s replaces the built-in one: %s",
+                path, ", ".join(k for k in catalog if k != NO_RANGE_SHIFTER_ID))
+    return catalog
 
 
 @dataclass

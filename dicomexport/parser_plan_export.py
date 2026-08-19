@@ -19,6 +19,10 @@ def create_parser():
                         "If not given, the value is read from the BMODPOS key in the beam model file "
                         "header, or defaults to 500.0 mm if absent.",
                         default=None)
+    parser.add_argument('--range-shifter-catalog', type=Path, dest='rs_catalog_path', default=None,
+                        help="Range shifter catalog CSV. REPLACES the built-in catalog, so it "
+                             "must list every range shifter the plan uses. "
+                             "See res/range_shifters/README.md.")
     parser.add_argument('-f', '--field', type=int, dest='field_nr', default=0,
                         help="Field number to export. If not specified, all fields will be exported.")
     parser.add_argument('-d', '--diag', action='store_true', dest="diag",

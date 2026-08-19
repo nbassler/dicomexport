@@ -32,6 +32,10 @@ def create_parser():
                         "header, or defaults to 500.0 mm if absent.",
                         default=None)
 
+    parser.add_argument('--range-shifter-catalog', type=Path, dest='rs_catalog_path', default=None,
+                        help="Range shifter catalog CSV. REPLACES the built-in catalog, so it "
+                             "must list every range shifter the plan uses. "
+                             "See res/range_shifters/README.md.")
     parser.add_argument('-f', '--field', type=int, dest='field_nr', default=0,
                         help="Field number to export. If not specified, all fields will be exported.")
 
@@ -39,9 +43,9 @@ def create_parser():
                         help="Target protons for simulation", default=int(1e6))
 
     parser.add_argument(
-        '--export-fmt', dest='export_fmt', choices=['topas', 'phasespace', 'racehorse'], default='topas',
+        '--export-fmt', dest='export_fmt', choices=['topas', 'mcpl', 'racehorse'], default='topas',
         help=("Export format (default: topas). "
-              "Formats: topas (*.txt), phasespace (*.mcpl), racehorse (*.csv).")
+              "Formats: topas (*.txt), mcpl (*.mcpl), racehorse (*.csv).")
     )
 
     parser.add_argument('--nozzle-side', dest='nozzle_side', choices=['pos-z', 'neg-z'],
