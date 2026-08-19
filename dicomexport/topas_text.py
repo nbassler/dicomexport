@@ -1,5 +1,6 @@
 import datetime
-import getpass  # used for recording the user who generated the file
+import getpass
+import logging  # used for recording the user who generated the file
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -7,6 +8,8 @@ from dicomexport.model_plan import Field
 from dicomexport.model_ct import CTModel
 from dicomexport.model_rtstruct import RTStruct
 from dicomexport.__version__ import __version__
+
+logger = logging.getLogger(__name__)
 
 
 # Air padding added around everything that must fit inside the world volume [mm].
@@ -337,6 +340,14 @@ class TopasText:
             return ""
 
         rs = myfield.range_shifter
+        if rs.thickness <= 0.0:
+            # A zero-thickness slab is not geometry. The importer resolves "no shifter"
+            # to None rather than to a 0 mm device, so this should be unreachable from
+            # DICOM -- but emitting a degenerate TsBox would be worse than emitting none.
+            logger.warning(
+                "Field %d: range shifter %r has thickness %.3f mm; emitting no geometry.",
+                myfield.number, rs.id, rs.thickness)
+            return ""
         transz = beam_direction * (rs.isocenter_distance + rs.thickness * 0.5)
 
         lines = [

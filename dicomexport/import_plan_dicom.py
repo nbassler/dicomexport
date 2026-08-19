@@ -104,11 +104,14 @@ def load_plan_dicom(file_dcm: Path, rs_catalog: dict | None = None) -> Plan:
         logger.debug(
             "Checking for Range Shifter Sequence in field number %i", field_nr)
 
-        rs_dict: dict[int, RangeShifter] = {}
+        # A None value means the plan declared this device as "no shifter"; the number
+        # is still recorded so a control point referencing it resolves to absence
+        # rather than to a missing key.
+        rs_dict: dict[int, RangeShifter | None] = {}
         if 'RangeShifterSequence' in ibm:
             for rs_item in ibm['RangeShifterSequence']:
-                rs = _build_range_shifter(rs_item, catalog, field_nr)
-                rs_dict[rs.number] = rs
+                number, rs = _build_range_shifter(rs_item, catalog, field_nr)
+                rs_dict[number] = rs
 
         layer_nr = 1
         logger.debug(f"Processing field number: {field_nr}")
@@ -143,7 +146,19 @@ def load_plan_dicom(file_dcm: Path, rs_catalog: dict | None = None) -> Plan:
                     if getattr(rss, 'RangeShifterSetting', None) == "IN":
                         # lookup range shifter by number, and make a copy of it
                         _rs_number = rss['ReferencedRangeShifterNumber'].value
+                        if _rs_number not in rs_dict:
+                            logger.warning(
+                                "Beam %d references range shifter number %s, which the "
+                                "RangeShifterSequence does not define; ignoring it.",
+                                field_nr, _rs_number)
+                            continue
                         _rs = rs_dict[_rs_number]
+                        if _rs is None:
+                            # Declared as "no shifter": leave field.range_shifter unset so
+                            # the exporters emit no geometry at all.
+                            logger.debug("Beam %d: range shifter %s is 'no shifter'.",
+                                         field_nr, _rs_number)
+                            continue
                         myfield.range_shifter = copy.deepcopy(_rs)
                         # set remaining attributes
                         myfield.range_shifter.is_inserted = True
@@ -482,7 +497,13 @@ def _rs_isocenter_distance(rss, field_number: int) -> float:
 
 
 def _build_range_shifter(rs_item, catalog: dict | None = None,
-                         field_nr: int | None = None) -> RangeShifter:
+                         field_nr: int | None = None) -> tuple[int, RangeShifter | None]:
+    """Resolve one RangeShifterSequence item to (number, shifter-or-None).
+
+    None means the plan declared the device as "no shifter" -- an absence, which is
+    why it is not a catalog entry: a zero-thickness slab of material "None" is not
+    valid geometry, and the exporters must emit nothing for it.
+    """
     if 'RangeShifterNumber' not in rs_item:
         raise ValueError("RangeShifterNumber not found in DICOM plan")
 
@@ -498,8 +519,7 @@ def _build_range_shifter(rs_item, catalog: dict | None = None,
     # what the catalog happens to contain, and a hand-built dict passed programmatically
     # would break it.
     if rs_id == NO_RANGE_SHIFTER_ID:
-        return RangeShifter(id=rs_id, number=number, type=rs_type,
-                            thickness=0.0, material=None)
+        return number, None
 
     # matching is intentionally case-sensitive: IDs are site-local labels used verbatim
     catalog = RS_CATALOG if catalog is None else catalog
@@ -516,7 +536,7 @@ def _build_range_shifter(rs_item, catalog: dict | None = None,
             f"res/range_shifters/README.md for the format and examples.")
 
     spec = catalog[rs_id]
-    return RangeShifter(
+    return number, RangeShifter(
         id=rs_id,
         number=number,
         type=rs_type,

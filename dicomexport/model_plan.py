@@ -12,8 +12,10 @@ logger = logging.getLogger(__name__)
 
 INDENT = "    "
 
-#: "No range shifter". Always resolvable, including when a user catalog replaces the
-#: built-in one, since it describes the absence of a device rather than a device.
+#: RangeShifterID a plan uses to declare that no shifter is inserted. Deliberately NOT
+#: a catalog entry: it is the absence of a device, so it resolves to no RangeShifter and
+#: no exported geometry. Cataloguing it as a zero-thickness slab of material "None"
+#: produced a degenerate TsBox in the TOPAS output.
 NO_RANGE_SHIFTER_ID = "None"
 
 #: Physical thickness [mm] and material of the range shifters dicomexport has met.
@@ -21,7 +23,6 @@ NO_RANGE_SHIFTER_ID = "None"
 #: Mirrored as per-site CSVs under res/range_shifters/, which also serve as the
 #: worked examples for --range-shifter-catalog.
 RS_CATALOG = {
-    NO_RANGE_SHIFTER_ID: {"thickness": 0.0, "material": None},
     "RS_2CM":  {"thickness": 20.0,  "material": "Lexan"},   # DCPT
     "RS_3CM":  {"thickness": 30.0,  "material": "Lexan"},   # DCPT
     "RS_5CM":  {"thickness": 50.0,  "material": "Lexan"},   # DCPT
@@ -44,10 +45,10 @@ def load_range_shifter_catalog(path: Path) -> dict:
     must list every shifter the plan uses. See res/range_shifters/README.md for why,
     and for the format: ``id,thickness_mm,material`` with ``#`` comments.
 
-    The "no shifter" entry is always added, so a plan using that ID keeps working
-    whatever the file contains.
+    A file never needs to list the "no shifter" ID: that is the absence of a device and
+    is handled without a catalog lookup.
     """
-    catalog: dict = {NO_RANGE_SHIFTER_ID: {"thickness": 0.0, "material": None}}
+    catalog: dict = {}
 
     with open(path, newline="", encoding="utf-8") as f:
         for lineno, raw in enumerate(f, start=1):
@@ -64,7 +65,11 @@ def load_range_shifter_catalog(path: Path) -> dict:
             rs_id, thickness, material = parts
             if not rs_id:
                 raise ValueError(f"{path}:{lineno}: range shifter ID is empty")
-            if rs_id in catalog and rs_id != NO_RANGE_SHIFTER_ID:
+            if rs_id == NO_RANGE_SHIFTER_ID:
+                raise ValueError(
+                    f"{path}:{lineno}: {NO_RANGE_SHIFTER_ID!r} means 'no range shifter' "
+                    f"and must not be catalogued; remove the row.")
+            if rs_id in catalog:
                 raise ValueError(f"{path}:{lineno}: duplicate range shifter ID {rs_id!r}")
 
             try:
@@ -80,11 +85,11 @@ def load_range_shifter_catalog(path: Path) -> dict:
 
             catalog[rs_id] = {"thickness": thickness_mm, "material": material or None}
 
-    if len(catalog) == 1:
+    if not catalog:
         raise ValueError(f"{path}: no range shifters defined")
 
     logger.info("Range shifter catalog %s replaces the built-in one: %s",
-                path, ", ".join(k for k in catalog if k != NO_RANGE_SHIFTER_ID))
+                path, ", ".join(catalog))
     return catalog
 
 

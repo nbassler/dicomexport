@@ -129,7 +129,7 @@ def write_dicom_raw(path: Path, modality: str, instance_number, **identity) -> P
 def make_ccb_style_plan(source: Path, out_path: Path,
                         ref_order=(4, 5, 1, 2, 3), with_delivery=(1, 2, 3),
                         without_dose=(), defined_beams=None,
-                        range_shifter_id=None) -> Path:
+                        range_shifter_id=None, range_shifter_ref_number=1) -> Path:
     """
     Rewrite a real RTPLAN so its fraction group mirrors the CCB case of issue #75.
 
@@ -167,7 +167,7 @@ def make_ccb_style_plan(source: Path, out_path: Path,
             setting = Dataset()
             setting.RangeShifterSetting = "IN"
             setting.IsocenterToRangeShifterDistance = 250.0
-            setting.ReferencedRangeShifterNumber = 1
+            setting.ReferencedRangeShifterNumber = range_shifter_ref_number
             for icp in beam.IonControlPointSequence:
                 icp.RangeShifterSettingsSequence = Sequence([setting])
         beams.append(beam)
