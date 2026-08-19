@@ -145,7 +145,9 @@ def load_plan_dicom(file_dcm: Path, rs_catalog: dict | None = None) -> Plan:
                 for rss in icp['RangeShifterSettingsSequence']:
                     if getattr(rss, 'RangeShifterSetting', None) == "IN":
                         # lookup range shifter by number, and make a copy of it
-                        _rs_number = rss['ReferencedRangeShifterNumber'].value
+                        # int() to match the rs_dict keys. pydicom's IS already hashes as
+                        # an int, but a non-conformant plan could carry a plain string.
+                        _rs_number = int(rss['ReferencedRangeShifterNumber'].value)
                         if _rs_number not in rs_dict:
                             logger.warning(
                                 "Beam %d references range shifter number %s, which the "

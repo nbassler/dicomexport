@@ -1,6 +1,6 @@
 import datetime
-import getpass
-import logging  # used for recording the user who generated the file
+import getpass  # used for recording the user who generated the file
+import logging
 from pathlib import Path
 from typing import Optional, Tuple
 
