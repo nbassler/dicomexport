@@ -378,9 +378,14 @@ class TopasText:
             "##############################################",
             's:So/Field/Type                      = "Emittance"',
             's:So/Field/Component                 = "BeamPosition"',
-            's:So/Field/BeamParticle              = "proton"',
-            "d:So/Field/BeamEnergy                = Tf/Energy/Value MeV",
-            "u:So/Field/BeamEnergySpread          = Tf/EnergySpread/Value",
+            # Particle, energy and energy spread are inherited from TsVGenerator, which
+            # renamed them for non-beam sources: BeamParticle/BeamEnergy/BeamEnergySpread
+            # still work but warn on every run (issue #65). The parameters the emittance
+            # generator reads itself -- Distribution, SigmaX/Y, SigmaXprime/Yprime,
+            # CorrelationX/Y -- were not renamed and keep their names.
+            's:So/Field/EmittanceParticle         = "proton"',
+            "d:So/Field/EmittanceEnergy           = Tf/Energy/Value MeV",
+            "u:So/Field/EmittanceEnergySpread     = Tf/EnergySpread/Value",
             's:So/Field/Distribution              = "BiGaussian"',
             "d:So/Field/SigmaX                    = Tf/SigmaX/Value mm",
             "d:So/Field/SigmaY                    = Tf/SigmaY/Value mm",
