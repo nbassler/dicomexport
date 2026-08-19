@@ -97,7 +97,7 @@ class RangeShifter:
     thickness: float = 0.0  # in mm
     # distance from isocenter to downstream edge of range shifter is given in DICOM file [mm]
     isocenter_distance: float = 0.0
-    material: str = "Lexan"
+    material: Optional[str] = "Lexan"  # None when there is no shifter
     is_inserted: bool = False  # True if range shifter is inserted
 
     # the following are for future compatibility, but at the moment not used

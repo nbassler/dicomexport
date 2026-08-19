@@ -8,7 +8,7 @@ dicomexport carries a small built-in catalog (`RS_CATALOG` in `dicomexport/model
 covering the shifters it has met so far. When a plan names a shifter that is not in it,
 supply your own catalog:
 
-```
+```bash
 dicomexport ... --range-shifter-catalog res/range_shifters/rs_dcpt.csv
 ```
 
@@ -34,7 +34,7 @@ be listed.
 
 Comma-separated, one shifter per row, `#` starts a comment:
 
-```
+```csv
 # id, thickness [mm], material
 RS_5CM,50.0,Lexan
 ```
@@ -65,11 +65,17 @@ with a bad one.
 | `rs_dcpt.csv` | DCPT, Aarhus | 2, 3 and 5 cm Lexan |
 | `rs_ccb.csv` | CCB, Krakow | `RS_Block` |
 | `rs_skandion.csv` | Skandionkliniken, Uppsala | `RS_3.5` |
-| `rs_wpe.csv` | — | **Invented example values, not real data.** Format illustration only. |
+| `rs_wpe.csv` | WPE, Essen | `RS51` — **provisional thickness, not confirmed by the centre.** |
 
-These mirror the built-in catalog, so they double as worked examples. The built-in
-catalog is the union of the real ones above; contributions of further *non-confidential*
-shifters are welcome as pull requests. Thicknesses that a centre treats as confidential
-should stay in a local file and out of this repository — that is the main reason the
-interface is a file rather than a command-line value, which would otherwise end up in
-shell history and process listings.
+These mirror the built-in catalog exactly — it is the union of the four — so they double
+as worked examples, and a test asserts they cannot drift apart. Contributions of further
+*non-confidential* shifters are welcome as pull requests.
+
+`RS51` is the one entry not established by its centre: 51 mm is assumed from the ID, and
+the plans carrying it report no water-equivalent thickness to check against. It is in the
+built-in catalog, so it resolves by default — see the note in `rs_wpe.csv` before relying
+on a range computed with it.
+
+Thicknesses that a centre treats as confidential should stay in a local file and out of
+this repository — that is the main reason the interface is a file rather than a
+command-line value, which would otherwise end up in shell history and process listings.

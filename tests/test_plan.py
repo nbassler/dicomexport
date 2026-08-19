@@ -639,8 +639,24 @@ class TestRangeShifterCatalog:
         plan_path = make_ccb_style_plan(self.PLAN, tmp_path / "rs.dcm",
                                         ref_order=(1,), with_delivery=(1,),
                                         range_shifter_id="RS_5CM")
-        assert load_plan(plan_path).fields[0].range_shifter.thickness == pytest.approx(50.0)
+        rs = load_plan(plan_path).fields[0].range_shifter
+        assert rs is not None                       # the plan inserts one
+        assert rs.thickness == pytest.approx(50.0)
 
         only_ccb = load_range_shifter_catalog(Path("res") / "range_shifters" / "rs_ccb.csv")
         with pytest.raises(ValueError, match="supplied with --range-shifter-catalog"):
             load_plan(plan_path, rs_catalog=only_ccb)
+
+    def test_no_shifter_resolves_without_a_catalog_entry(self, tmp_path):
+        """'None' is the absence of a device, so no catalog needs to define it."""
+        plan_path = make_ccb_style_plan(self.PLAN, tmp_path / "none.dcm",
+                                        ref_order=(1,), with_delivery=(1,),
+                                        range_shifter_id="None")
+        # A hand-built catalog, as a programmatic caller might pass, without "None".
+        hand_made = {"RS_X": {"thickness": 10.0, "material": "Lexan"}}
+        for catalog in (None, hand_made):
+            rs = load_plan(plan_path, rs_catalog=catalog).fields[0].range_shifter
+            assert rs is not None                   # "None" is a shifter entry, not absence of one
+            assert rs.id == "None"
+            assert rs.thickness == pytest.approx(0.0)
+            assert rs.material is None

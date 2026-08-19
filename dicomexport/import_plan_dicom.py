@@ -493,6 +493,14 @@ def _build_range_shifter(rs_item, catalog: dict | None = None,
     rs_id = str(rs_item['RangeShifterID'].value)
     rs_type = str(rs_item['RangeShifterType'].value) if 'RangeShifterType' in rs_item else ""
 
+    # "No shifter" describes the absence of a device, so it is answered here rather than
+    # looked up. Resolving it from a catalog entry would make the guarantee depend on
+    # what the catalog happens to contain, and a hand-built dict passed programmatically
+    # would break it.
+    if rs_id == NO_RANGE_SHIFTER_ID:
+        return RangeShifter(id=rs_id, number=number, type=rs_type,
+                            thickness=0.0, material=None)
+
     # matching is intentionally case-sensitive: IDs are site-local labels used verbatim
     catalog = RS_CATALOG if catalog is None else catalog
     if rs_id not in catalog:
