@@ -360,6 +360,16 @@ class TopasText:
                 "Field %d: range shifter %r has thickness %.3f mm; emitting no geometry.",
                 myfield.number, rs.id, rs.thickness)
             return ""
+        if not rs.material:
+            # A slab has to be made of something. Without a material the TsBox would be
+            # handed Material = "None", which TOPAS cannot resolve -- the export would
+            # look complete and then fail at run time. This is reachable only from a
+            # catalog entry with an empty material column, so it is a catalog error;
+            # refuse the geometry the same way a zero-thickness device is refused.
+            logger.warning(
+                "Field %d: range shifter %r has no material; emitting no geometry.",
+                myfield.number, rs.id)
+            return ""
         transz = beam_direction * (rs.isocenter_distance + rs.thickness * 0.5)
 
         lines = [
@@ -369,15 +379,7 @@ class TopasText:
         ]
 
         material = rs.material
-        if rs.density is not None and not material:
-            # The CSV loader refuses this pairing, but a hand-built catalog can still
-            # reach here. Dropping the density is the lesser evil: a material named
-            # after nothing would not resolve in TOPAS at all.
-            logger.warning(
-                "Field %d: range shifter %r states a density of %.4f g/cm3 but no material; "
-                "there is nothing to apply it to, so it is ignored.",
-                myfield.number, rs.id, rs.density)
-        elif rs.density is not None:
+        if rs.density is not None:
             # A TsBox takes a material, and a TOPAS material carries its own density, so a
             # stated density can only be applied by defining a variant material. A
             # single-component BuildFromMaterials is the documented way to say "this

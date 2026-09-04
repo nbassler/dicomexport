@@ -702,18 +702,26 @@ class TestRangeShifterCatalog:
         assert 'sv:Ma/RangeShifterLEXAN/Components' in text
         assert '1 "G4_LEXAN"' in text
 
-    def test_density_without_a_material_is_ignored_with_a_warning(self, tmp_path, caplog):
-        """The CSV loader refuses this, but a hand-built catalog can still reach TOPAS."""
-        plan_path = make_ccb_style_plan(self.PLAN, tmp_path / "nomat.dcm",
+    @pytest.mark.parametrize("density", [None, 1.19])
+    def test_shifter_without_a_material_emits_no_geometry(self, tmp_path, caplog, density):
+        """A slab has to be made of something, with or without a density override.
+
+        Material = "None" is not a material TOPAS can resolve: the file would look
+        complete and fail at run time, which is worse than exporting no shifter.
+        """
+        plan_path = make_ccb_style_plan(self.PLAN, tmp_path / f"nomat{density}.dcm",
                                         ref_order=(1,), with_delivery=(1,),
                                         range_shifter_id="RS_D")
-        catalog = {"RS_D": {"thickness": 10.0, "material": None, "density": 1.19}}
-        field = load_plan(plan_path, rs_catalog=catalog).fields[0]
+        spec = {"thickness": 10.0, "material": None}
+        if density is not None:
+            spec["density"] = density
+        field = load_plan(plan_path, rs_catalog={"RS_D": spec}).fields[0]
 
         with caplog.at_level(logging.WARNING):
             text = TopasText.geometry_range_shifter(field)
-        assert "Ma/" not in text
-        assert "nothing to apply it to" in caplog.text
+        assert text == ""
+        assert '"None"' not in text
+        assert "has no material; emitting no geometry" in caplog.text
 
     def test_no_shifter_id_must_not_be_catalogued(self, tmp_path):
         """'None' is the absence of a device, so a row for it is a mistake."""
