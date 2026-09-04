@@ -587,7 +587,7 @@ class TestRangeShifterCatalog:
         ("rs_dcpt", {"RS_2CM", "RS_3CM", "RS_5CM"}),
         ("rs_ccb", {"RS_Block"}),
         ("rs_skandion", {"RS_3.5"}),
-        ("rs_wpe", {"RS51"}),
+        ("rs_wpe", {"RS74", "RS51", "RS25"}),
     ])
     def test_shipped_catalogs_load(self, name, expected):
         catalog = load_range_shifter_catalog(Path("res") / "range_shifters" / f"{name}.csv")
@@ -602,6 +602,119 @@ class TestRangeShifterCatalog:
             merged.update(load_range_shifter_catalog(Path("res") / "range_shifters" / f"{name}.csv"))
         assert merged == RS_CATALOG
 
+    def test_density_column_is_optional(self, tmp_path):
+        """A row without a density must not gain one, or every export carries an override."""
+        f = tmp_path / "c.csv"
+        f.write_text("RS_PLAIN,10.0,Lexan\nRS_DENSE,20.0,Lexan,1.19\nRS_EMPTY,30.0,Lexan,\n")
+        catalog = load_range_shifter_catalog(f)
+
+        assert catalog["RS_PLAIN"] == {"thickness": 10.0, "material": "Lexan"}
+        assert catalog["RS_EMPTY"] == {"thickness": 30.0, "material": "Lexan"}
+        assert catalog["RS_DENSE"] == {"thickness": 20.0, "material": "Lexan", "density": 1.19}
+
+    def test_density_reaches_the_range_shifter(self, tmp_path):
+        """Both the stated density and its absence have to survive the import."""
+        for density, expected in ((1.19, 1.19), (None, None)):
+            spec = {"thickness": 10.0, "material": "Lexan"}
+            if density is not None:
+                spec["density"] = density
+            plan_path = make_ccb_style_plan(self.PLAN, tmp_path / f"d{density}.dcm",
+                                            ref_order=(1,), with_delivery=(1,),
+                                            range_shifter_id="RS_D")
+            rs = load_plan(plan_path, rs_catalog={"RS_D": spec}).fields[0].range_shifter
+            assert rs.density == expected
+
+    def test_stated_density_exports_a_variant_material(self, tmp_path):
+        """TOPAS cannot rescale a material in place, so a variant has to be defined."""
+        plan_path = make_ccb_style_plan(self.PLAN, tmp_path / "dense.dcm",
+                                        ref_order=(1,), with_delivery=(1,),
+                                        range_shifter_id="RS_D")
+        catalog = {"RS_D": {"thickness": 10.0, "material": "Lexan", "density": 1.19}}
+        field = load_plan(plan_path, rs_catalog=catalog).fields[0]
+
+        text = TopasText.geometry_range_shifter(field)
+        assert 'b:Ma/RangeShifterLexan/BuildFromMaterials' in text
+        assert 'sv:Ma/RangeShifterLexan/Components' in text
+        assert '1 "Lexan"' in text
+        assert "1.1900 g/cm3" in text
+        # the geometry must use the variant, not the base material it was built from
+        assert 's:Ge/RangeShifter/Material           = "RangeShifterLexan"' in text
+
+    def test_variant_material_keeps_the_mean_excitation_energy(self, tmp_path):
+        """BuildFromMaterials recomputes I from the elements instead of inheriting it.
+
+        Measured with TOPAS 4.2.p3: for Lexan the recomputed I is 71.71 eV against the
+        tabulated 73.1, a ~0.3% shift in stopping power in the same direction as the 1%
+        density change being modelled -- a quarter of the effect, silently. Referencing
+        the base material's own parameter is what makes the rebuild faithful.
+        """
+        plan_path = make_ccb_style_plan(self.PLAN, tmp_path / "meanexc.dcm",
+                                        ref_order=(1,), with_delivery=(1,),
+                                        range_shifter_id="RS_D")
+        catalog = {"RS_D": {"thickness": 10.0, "material": "Lexan", "density": 1.19}}
+        field = load_plan(plan_path, rs_catalog=catalog).fields[0]
+
+        text = TopasText.geometry_range_shifter(field)
+        assert "d:Ma/RangeShifterLexan/MeanExcitationEnergy" in text
+        assert "Ma/Lexan/MeanExcitationEnergy eV" in text
+
+    def test_density_override_on_a_nist_material_warns(self, tmp_path, caplog):
+        """A G4_ material has no Ma/ parameters, so its I cannot be referenced."""
+        plan_path = make_ccb_style_plan(self.PLAN, tmp_path / "nist.dcm",
+                                        ref_order=(1,), with_delivery=(1,),
+                                        range_shifter_id="RS_D")
+        catalog = {"RS_D": {"thickness": 10.0, "material": "G4_WATER", "density": 1.05}}
+        field = load_plan(plan_path, rs_catalog=catalog).fields[0]
+
+        with caplog.at_level(logging.WARNING):
+            text = TopasText.geometry_range_shifter(field)
+        assert "MeanExcitationEnergy" not in text
+        assert "recompute its mean excitation energy" in caplog.text
+        # the override is still applied -- the warning is about accuracy, not a refusal
+        assert "1.0500 g/cm3" in text
+
+    def test_no_density_exports_the_plain_material(self, tmp_path):
+        """Without a stated density the base material is used untouched -- no Ma/ block.
+
+        A rebuilt material has its mean excitation energy recomputed from its elements
+        rather than inherited, so restating the tabulated density is not a no-op.
+        """
+        plan_path = make_ccb_style_plan(self.PLAN, tmp_path / "plain.dcm",
+                                        ref_order=(1,), with_delivery=(1,),
+                                        range_shifter_id="RS_D")
+        catalog = {"RS_D": {"thickness": 10.0, "material": "Lexan"}}
+        field = load_plan(plan_path, rs_catalog=catalog).fields[0]
+
+        text = TopasText.geometry_range_shifter(field)
+        assert "Ma/" not in text
+        assert 's:Ge/RangeShifter/Material           = "Lexan"' in text
+
+    def test_variant_material_name_avoids_the_reserved_g4_prefix(self, tmp_path):
+        """TOPAS reserves G4_ for the NIST database, so a variant may not keep it."""
+        plan_path = make_ccb_style_plan(self.PLAN, tmp_path / "g4.dcm",
+                                        ref_order=(1,), with_delivery=(1,),
+                                        range_shifter_id="RS_D")
+        catalog = {"RS_D": {"thickness": 10.0, "material": "G4_LEXAN", "density": 1.19}}
+        field = load_plan(plan_path, rs_catalog=catalog).fields[0]
+
+        text = TopasText.geometry_range_shifter(field)
+        assert "Ma/G4_" not in text
+        assert 'sv:Ma/RangeShifterLEXAN/Components' in text
+        assert '1 "G4_LEXAN"' in text
+
+    def test_density_without_a_material_is_ignored_with_a_warning(self, tmp_path, caplog):
+        """The CSV loader refuses this, but a hand-built catalog can still reach TOPAS."""
+        plan_path = make_ccb_style_plan(self.PLAN, tmp_path / "nomat.dcm",
+                                        ref_order=(1,), with_delivery=(1,),
+                                        range_shifter_id="RS_D")
+        catalog = {"RS_D": {"thickness": 10.0, "material": None, "density": 1.19}}
+        field = load_plan(plan_path, rs_catalog=catalog).fields[0]
+
+        with caplog.at_level(logging.WARNING):
+            text = TopasText.geometry_range_shifter(field)
+        assert "Ma/" not in text
+        assert "nothing to apply it to" in caplog.text
+
     def test_no_shifter_id_must_not_be_catalogued(self, tmp_path):
         """'None' is the absence of a device, so a row for it is a mistake."""
         f = tmp_path / "c.csv"
@@ -615,7 +728,12 @@ class TestRangeShifterCatalog:
         assert set(load_range_shifter_catalog(f)) == {"RS_X"}
 
     @pytest.mark.parametrize("body,match", [
-        ("RS_X,10.0\n", "expected 3 comma-separated columns"),
+        ("RS_X,10.0\n", "expected 3 or 4 comma-separated columns"),
+        ("RS_X,10.0,Lexan,1.19,extra\n", "expected 3 or 4 comma-separated columns"),
+        ("RS_X,10.0,Lexan,heavy\n", "density for 'RS_X' is not a number"),
+        ("RS_X,10.0,Lexan,0\n", "density for 'RS_X' must be > 0"),
+        ("RS_X,10.0,Lexan,-1.19\n", "density for 'RS_X' must be > 0"),
+        ("RS_X,10.0,,1.19\n", "gives a density but no material"),
         ("RS_X,abc,Lexan\n", "is not a number"),
         ("RS_X,-1.0,Lexan\n", "must be >= 0"),
         (",10.0,Lexan\n", "ID is empty"),

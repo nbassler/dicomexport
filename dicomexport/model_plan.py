@@ -18,22 +18,29 @@ INDENT = "    "
 #: produced a degenerate TsBox in the TOPAS output.
 NO_RANGE_SHIFTER_ID = "None"
 
-#: Physical thickness [mm] and material of the range shifters dicomexport has met.
-#: A DICOM plan names only the RangeShifterID, so these have to be looked up.
+#: Physical thickness [mm], material and optional material density [g/cm3] of the range
+#: shifters dicomexport has met. A DICOM plan names only the RangeShifterID, so these
+#: have to be looked up.
+#:
+#: "density" is absent for the common case: the device is the named material at whatever
+#: density the Monte Carlo code has tabulated for it. Give it only where a centre states
+#: a density of its own -- shifters that are nominally the same plastic are not all cast
+#: at the same density, and 1% of density is 1% of stopping power. Note that an override
+#: makes the TOPAS exporter define a variant material; see geometry_range_shifter().
+#:
 #: Mirrored as per-site CSVs under res/range_shifters/, which also serve as the
 #: worked examples for --range-shifter-catalog.
 RS_CATALOG = {
-    "RS_2CM":  {"thickness": 20.0,  "material": "Lexan"},   # DCPT
-    "RS_3CM":  {"thickness": 30.0,  "material": "Lexan"},   # DCPT
-    "RS_5CM":  {"thickness": 50.0,  "material": "Lexan"},   # DCPT
-    "RS_Block": {"thickness": 39.936, "material": "Lexan"},  # CCB
-    "RS_3.5": {"thickness": 30.62,  "material": "Lexan"},  # Skandion, name quotes WET
-    # WPE. PROVISIONAL: assumed 5.1 cm Lexan from the ID, not confirmed by the centre.
-    # The plan carries no RangeShifterWaterEquivalentThickness to cross-check against,
-    # and Skandion's RS_3.5 above shows an ID can quote WET rather than thickness --
-    # if RS51 means 51 mm WET, the physical Lexan is nearer 45 mm. Confirm before
-    # trusting a range computed with it.
-    "RS51": {"thickness": 51.0, "material": "Lexan"},
+    "RS_2CM": {"thickness": 20.0, "material": "Lexan"},  # DCPT
+    "RS_3CM": {"thickness": 30.0, "material": "Lexan"},  # DCPT
+    "RS_5CM": {"thickness": 50.0, "material": "Lexan"},  # DCPT
+    "RS_Block": {"thickness": 36.5, "material": "Lexan"},  # CCB
+    "RS_3.5": {"thickness": 30.62, "material": "Lexan"},  # Skandion, name quotes WET
+    # WPE. RS74 is Lexan at the tabulated 1.20 g/cm3, so it needs no override; the other
+    # two are stated by the centre as 1.19 and do.
+    "RS74": {"thickness": 65.0, "material": "Lexan"},
+    "RS51": {"thickness": 44.4, "material": "Lexan", "density": 1.19},
+    "RS25": {"thickness": 21.6, "material": "Lexan", "density": 1.19},
 }
 
 
@@ -43,7 +50,12 @@ def load_range_shifter_catalog(path: Path) -> dict:
 
     The result *replaces* the built-in catalog rather than extending it, so the file
     must list every shifter the plan uses. See res/range_shifters/README.md for why,
-    and for the format: ``id,thickness_mm,material`` with ``#`` comments.
+    and for the format: ``id,thickness_mm,material[,density_g_cm3]`` with ``#`` comments.
+
+    The density column is optional and may be left empty, which means "the density the
+    Monte Carlo code has tabulated for this material". Only a stated density belongs
+    there; entries without one keep no "density" key at all, so a catalog read from file
+    compares equal to the equivalent literal in RS_CATALOG.
 
     A file never needs to list the "no shifter" ID: that is the absence of a device and
     is handled without a catalog lookup.
@@ -57,45 +69,65 @@ def load_range_shifter_catalog(path: Path) -> dict:
                 continue
 
             parts = [c.strip() for c in line.split(",")]
-            if len(parts) != 3:
+            if len(parts) == 3:  # the density column is optional; older files omit it
+                parts.append("")
+            if len(parts) != 4:
                 raise ValueError(
-                    f"{path}:{lineno}: expected 3 comma-separated columns "
-                    f"(id,thickness_mm,material), found {len(parts)}: {raw.strip()!r}")
+                    f"{path}:{lineno}: expected 3 or 4 comma-separated columns "
+                    f"(id,thickness_mm,material[,density_g_cm3]), found {len(parts)}: {raw.strip()!r}"
+                )
 
-            rs_id, thickness, material = parts
+            rs_id, thickness, material, density = parts
             if not rs_id:
                 raise ValueError(f"{path}:{lineno}: range shifter ID is empty")
             if rs_id == NO_RANGE_SHIFTER_ID:
                 raise ValueError(
                     f"{path}:{lineno}: {NO_RANGE_SHIFTER_ID!r} means 'no range shifter' "
-                    f"and must not be catalogued; remove the row.")
+                    f"and must not be catalogued; remove the row."
+                )
             if rs_id in catalog:
                 raise ValueError(f"{path}:{lineno}: duplicate range shifter ID {rs_id!r}")
 
             try:
                 thickness_mm = float(thickness)
             except ValueError:
-                raise ValueError(
-                    f"{path}:{lineno}: thickness for {rs_id!r} is not a number: "
-                    f"{thickness!r}") from None
+                raise ValueError(f"{path}:{lineno}: thickness for {rs_id!r} is not a number: {thickness!r}") from None
             if not thickness_mm >= 0.0:
-                raise ValueError(
-                    f"{path}:{lineno}: thickness for {rs_id!r} must be >= 0 mm, "
-                    f"got {thickness_mm}")
+                raise ValueError(f"{path}:{lineno}: thickness for {rs_id!r} must be >= 0 mm, got {thickness_mm}")
 
-            catalog[rs_id] = {"thickness": thickness_mm, "material": material or None}
+            entry = {"thickness": thickness_mm, "material": material or None}
+
+            if density:
+                if not material:
+                    raise ValueError(
+                        f"{path}:{lineno}: {rs_id!r} gives a density but no material. A density "
+                        f"overrides the density of a named material, so there is nothing to apply "
+                        f"it to; name the material in column 3."
+                    )
+                try:
+                    density_g_cm3 = float(density)
+                except ValueError:
+                    raise ValueError(f"{path}:{lineno}: density for {rs_id!r} is not a number: {density!r}") from None
+                if not density_g_cm3 > 0.0:
+                    raise ValueError(f"{path}:{lineno}: density for {rs_id!r} must be > 0 g/cm3, got {density_g_cm3}")
+                # Only a stated density is recorded. An entry that omits the column must
+                # not gain a "density": None, or it would no longer compare equal to the
+                # built-in catalog, and every exported shifter would carry an override.
+                entry["density"] = density_g_cm3
+
+            catalog[rs_id] = entry
 
     if not catalog:
         raise ValueError(f"{path}: no range shifters defined")
 
-    logger.info("Range shifter catalog %s replaces the built-in one: %s",
-                path, ", ".join(catalog))
+    logger.info("Range shifter catalog %s replaces the built-in one: %s", path, ", ".join(catalog))
     return catalog
 
 
 @dataclass
 class RangeShifter:
     """Range shifter data."""
+
     id: str = ""
     number: int = 0
     type: str = ""
@@ -103,16 +135,21 @@ class RangeShifter:
     # distance from isocenter to downstream edge of range shifter is given in DICOM file [mm]
     isocenter_distance: float = 0.0
     material: Optional[str] = "Lexan"  # None when there is no shifter
+    # Material density [g/cm3]. None means "whatever the Monte Carlo code has tabulated
+    # for `material`", which is the normal case. It is set only where a centre states a
+    # density of its own: WPE's RS51 and RS25 are Lexan cast at 1.19, not the 1.20 the
+    # ICRU/NIST tabulation gives, and 1% of density is 1% of stopping power.
+    density: Optional[float] = None
     is_inserted: bool = False  # True if range shifter is inserted
 
     # the following are for future compatibility, but at the moment not used
-    # density: float = 1.20  # g/cm3
     water_equivalent_thickness: float = 0.0  # mm
 
 
 @dataclass
 class Spot:
     """Single scanned spot in a proton layer."""
+
     x: float
     y: float
     mu: float
@@ -157,9 +194,9 @@ class Layer:
     mu_to_part_coef: float = 0.0
     is_empty: bool = True
 
-    isocenter: Tuple[float, float, float] = (0.0, 0.0, 0.0)     # [mm]
+    isocenter: Tuple[float, float, float] = (0.0, 0.0, 0.0)  # [mm]
     gantry_angle: float = 0.0  # [deg]
-    couch_angle: float = 0.0   # [deg]
+    couch_angle: float = 0.0  # [deg]
     snout_position: float = 0.0  # [mm]
     table_position: Tuple[float, float, float] = (0.0, 0.0, 0.0)  # [mm]
     meterset_rate: float = 0.0
@@ -174,7 +211,7 @@ class Layer:
     @property
     def n_particles(self) -> float:
         """Number of particles in this layer.
-           will only be meaningful after beam model application."""
+        will only be meaningful after beam model application."""
         if self.mu_to_part_coef > 0.0:
             return self.cum_mu * self.mu_to_part_coef
         else:
@@ -199,20 +236,15 @@ class Layer:
     def __repr__(self):
         lines = []
         lines.append("------------------------------------------------")
-        lines.append(
-            f"Energy nominal        : {self.energy_nominal:10.4f} MeV")
-        lines.append(
-            f"Energy measured       : {self.energy_measured:10.4f} MeV")
+        lines.append(f"Energy nominal        : {self.energy_nominal:10.4f} MeV")
+        lines.append(f"Energy measured       : {self.energy_measured:10.4f} MeV")
         lines.append(f"Energy spread         : {self.espread:10.4f} MeV")
         lines.append(f"Cumulative MU         : {self.cum_mu:10.4f}")
-        lines.append(
-            f"Cumulative particles  : {getattr(self, 'cum_particles', 0.0):10.4e} (estimated)")
+        lines.append(f"Cumulative particles  : {getattr(self, 'cum_particles', 0.0):10.4e} (estimated)")
         lines.append(f"Number of spots       : {self.n_spots:10d}")
         lines.append("------------------------------------------------")
-        lines.append(
-            f"Spot layer min/max X  : {self.xmin:+10.4f} {self.xmax:+10.4f} mm")
-        lines.append(
-            f"Spot layer min/max Y  : {self.ymin:+10.4f} {self.ymax:+10.4f} mm")
+        lines.append(f"Spot layer min/max X  : {self.xmin:+10.4f} {self.xmax:+10.4f} mm")
+        lines.append(f"Spot layer min/max Y  : {self.ymin:+10.4f} {self.ymax:+10.4f} mm")
         lines.append("------------------------------------------------")
         return "\n".join(lines)
 
@@ -300,27 +332,18 @@ class Field:
         """Return overview of field as a string."""
 
         lines = []
-        lines.append(
-            INDENT + "------------------------------------------------")
+        lines.append(INDENT + "------------------------------------------------")
         lines.append(INDENT + f"Energy layers          : {self.n_layers:10d}")
         lines.append(INDENT + f"Total MUs              : {self.cum_mu:10.4f}")
-        lines.append(
-            INDENT + "------------------------------------------------")
+        lines.append(INDENT + "------------------------------------------------")
         for i, layer in enumerate(self.layers):
-            lines.append(
-                INDENT + f"   Layer {i+1:3}: {layer.energy_nominal: 10.4f} MeV " + f"   {layer.n_spots:10d} spots")
-        lines.append(
-            INDENT + f"Lowest energy          : {self.emin:10.4f} MeV")
-        lines.append(
-            INDENT + f"Highest energy         : {self.emax:10.4f} MeV")
-        lines.append(
-            INDENT + "------------------------------------------------")
-        lines.append(
-            INDENT + f"Spot field min/max X   : {self.xmin:+10.4f} {self.xmax:+10.4f} mm")
-        lines.append(
-            INDENT + f"Spot field min/max Y   : {self.ymin:+10.4f} {self.ymax:+10.4f} mm")
-        lines.append(
-            INDENT + "------------------------------------------------")
+            lines.append(INDENT + f"   Layer {i + 1:3}: {layer.energy_nominal: 10.4f} MeV " + f"   {layer.n_spots:10d} spots")
+        lines.append(INDENT + f"Lowest energy          : {self.emin:10.4f} MeV")
+        lines.append(INDENT + f"Highest energy         : {self.emax:10.4f} MeV")
+        lines.append(INDENT + "------------------------------------------------")
+        lines.append(INDENT + f"Spot field min/max X   : {self.xmin:+10.4f} {self.xmax:+10.4f} mm")
+        lines.append(INDENT + f"Spot field min/max Y   : {self.ymin:+10.4f} {self.ymax:+10.4f} mm")
+        lines.append(INDENT + "------------------------------------------------")
         lines.append("")
         return "\n".join(lines)
 
@@ -360,19 +383,16 @@ class Plan:
             for myfield in self.fields:
                 for layer in myfield.layers:
                     # calculate number of particles
-                    layer.mu_to_part_coef = self.beam_model.f_ppmu(
-                        layer.energy_nominal)
+                    layer.mu_to_part_coef = self.beam_model.f_ppmu(layer.energy_nominal)
                     logger.debug(
-                        f"Layer {layer.energy_nominal} MeV, MU to particles conversion factor = {layer.mu_to_part_coef:.2f}")
-                    logger.debug(
-                        f"Layer {layer.energy_nominal} MeV, mu_to_part_coef = {layer.mu_to_part_coef:.2f}")
-                    layer.energy_measured = self.beam_model.f_e(
-                        layer.energy_nominal)
-                    layer.espread = self.beam_model.f_espread(
-                        layer.energy_nominal)
+                        f"Layer {layer.energy_nominal} MeV, MU to particles conversion factor = {layer.mu_to_part_coef:.2f}"
+                    )
+                    logger.debug(f"Layer {layer.energy_nominal} MeV, mu_to_part_coef = {layer.mu_to_part_coef:.2f}")
+                    layer.energy_measured = self.beam_model.f_e(layer.energy_nominal)
+                    layer.espread = self.beam_model.f_espread(layer.energy_nominal)
                     layer.spot_size = (
                         self.beam_model.f_sx(layer.energy_nominal) * get_fwhm(1.0),
-                        self.beam_model.f_sy(layer.energy_nominal) * get_fwhm(1.0)
+                        self.beam_model.f_sy(layer.energy_nominal) * get_fwhm(1.0),
                     )
         else:
             logger.error("No beam model set, cannot apply beam model to plan.")
@@ -399,20 +419,17 @@ class Plan:
         lines = []
         lines.append("Diagnostics:")
         lines.append("---------------------------------------------------")
-        lines.append(
-            f"Patient Name           : '{self.patient_name}'       [{self.patient_initials}]")
+        lines.append(f"Patient Name           : '{self.patient_name}'       [{self.patient_initials}]")
         lines.append(f"Patient ID             : {self.patient_id}")
         lines.append(f"Plan label             : {self.plan_label}")
-        lines.append(
-            f"Plan date              : {getattr(self, 'plan_date', '')}")
+        lines.append(f"Plan date              : {getattr(self, 'plan_date', '')}")
         lines.append(f"Number of Fields       : {self.n_fields:2d}")
 
         for i, myfield in enumerate(self.fields):
             lines.append("---------------------------------------------------")
-            lines.append(
-                f"   Field                  : {i + 1:02d}/{self.n_fields:02d}:")
+            lines.append(f"   Field                  : {i + 1:02d}/{self.n_fields:02d}:")
             # Use the field's diagnose method if it returns a string, else str()
-            diagnose_str = getattr(myfield, '__str__', None)
+            diagnose_str = getattr(myfield, "__str__", None)
             if callable(diagnose_str):
                 lines.append(str(myfield))
             else:

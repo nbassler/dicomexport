@@ -1,6 +1,7 @@
 import datetime
 import getpass  # used for recording the user who generated the file
 import logging
+import re
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -10,6 +11,17 @@ from dicomexport.model_rtstruct import RTStruct
 from dicomexport.__version__ import __version__
 
 logger = logging.getLogger(__name__)
+
+
+def _range_shifter_material_name(base_material: str) -> str:
+    """Name for the density-adjusted variant of ``base_material``.
+
+    TOPAS reserves the ``G4_`` prefix for the NIST database, so a variant of ``G4_LEXAN``
+    cannot keep it; anything but letters and digits is dropped because the name is a
+    parameter path segment.
+    """
+    stem = re.sub(r"[^A-Za-z0-9]", "", base_material[3:] if base_material.startswith("G4_") else base_material)
+    return f"RangeShifter{stem or 'Material'}"
 
 
 # Air padding added around everything that must fit inside the world volume [mm].
@@ -354,9 +366,58 @@ class TopasText:
             "##############################################",
             "###        R A N G E   S H I F T E R       ###",
             "##############################################",
+        ]
+
+        material = rs.material
+        if rs.density is not None and not material:
+            # The CSV loader refuses this pairing, but a hand-built catalog can still
+            # reach here. Dropping the density is the lesser evil: a material named
+            # after nothing would not resolve in TOPAS at all.
+            logger.warning(
+                "Field %d: range shifter %r states a density of %.4f g/cm3 but no material; "
+                "there is nothing to apply it to, so it is ignored.",
+                myfield.number, rs.id, rs.density)
+        elif rs.density is not None:
+            # A TsBox takes a material, and a TOPAS material carries its own density, so a
+            # stated density can only be applied by defining a variant material. A
+            # single-component BuildFromMaterials is the documented way to say "this
+            # composition, that density" -- TOPAS has no parameter that rescales the
+            # density of a material in place.
+            #
+            # The variant inherits the composition of the base material but NOT its mean
+            # excitation energy: Geant4 recomputes I from the elements, which for Lexan
+            # gives 71.71 eV against the tabulated 73.1 (measured with TOPAS 4.2.p3).
+            # That is a ~0.3% shift in stopping power -- a third of the size of the 1%
+            # density change being modelled, and in the same direction, so leaving it
+            # alone would quietly eat a quarter of the effect. Carry I over explicitly.
+            material = _range_shifter_material_name(rs.material)
+            lines += [
+                f'{f"b:Ma/{material}/BuildFromMaterials":<36} = "True"',
+                f'{f"sv:Ma/{material}/Components":<36} = 1 "{rs.material}"',
+                f'{f"uv:Ma/{material}/Fractions":<36} = 1 1.0',
+                f'{f"d:Ma/{material}/Density":<36} = {rs.density:.4f} g/cm3',
+            ]
+            if rs.material.startswith("G4_"):
+                # A NIST material has no Ma/ parameters to point at, so there is nothing
+                # to reference and no way to recover I from here. Say so rather than
+                # emitting a material that looks right and stops slightly too hard.
+                logger.warning(
+                    "Field %d: range shifter %r overrides the density of NIST material %r. Geant4 will "
+                    "recompute its mean excitation energy from the elements instead of using the NIST "
+                    "value, which shifts stopping power by ~1%%. Define the material yourself with an "
+                    "explicit MeanExcitationEnergy and name that in the catalog instead.",
+                    myfield.number, rs.id, rs.material)
+            else:
+                # A TOPAS-defined material carries its I as an ordinary parameter, so the
+                # variant can point at it and stay correct if the base is ever revised.
+                lines.append(
+                    f'{f"d:Ma/{material}/MeanExcitationEnergy":<36} = 1.0 * Ma/{rs.material}/MeanExcitationEnergy eV')
+            lines.append("")
+
+        lines += [
             's:Ge/RangeShifter/Parent             = "Gantry"',
             's:Ge/RangeShifter/Type               = "TsBox"',
-            f's:Ge/RangeShifter/Material           = "{rs.material}"',
+            f's:Ge/RangeShifter/Material           = "{material}"',
             'b:Ge/RangeShifter/Isparallel         = "True"',
             'sv:Ph/Default/LayeredMassGeometryWorlds = 2 "Patient/RTDoseGrid" "RangeShifter"',
             # DICOM specifies only the thickness and position of the range shifter, not its
