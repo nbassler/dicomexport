@@ -1,11 +1,10 @@
 # Range shifter catalog -- CCB, Cyclotron Centre Bronowice, Krakow, Poland
 #
-# The thickness below is the physical one and is trusted: CCB have validated their
-# calculations against it. Note that plans from this machine report
-# RangeShifterWaterEquivalentThickness (300A,0366) = 41.96 mm, which does not agree --
-# 39.936 mm of Lexan should be nearer 45.5 mm water-equivalent. The DICOM value is
-# assumed bogus. Dicomexport does not derive physical thickness
-# from the WET tag (at the moment).
+# Plans from this machine report RangeShifterWaterEquivalentThickness (300A,0366)
+# = 41.96 mm, i.e. a WET/thickness ratio of 1.150 against the 36.5 mm below. That is
+# consistent with Lexan and with DCPT's shifters (1.14), so the DICOM tag and the
+# catalogued thickness agree. Dicomexport still does not derive physical thickness from
+# the WET tag -- that conversion needs a stopping-power assumption.
 #
 # id, thickness [mm], material
-RS_Block,39.936,Lexan
+RS_Block,36.5,Lexan
