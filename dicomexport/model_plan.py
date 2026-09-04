@@ -52,10 +52,10 @@ def load_range_shifter_catalog(path: Path) -> dict:
     must list every shifter the plan uses. See res/range_shifters/README.md for why,
     and for the format: ``id,thickness_mm,material[,density_g_cm3]`` with ``#`` comments.
 
-    The density column is optional and may be left empty, which means "the density the
-    Monte Carlo code has tabulated for this material". Only a stated density belongs
-    there; entries without one keep no "density" key at all, so a catalog read from file
-    compares equal to the equivalent literal in RS_CATALOG.
+    The first three columns are required. The density column is optional and may be left
+    empty, which means "the density the Monte Carlo code has tabulated for this material".
+    Only a stated density belongs there; entries without one keep no "density" key at all,
+    so a catalog read from file compares equal to the equivalent literal in RS_CATALOG.
 
     A file never needs to list the "no shifter" ID: that is the absence of a device and
     is handled without a catalog lookup.
@@ -95,15 +95,19 @@ def load_range_shifter_catalog(path: Path) -> dict:
             if not thickness_mm >= 0.0:
                 raise ValueError(f"{path}:{lineno}: thickness for {rs_id!r} must be >= 0 mm, got {thickness_mm}")
 
-            entry = {"thickness": thickness_mm, "material": material or None}
+            # A slab has to be made of something. An entry with no material cannot be
+            # exported at all -- TOPAS would be handed Material = "None", which it cannot
+            # resolve -- so refuse the file here rather than letting the run reach the
+            # exporter and drop the shifter with a warning.
+            if not material:
+                raise ValueError(
+                    f"{path}:{lineno}: material for {rs_id!r} is empty. A range shifter has to be "
+                    f"made of something; name the material in column 3, e.g. 'Lexan'."
+                )
+
+            entry = {"thickness": thickness_mm, "material": material}
 
             if density:
-                if not material:
-                    raise ValueError(
-                        f"{path}:{lineno}: {rs_id!r} gives a density but no material. A density "
-                        f"overrides the density of a named material, so there is nothing to apply "
-                        f"it to; name the material in column 3."
-                    )
                 try:
                     density_g_cm3 = float(density)
                 except ValueError:

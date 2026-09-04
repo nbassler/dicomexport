@@ -44,7 +44,7 @@ RS51,44.4,Lexan,1.19
 | --- | --- |
 | `id` | `RangeShifterID` (300A,0318) exactly as written in the plan. Case-sensitive. |
 | `thickness` | Physical thickness along the beam, in mm — **not** water-equivalent thickness. |
-| `material` | Material name passed through to the Monte Carlo code, e.g. `Lexan`. |
+| `material` | Material name passed through to the Monte Carlo code, e.g. `Lexan`. Required — a shifter with no material cannot be exported, so an empty one is rejected when the file is read rather than at export time. |
 | `density` | *Optional.* Density of that material in g/cm³. Leave empty, or omit the column entirely, to use the density the Monte Carlo code has tabulated for the material. |
 
 Three-column files stay valid; the density column was added later.

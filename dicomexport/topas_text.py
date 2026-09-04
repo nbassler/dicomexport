@@ -363,9 +363,9 @@ class TopasText:
         if not rs.material:
             # A slab has to be made of something. Without a material the TsBox would be
             # handed Material = "None", which TOPAS cannot resolve -- the export would
-            # look complete and then fail at run time. This is reachable only from a
-            # catalog entry with an empty material column, so it is a catalog error;
-            # refuse the geometry the same way a zero-thickness device is refused.
+            # look complete and then fail at run time. The catalog loader rejects an
+            # empty material outright, so this is defence in depth against a hand-built
+            # catalog; refuse the geometry the same way a zero-thickness device is.
             logger.warning(
                 "Field %d: range shifter %r has no material; emitting no geometry.",
                 myfield.number, rs.id)
