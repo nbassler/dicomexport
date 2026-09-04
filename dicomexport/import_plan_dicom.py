@@ -544,6 +544,9 @@ def _build_range_shifter(rs_item, catalog: dict | None = None,
         type=rs_type,
         thickness=spec["thickness"],
         material=spec["material"],
+        # absent means "the material's own density", which the RangeShifter default of
+        # None already says -- do not turn a missing key into an override
+        density=spec.get("density"),
         # keep other fields at dataclass defaults
-        # water_equivalent_thickness=..., density=..., etc
+        # water_equivalent_thickness=..., etc
     )
