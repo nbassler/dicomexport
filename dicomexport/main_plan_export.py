@@ -76,12 +76,18 @@ def main(args=None) -> int:
                 "--nozzle-side pos-z places the beam source at gantry+180 deg, mirroring "
                 "every field (issue #66). Do not use it for patient plans; the IEC-correct "
                 "setting is neg-z (the default).")
+        if parsed_args.nr_threads != 0 and not parsed_args.test_mode:
+            logger.info(
+                "--threads has no effect without --test-mode: the plan-only Topas export "
+                "writes a fragment with no setup block, so there is no Ts/NumberOfThreads "
+                "line to set. Use the study export (dicomexport) for a complete input file.")
         export_plan(pln, pln.beam_model, parsed_args.fout,
                     field_nr=parsed_args.field_nr,
                     nstat=parsed_args.nstat,
                     fmt=parsed_args.export_fmt,
                     test_mode=parsed_args.test_mode,
-                    beam_direction=beam_direction)
+                    beam_direction=beam_direction,
+                    nr_threads=parsed_args.nr_threads)
 
     elif parsed_args.export_fmt == 'racehorse':
         # TODO

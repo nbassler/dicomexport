@@ -86,6 +86,41 @@ class TestPregdosCLI:
             assert f.exists(), f"Output file was not created: {f}"
             assert f.stat().st_size > 0, f"Output file is empty: {f}"
 
+    @pytest.mark.parametrize("nr_threads", [0, -1, 4])
+    def test_threads_parameter(self, nr_threads):
+        """--threads reaches Ts/NumberOfThreads in every generated field file (issue #85).
+
+        Covers the full-study path specifically: main -> export_study_topas ->
+        _export_study_field_topas, including the all-fields loop, which the plan-export
+        tests do not exercise. -1 is included because it is the value most easily
+        mangled on its way through argparse.
+        """
+        test_args = [
+            f"--threads={nr_threads}",
+            f"-b={BEAM_MODEL_PATH}",
+            f"-s={SPR_TABLE_PATH}",
+            f"{DICOM_TEST_DIR}",
+        ]
+        assert study.main(test_args) == 0, "CLI execution failed with --threads parameter."
+
+        for f in _TOPAS_OUTPUT_FILES:
+            assert f.exists(), f"Output file was not created: {f}"
+            assert f"i:Ts/NumberOfThreads                    = {nr_threads}" in f.read_text(), \
+                f"--threads={nr_threads} did not reach Ts/NumberOfThreads in {f}."
+
+    def test_threads_defaults_to_all_cores(self):
+        """Without --threads the study export is unchanged from before issue #85."""
+        test_args = [
+            f"-b={BEAM_MODEL_PATH}",
+            f"-s={SPR_TABLE_PATH}",
+            f"{DICOM_TEST_DIR}",
+        ]
+        assert study.main(test_args) == 0
+
+        for f in _TOPAS_OUTPUT_FILES:
+            assert "i:Ts/NumberOfThreads                    = 0" in f.read_text(), \
+                f"default NumberOfThreads is not 0 in {f}."
+
     def test_nstat_parameter(self):
         nstat_value = int(2e6)
         test_args = [

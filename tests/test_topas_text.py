@@ -89,6 +89,22 @@ class TestWorldHalfLengths:
         assert "d:Ge/World/HLZ             = 1315.40 mm" in text
 
 
+class TestSetupThreads:
+    """Ts/NumberOfThreads is a verbatim pass-through of the TOPAS surface (issue #85).
+
+    TOPAS resolves non-positive values as `cores + nr_threads` on the machine that RUNS
+    the file (TsSequenceManager.cc), so no value may be clamped or resolved at export time.
+    """
+
+    def test_default_is_all_cores(self):
+        assert "i:Ts/NumberOfThreads                    = 0" in TopasText.setup()
+
+    @pytest.mark.parametrize("nr_threads", [0, -1, 1, 4, 28])
+    def test_value_reaches_the_input_file(self, nr_threads):
+        text = TopasText.setup(nr_threads=nr_threads)
+        assert f"i:Ts/NumberOfThreads                    = {nr_threads}" in text
+
+
 class TestPatientDicomDirectory:
     """TOPAS reads the CT series from DicomDirectory without descending into subdirectories."""
 
