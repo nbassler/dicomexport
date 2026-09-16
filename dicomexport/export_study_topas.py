@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: Path,
                        field_nr: int = 0, dose_path: Optional[Path] = None, nstat: int = int(1e6),
-                       beam_direction: int = 1) -> None:
+                       beam_direction: int = 1, nr_threads: int = 0) -> None:
     """
     Export the CT and RTStruct models to a Topas-compatible geometry file.
     """
@@ -32,20 +32,20 @@ def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: 
             logger.info("=" * 50)
             _export_study_field_topas(
                 ct, rs, field, plan.beam_model, output_base_path, dose_path, nstat=nstat,
-                beam_direction=beam_direction)
+                beam_direction=beam_direction, nr_threads=nr_threads)
             logger.info("-" * 50 + "\n")
     else:
         # Export a single field
         field = plan.fields[field_nr]
         _export_study_field_topas(
             ct, rs, field, plan.beam_model, output_base_path, dose_path, nstat=nstat,
-            beam_direction=beam_direction)
+            beam_direction=beam_direction, nr_threads=nr_threads)
 
 
 def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optional[BeamModel] = None,
                               output_base_path: Optional[Path] = None,
                               dose_path: Optional[Path] = None, nstat: int = int(1e6),
-                              beam_direction: int = 1) -> None:
+                              beam_direction: int = 1, nr_threads: int = 0) -> None:
     """
     Export a single field to a Topas-compatible geometry file.
     """
@@ -69,7 +69,7 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     if ct.spr_to_material_path:
         lines.append(TopasText.spr_to_material(ct.spr_to_material_path))
     lines.append(TopasText.variables(fld, ct.dicom_origin))
-    lines.append(TopasText.setup())
+    lines.append(TopasText.setup(nr_threads=nr_threads))
     lines.append(TopasText.world_setup(world_hl))
     if dose_path:
         lines.append(TopasText.geometry_patient_dicom(dose_path, ct.directory))

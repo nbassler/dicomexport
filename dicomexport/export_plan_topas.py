@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 class TopasPlan:
     @staticmethod
     def generate(myfield: Field, bm: BeamModel,
-                 nstat=100000, test_mode=False, beam_direction: int = 1) -> str:
+                 nstat=100000, test_mode=False, beam_direction: int = 1,
+                 nr_threads: int = 0) -> str:
         """
         Export the field to a topas input file.
         """
@@ -33,7 +34,7 @@ class TopasPlan:
         if test_mode:
             # No patient in test mode: the world only has to hold the beam line and the IsoBox.
             world_hl = TopasText.world_half_lengths(beam_reach=bm.beam_model_position)
-            lines.append(TopasText.setup())
+            lines.append(TopasText.setup(nr_threads=nr_threads))
             lines.append(TopasText.world_setup(world_hl))
             lines.append(TopasText.geometry_gantry())
             lines.append(TopasText.geometry_couch())

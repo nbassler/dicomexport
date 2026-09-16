@@ -133,3 +133,48 @@ class TestPregdosCLI:
         assert 'Ge/World' in content, "--test-mode output missing world geometry"
 
         test_output_file.unlink()
+
+    @pytest.mark.parametrize("nr_threads", [0, -1, 4])
+    def test_threads_flag(self, nr_threads):
+        """--threads reaches Ts/NumberOfThreads verbatim (issue #85).
+
+        Uses --test-mode, because that is the only plan-export path that emits a setup
+        block. -1 is covered explicitly: it is the value most easily mangled by argparse.
+        """
+        test_output_file = Path("plan_field01.txt")
+        test_output_file.unlink(missing_ok=True)
+
+        test_args = [
+            "-f1",
+            "-b=res/beam_models/DCPT_beam_model__v2.csv",
+            "--test-mode",
+            f"--threads={nr_threads}",
+            "res/test_plans/temp_160MeV_10x10.dcm",
+        ]
+
+        assert main_plan_export.main(test_args) == 0
+        assert test_output_file.exists()
+
+        content = test_output_file.read_text()
+        assert f"i:Ts/NumberOfThreads                    = {nr_threads}" in content, \
+            f"--threads={nr_threads} did not reach Ts/NumberOfThreads"
+
+        test_output_file.unlink()
+
+    def test_threads_defaults_to_all_cores(self):
+        """Without --threads the output is unchanged from before issue #85."""
+        test_output_file = Path("plan_field01.txt")
+        test_output_file.unlink(missing_ok=True)
+
+        test_args = [
+            "-f1",
+            "-b=res/beam_models/DCPT_beam_model__v2.csv",
+            "--test-mode",
+            "res/test_plans/temp_160MeV_10x10.dcm",
+        ]
+
+        assert main_plan_export.main(test_args) == 0
+        content = test_output_file.read_text()
+        assert "i:Ts/NumberOfThreads                    = 0" in content
+
+        test_output_file.unlink()

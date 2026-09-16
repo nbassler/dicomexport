@@ -30,6 +30,12 @@ def create_parser():
     parser.add_argument('-s', '--scale', type=float, dest='scale',
                         help="additional scaling multiplier for MC plan", default=1.0)
     parser.add_argument('-N', '--nstat', type=int, dest='nstat', help="Target protons for simulation", default=int(1e6))
+    parser.add_argument('--threads', type=int, dest='nr_threads', default=0,
+                        help="TOPAS Ts/NumberOfThreads (default: 0). 0 uses all cores on the "
+                             "machine that RUNS the file, -1 all but one, N exactly N. "
+                             "Resolved at run time, not at export time, so it is safe to "
+                             "export on one node and run on another. Only the --test-mode "
+                             "Topas export writes a setup block for it to land in.")
     parser.add_argument('-nc', '--spotlist-column-count', type=int, dest='spotlist_column_count',
                         choices=[5, 6, 7, 9, 11], default=11,
                         help="Number of columns in the spotlist export. Valid values: 5, 6, 7, 9, or 11 (default: 11).")

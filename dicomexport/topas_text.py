@@ -111,7 +111,11 @@ class TopasText:
         Generate the TOPAS setup section.
 
         show_history_interval: Interval at which the history count is shown.
-        nr_threads: 0 for using all cores, -1 for all but one.
+        nr_threads: value for Ts/NumberOfThreads. 0 means all cores, -1 all but one,
+            and N > 0 exactly N. TOPAS resolves non-positive values as
+            `cores + nr_threads` (TsSequenceManager.cc), on the machine that RUNS the
+            file, so the choice is safe to export on one node and run on another.
+            A non-MT TOPAS build ignores any value other than 1.
         """
 
         # model1 = (

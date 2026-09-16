@@ -35,7 +35,7 @@ def main(args=None) -> int:
         rs = load_rs(parsed_args.rs_file)
 
     # export the geometry file
-    export_geo(ct, rs, parsed_args.fout)
+    export_geo(ct, rs, parsed_args.fout, nr_threads=parsed_args.nr_threads)
 
     return 0
 
