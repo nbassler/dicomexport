@@ -114,7 +114,7 @@ options:
   --topas-version X.Y   TOPAS version the input file is written for, as MAJOR.MINOR (default: 4.2). Versions below 4.2 get the emittance
                         source as BeamParticle/BeamEnergy/BeamEnergySpread instead of the Emittance* names, which they do not recognise.
   --dose-cube-16bit     Write the TOPAS DICOM dose cube with 16 instead of 32 bits per pixel. Halves the file size, but every voxel below
-                        ~1.5e-5 of the field's peak dose is written as 0, which removes the out-of-field dose.
+                        ~1.5e-5 of the field's peak dose is written as 0, which can remove low-level out-of-field dose.
   --export-fmt {topas,mcpl,racehorse}
                         Export format (default: topas). Formats: topas (*.txt), mcpl (*.mcpl), racehorse (*.csv).
   --nozzle-side {pos-z,neg-z}

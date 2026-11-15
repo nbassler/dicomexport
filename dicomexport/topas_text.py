@@ -478,7 +478,7 @@ class TopasText:
         dose_cube_16bit: write the cube with 16 instead of 32 bits per pixel. TOPAS scales
             the field's peak to the largest stored value and truncates on the cast
             (TsVBinnedScorer.cc), so at 16 bits every voxel below ~1.5e-5 of the peak is
-            written as 0 and the out-of-field dose is lost. 32 bits only doubles the file
+            written as 0, which can remove low-level out-of-field dose. 32 bits only doubles the file
             size (issue #111).
         """
         lines = [
