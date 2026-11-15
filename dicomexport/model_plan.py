@@ -284,7 +284,13 @@ class Field:
     #: zero-angle beam would be indistinguishable from a real one in the output.
     sad: Tuple[float, float] = (0.0, 0.0)
     sop_instance_uid: str = ""
+    #: DICOM BeamNumber. Selects the field (-f) and names its output files (issue #96).
     number: int = 0
+
+    @property
+    def label(self) -> str:
+        """'field03', as used in every output file name: the zero-padded BeamNumber."""
+        return f"field{self.number:02d}"
 
     range_shifter: Optional[RangeShifter] = None  # optional range shifter data
 
@@ -372,6 +378,23 @@ class Plan:
     @property
     def n_fields(self) -> int:
         return len(self.fields)
+
+    def select_fields(self, beam_numbers: Optional[List[int]] = None) -> List["Field"]:
+        """The fields with these DICOM BeamNumbers, in plan order; all fields for None.
+
+        Fields are selected by BeamNumber, never by position: TPS numbering need not be
+        1..N or follow the order of the plan, and the BeamNumber is what the TPS shows and
+        what the exported file names carry (issue #96).
+        """
+        if beam_numbers is None:
+            return list(self.fields)
+        valid = [f.number for f in self.fields]
+        missing = [n for n in beam_numbers if n not in valid]
+        if missing:
+            raise ValueError(
+                f"No field with BeamNumber {', '.join(map(str, missing))} in this plan. "
+                f"Valid BeamNumbers: {', '.join(map(str, valid))}.")
+        return [f for f in self.fields if f.number in beam_numbers]
 
     @property
     def n_layers(self) -> int:

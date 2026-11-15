@@ -55,9 +55,9 @@ res/spr_tables/SPRtoMaterial__Brain.txt res/test_studies/DCPT_headphantom/
 INFO:dicomexport.import_rtstruct:Using RTSTRUCT file: RS.1.2.246.352.205.5439556202947041733.367077883804944283.dcm
 INFO:dicomexport.import_rtstruct:Imported RTSTRUCT: DCPT_headphantom with 11 ROIs
 WARNING:__main__:Multiple DICOM RTDOSE files found, using the first one.
-INFO:dicomexport.export_study_topas:Wrote Topas geometry file for field 1: /home/bassler/Projects/dicomexport/topas_field1.txt
-INFO:dicomexport.export_study_topas:Wrote Topas geometry file for field 2: /home/bassler/Projects/dicomexport/topas_field2.txt
-INFO:dicomexport.export_study_topas:Wrote Topas geometry file for field 3: /home/bassler/Projects/dicomexport/topas_field3.txt
+INFO:dicomexport.export_study_topas:Wrote Topas geometry file for field 1: /home/bassler/Projects/dicomexport/topas_field01.txt
+INFO:dicomexport.export_study_topas:Wrote Topas geometry file for field 2: /home/bassler/Projects/dicomexport/topas_field02.txt
+INFO:dicomexport.export_study_topas:Wrote Topas geometry file for field 3: /home/bassler/Projects/dicomexport/topas_field03.txt
 ```
 
 ### TOPAS beam geometry options
@@ -106,7 +106,7 @@ options:
   -p, --beam-model-position BEAM_MODEL_POSITION
                         Beam model position in mm, relative to isocenter, positive upstream. If not given, the value is read from the BMODPOS key in the beam model file header, or defaults to 500.0 mm if absent.
   -f, --field FIELD_NR
-                        Field number to export. If not specified, all fields will be exported.
+                        DICOM BeamNumber of the field to export. If not specified, all fields will be exported.
   -N, --nstat NSTAT
                         Target protons for simulation
   --threads NR_THREADS  TOPAS Ts/NumberOfThreads (default: 0). 0 uses all cores on the machine that RUNS the file, -1 all but one, N
@@ -150,7 +150,7 @@ options:
   -b, --beam-model FBM  Beam model CSV path
   -p, --beam-model-position BEAM_MODEL_POSITION
                         Beam model position in mm, relative to isocenter, positive upstream. If not given, the value is read from the BMODPOS key in the beam model file header, or defaults to 500.0 mm if absent.
-  -f, --field FIELD_NR  Field number to export. If not specified, all fields will be exported.
+  -f, --field FIELD_NR  DICOM BeamNumber of the field to export. If not specified, all fields will be exported.
   -d, --diag            Print plan diagnostics and exit
   -s, --scale SCALE     additional scaling multiplier for MC plan
   -N, --nstat NSTAT     Target protons for simulation

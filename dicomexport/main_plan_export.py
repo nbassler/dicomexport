@@ -37,6 +37,14 @@ def main(args=None) -> int:
                   if parsed_args.rs_catalog_path else None)
     pln = load_plan(parsed_args.fin, rs_catalog=rs_catalog)
 
+    # -f is a DICOM BeamNumber (issue #96). Check it before exporting anything.
+    if parsed_args.field_nr:
+        try:
+            pln.select_fields([parsed_args.field_nr])
+        except ValueError as e:
+            logger.error("-f %d: %s", parsed_args.field_nr, e)
+            return 2
+
     if parsed_args.diag:
         print("Plan diagnostics:")
         print(pln)

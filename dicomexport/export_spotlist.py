@@ -116,8 +116,8 @@ def export_spotlist(
         plan: The treatment plan object containing field and spot data.
         output_path: Base path for output file(s). Individual field files will be
             named using the pattern: {stem}_field{dicom_field_number:02d}{suffix}
-        field_list: Optional list of 1-based field numbers to export. If None,
-            all fields in the plan are exported. Defaults to None.
+        field_list: Optional list of DICOM BeamNumbers to export (issue #96). If
+            None, all fields in the plan are exported. Defaults to None.
         col_count: Number of columns in the output file format. Must be a valid
             value supported by the spotlist header builder. Defaults to 11.
         spot_pos_iso: If True, export spot X/Y positions at the isocenter plane
@@ -130,7 +130,7 @@ def export_spotlist(
 
     Raises:
         ValueError: If col_count is not a valid spotlist column count.
-        IndexError: If field_list contains invalid field numbers.
+        ValueError: If field_list contains a BeamNumber that is not in the plan.
 
     Side Effects:
         Writes one or more spotlist files to disk at the specified output_path
@@ -154,27 +154,22 @@ def export_spotlist(
     # Add derived export columns (GeV/cm/FWHM/mrad + Weight)
     df = _add_spotlist_export_columns(df, spot_pos_iso=spot_pos_iso)
 
-    # Optional subset of fields (expects 1-based field numbers as in your CLI)
+    # Optional subset of fields, by DICOM BeamNumber. The table's "field" column is the
+    # 1-based position in the plan, so map the selection onto positions.
     if field_list is not None:
-        n_fields = len(plan.fields)
-        invalid_fields = [f for f in field_list if f < 1 or f > n_fields]
-        if invalid_fields:
-            raise IndexError(
-                f"field_list contains out-of-range field numbers: {invalid_fields}. "
-                f"Valid field numbers are between 1 and {n_fields} (inclusive)."
-            )
-        df = df[df["field"].isin(field_list)]
+        selected = plan.select_fields(field_list)
+        df = df[df["field"].isin([plan.fields.index(f) + 1 for f in selected])]
 
     base = Path(output_path)
 
     # One output file per field (using DICOM field.number in filename)
     for field_idx in sorted(df["field"].unique()):
-        dicom_field_number = plan.fields[field_idx - 1].number
-        out_path = base.with_name(f"{base.stem}_field{dicom_field_number:02d}{base.suffix}")
+        field_obj = plan.fields[field_idx - 1]
+        out_path = base.with_name(f"{base.stem}_{field_obj.label}{base.suffix}")
 
+        logger.info('Exporting %s = BeamNumber %d "%s"', field_obj.label, field_obj.number, field_obj.name)
         logger.info("Writing spotlist: %s", out_path)
 
-        field_obj = plan.fields[field_idx - 1]
         header_field = _build_spotlist_header(
             col_count,
             __version__,

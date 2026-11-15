@@ -25,7 +25,7 @@ def create_parser():
                              "must list every range shifter the plan uses. "
                              "See res/range_shifters/README.md.")
     parser.add_argument('-f', '--field', type=int, dest='field_nr', default=0,
-                        help="Field number to export. If not specified, all fields will be exported.")
+                        help="DICOM BeamNumber of the field to export. If not specified, all fields will be exported.")
     parser.add_argument('-d', '--diag', action='store_true', dest="diag",
                         help="Print plan diagnostics and exit", default=False)
     parser.add_argument('-s', '--scale', type=float, dest='scale',

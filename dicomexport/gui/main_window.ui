@@ -92,7 +92,7 @@
        </item>
 
        <item row="2" column="0">
-        <widget class="QLabel"><property name="text"><string>Field number (0 = all)</string></property></widget>
+        <widget class="QLabel"><property name="text"><string>Field BeamNumber (0 = all)</string></property></widget>
        </item>
        <item row="2" column="1">
         <widget class="QSpinBox" name="field_nr">
