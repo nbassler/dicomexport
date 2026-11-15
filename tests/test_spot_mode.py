@@ -175,3 +175,33 @@ def test_sources_is_the_default():
     """3.2x faster on the head phantom at 100k primaries / 28 threads, same dose (#88)."""
     assert main_parser().parse_args(["s"]).spot_mode == "sources"
     assert plan_parser().parse_args(["p.dcm"]).spot_mode == "sources"
+
+
+def test_negative_spot_weight_is_refused_at_import(tmp_path):
+    """Every exporter would turn a negative weight into something different; refuse it."""
+    import pydicom
+    from dicomexport.import_plan import load_plan
+    path = tmp_path / "negative.dcm"
+    ds = pydicom.dcmread("res/test_plans/temp_160MeV_10x10.dcm")
+    icp = ds.IonBeamSequence[0].IonControlPointSequence[0]
+    weights = list(icp.ScanSpotMetersetWeights)
+    weights[0] = -abs(weights[1]) - 1.0
+    icp.ScanSpotMetersetWeights = weights
+    ds.save_as(path)
+    with pytest.raises(ValueError, match="negative ScanSpotMetersetWeights"):
+        load_plan(path)
+
+
+@pytest.mark.parametrize("mode", ["sources", "timefeature"])
+def test_negative_spot_weight_is_refused_by_the_topas_writer(mode):
+    from dicomexport.beam_model import BeamModel
+    from dicomexport.export_plan_topas import TopasPlan
+    from dicomexport.import_plan import load_plan
+    from dicomexport.topas_export_options import TopasExportOptions
+    from pathlib import Path
+    plan = load_plan(Path("res/test_plans/temp_160MeV_10x10.dcm"))
+    plan.beam_model = BeamModel(Path(BEAM_MODEL))
+    plan.apply_beammodel()
+    plan.fields[0].layers[0].spots[0].mu = -1.0
+    with pytest.raises(ValueError, match="negative weight"):
+        TopasPlan.generate(plan.fields[0], plan.beam_model, opts=TopasExportOptions(spot_mode=mode))

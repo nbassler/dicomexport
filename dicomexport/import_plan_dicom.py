@@ -222,6 +222,14 @@ def load_plan_dicom(file_dcm: Path, rs_catalog: dict | None = None) -> Plan:
             if 'ScanSpotMetersetWeights' in icp:
                 mu = np.array(icp['ScanSpotMetersetWeights'].value).reshape(
                     nspots) * myfield.meterset_per_weight
+                # A negative spot weight cannot be delivered, and every exporter would turn it
+                # into something different (dropped, negative histories, negative sampling
+                # weight), so refuse the plan rather than silently change its fluence.
+                if (mu < 0.0).any():
+                    raise ValueError(
+                        f"Invalid DICOM plan: beam {field_nr}, control point {icp_index} has "
+                        f"{int((mu < 0.0).sum())} negative ScanSpotMetersetWeights "
+                        f"(min {float(mu.min()):.4g} MU).")
             else:
                 logger.error(
                     "ScanSpotMetersetWeights not found in control point index %i", icp_index)

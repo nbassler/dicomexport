@@ -53,12 +53,15 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     nstat_scale = TopasPlan.calculate_scaling_factor(fld, opts.nstat)
 
     lines = []
-    lines.append(TopasPlan.header(fld, bm, opts, nstat_scale))
+    # Every spot's beam parameters, built once and used by every section below.
+    table = TopasPlan.spot_table(fld, bm, opts.nstat, opts.beam_direction) if bm else None
+
+    lines.append(TopasPlan.header(fld, table, opts, nstat_scale))
     lines.append(TopasText.header2())
     if ct.spr_to_material_path:
         lines.append(TopasText.spr_to_material(ct.spr_to_material_path))
     lines.append(TopasText.variables(fld, ct.dicom_origin))
-    lines.append(TopasText.setup(nr_threads=opts.nr_threads, **TopasPlan._setup_kwargs(fld, bm, opts)))
+    lines.append(TopasText.setup(nr_threads=opts.nr_threads, **TopasPlan._setup_kwargs(table, opts)))
     lines.append(TopasText.world_setup(world_hl))
     if dose_path:
         lines.append(TopasText.geometry_patient_dicom(dose_path, ct.directory))
@@ -85,10 +88,10 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
         if sources:
             lines.append(TopasPlan.sources_string(
                 fld, bm, nstat=opts.nstat, beam_direction=opts.beam_direction,
-                topas_version=opts.topas_version))
+                topas_version=opts.topas_version, table=table))
         else:
             lines.append(TopasPlan.time_features_string(
-                fld, bm, nstat=opts.nstat, beam_direction=opts.beam_direction))
+                fld, bm, nstat=opts.nstat, beam_direction=opts.beam_direction, table=table))
         topas_string = "\n".join(lines)
 
         # show some information about the field

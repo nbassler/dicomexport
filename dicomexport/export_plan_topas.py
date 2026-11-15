@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+from typing import Optional
 
 import numpy as np
 
@@ -51,9 +52,12 @@ class TopasPlan:
         # show some information about the field
         TopasPlan.show_plan_data(myfield, bm, nstat=opts.nstat)
 
+        # Every spot's beam parameters, built once and used by every section below.
+        table = TopasPlan.spot_table(myfield, bm, opts.nstat, opts.beam_direction)
+
         # build output lines instead of writing to file
         lines = []
-        lines.append(TopasPlan.header(myfield, bm, opts, nstat_scale))
+        lines.append(TopasPlan.header(myfield, table, opts, nstat_scale))
         lines.append(TopasText.header2())
 
         lines.append(TopasText.variables(myfield))
@@ -61,7 +65,7 @@ class TopasPlan:
             # No patient in test mode: the world only has to hold the beam line and the IsoBox.
             world_hl = TopasText.world_half_lengths(beam_reach=bm.beam_model_position)
             lines.append(TopasText.setup(nr_threads=opts.nr_threads,
-                                         **TopasPlan._setup_kwargs(myfield, bm, opts)))
+                                         **TopasPlan._setup_kwargs(table, opts)))
             lines.append(TopasText.world_setup(world_hl))
             lines.append(TopasText.geometry_gantry())
             lines.append(TopasText.geometry_couch())
@@ -71,7 +75,7 @@ class TopasPlan:
             lines.append(TopasText.geometry_range_shifter(myfield, beam_direction=opts.beam_direction))
             lines.append(TopasPlan.sources_string(
                 myfield, bm, opts.nstat, beam_direction=opts.beam_direction,
-                topas_version=opts.topas_version))
+                topas_version=opts.topas_version, table=table))
         else:
             lines.append(TopasText.geometry_beam_position_timefeature(
                 bm.beam_model_position, beam_direction=opts.beam_direction))
@@ -79,16 +83,16 @@ class TopasPlan:
             lines.append(TopasText.field_beam_timefeature(topas_version=opts.topas_version))
 
             lines.append(TopasPlan.time_features_string(
-                myfield, bm, opts.nstat, beam_direction=opts.beam_direction))
+                myfield, bm, opts.nstat, beam_direction=opts.beam_direction, table=table))
 
         topas_text = "".join(lines)
         return topas_text
 
     @staticmethod
-    def _setup_kwargs(myfield: Field, bm, opts: TopasExportOptions) -> dict:
+    def _setup_kwargs(table: Optional["SpotTable"], opts: TopasExportOptions) -> dict:
         """Setup-block overrides for the spot mode: sources mode reports progress per event."""
-        if opts.spot_mode == "sources" and bm is not None:
-            return {"show_history_interval": TopasPlan.history_interval(myfield, bm, opts.nstat)}
+        if opts.spot_mode == "sources" and table is not None:
+            return {"show_history_interval": TopasPlan.history_interval(table)}
         return {}
 
     @staticmethod
@@ -137,6 +141,10 @@ class TopasPlan:
             # layer.espread is an absolute energy spread in MeV at the beam model position;
             # convert it to a relative (%) spread for TOPAS (which expects relative energy spread).
             espread_percent = (mylayer.espread / mylayer.energy_measured) * 100.0  # [%]
+            # The beam model depends on the layer energy only: evaluate it once per layer.
+            e_nom = mylayer.energy_nominal
+            optics = (bm.f_sx(e_nom), bm.f_sy(e_nom), bm.f_divx(e_nom), bm.f_divy(e_nom),
+                      bm.f_corx(e_nom), bm.f_cory(e_nom))
 
             for spot in mylayer.spots:
                 layer_index[_spot_index] = _layer_nr
@@ -148,14 +156,18 @@ class TopasPlan:
                 posy[_spot_index] = spot.y * \
                     (sad_y - bm.beam_model_position) / sad_y
                 angy[_spot_index] = np.degrees(np.arctan(spot.y / sad_y))
-                sigx[_spot_index] = bm.f_sx(mylayer.energy_nominal)
-                sigy[_spot_index] = bm.f_sy(mylayer.energy_nominal)
-                sigxp[_spot_index] = bm.f_divx(mylayer.energy_nominal)
-                sigyp[_spot_index] = bm.f_divy(mylayer.energy_nominal)
-                corx[_spot_index] = bm.f_corx(mylayer.energy_nominal)
-                cory[_spot_index] = bm.f_cory(mylayer.energy_nominal)
+                (sigx[_spot_index], sigy[_spot_index], sigxp[_spot_index], sigyp[_spot_index],
+                 corx[_spot_index], cory[_spot_index]) = optics
                 nparts[_spot_index] = spot.mu * mylayer.mu_to_part_coef
                 _spot_index += 1
+
+        # Defence in depth, as for the SAD above: the DICOM importer already refuses negative
+        # spot weights, but other plan sources might not, and the spot modes would treat one
+        # differently (dropped vs. a negative NumberOfHistoriesInRun).
+        if (nparts < 0.0).any():
+            raise ValueError(
+                f"Field {myfield.number}: {int((nparts < 0.0).sum())} spots have a negative "
+                f"weight. Cannot export.")
 
         nstat_scale = TopasPlan.calculate_scaling_factor(myfield, nstat)
 
@@ -178,11 +190,14 @@ class TopasPlan:
 
     @staticmethod
     def time_features_string(myfield: Field, bm: BeamModel, nstat: int = DEFAULTS.nstat,
-                             beam_direction: int = DEFAULTS.beam_direction) -> str:
+                             beam_direction: int = DEFAULTS.beam_direction,
+                             table: Optional["SpotTable"] = None) -> str:
         """
         Build the TIME FEATURES section for a Topas file and return as a string.
+
+        Pass the field's ``table`` if it is already built, to avoid building it again.
         """
-        t = TopasPlan.spot_table(myfield, bm, nstat, beam_direction)
+        t = table if table is not None else TopasPlan.spot_table(myfield, bm, nstat, beam_direction)
         n_spots = t.n_spots
         times = np.arange(1, n_spots + 1, dtype=float)
 
@@ -221,7 +236,8 @@ class TopasPlan:
     @staticmethod
     def sources_string(myfield: Field, bm: BeamModel, nstat: int = DEFAULTS.nstat,
                        beam_direction: int = DEFAULTS.beam_direction,
-                       topas_version=DEFAULTS.topas_version) -> str:
+                       topas_version=DEFAULTS.topas_version,
+                       table: Optional["SpotTable"] = None) -> str:
         """
         One Group plus one Emittance source per spot, instead of a time feature (issue #88).
 
@@ -234,7 +250,7 @@ class TopasPlan:
         The Groups have no solid: they only place and tilt each source, exactly as
         Ge/BeamPosition does per spot in time-feature mode.
         """
-        t = TopasPlan.spot_table(myfield, bm, nstat, beam_direction)
+        t = table if table is not None else TopasPlan.spot_table(myfield, bm, nstat, beam_direction)
         histories = TopasPlan.spot_histories(t)
         keep = histories > 0
         if not keep.any():
@@ -303,26 +319,26 @@ class TopasPlan:
         return "\n".join(lines) + "\n"
 
     @staticmethod
-    def history_interval(myfield: Field, bm: BeamModel, nstat: int = DEFAULTS.nstat) -> int:
+    def history_interval(t: "SpotTable") -> int:
         """Ts/ShowHistoryCountAtInterval for sources mode: about 100 progress lines per field.
 
         In sources mode a history is an event, and a field has only as many events as its
         largest spot weight -- a few hundred, not the ~1e5 of the time feature.
         """
-        return max(1, TopasPlan.events_per_run(myfield, bm, nstat) // 100)
+        return max(1, TopasPlan.events_per_run(t) // 100)
 
     @staticmethod
-    def events_per_run(myfield: Field, bm: BeamModel, nstat: int = DEFAULTS.nstat) -> int:
-        """Histories (events) in the single run of sources mode: the largest spot weight."""
-        t = TopasPlan.spot_table(myfield, bm, nstat)
+    def events_per_run(t: "SpotTable") -> int:
+        """Events in the single run of sources mode: the largest spot's history count."""
         return int(TopasPlan.spot_histories(t).max())
 
     @staticmethod
-    def header(myfield: Field, bm, opts: TopasExportOptions, nstat_scale: float) -> str:
+    def header(myfield: Field, table: Optional["SpotTable"], opts: TopasExportOptions,
+               nstat_scale: float) -> str:
         """TopasText.header with the spot layout filled in (issue #88)."""
         layout, simulated = {}, None
-        if bm is not None:
-            histories = TopasPlan.spot_histories(TopasPlan.spot_table(myfield, bm, opts.nstat))
+        if table is not None:
+            histories = TopasPlan.spot_histories(table)
             # The rounded spot weights, which differ from REQUESTED_HISTORIES. Plan scaling
             # needs this in both modes.
             simulated = int(histories.sum())
