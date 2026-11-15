@@ -263,7 +263,9 @@ class TopasPlan:
             "###          P E R   S P O T               ###",
             "##############################################",
             f"# {int(keep.sum())} spots. TOPAS runs {int(histories.max())} events in a single run;",
-            "# each spot fires in the events below its NumberOfHistoriesInRun.",
+            "# each spot fires in the events below its NumberOfHistoriesInRun. TOPAS's log",
+            "# calls these events \"History: N\": one event holds one proton from every spot",
+            "# still active, so it is not one proton.",
             "",
         ]
         layer = None
@@ -307,10 +309,10 @@ class TopasPlan:
         In sources mode a history is an event, and a field has only as many events as its
         largest spot weight -- a few hundred, not the ~1e5 of the time feature.
         """
-        return max(1, TopasPlan.histories_per_run(myfield, bm, nstat) // 100)
+        return max(1, TopasPlan.events_per_run(myfield, bm, nstat) // 100)
 
     @staticmethod
-    def histories_per_run(myfield: Field, bm: BeamModel, nstat: int = DEFAULTS.nstat) -> int:
+    def events_per_run(myfield: Field, bm: BeamModel, nstat: int = DEFAULTS.nstat) -> int:
         """Histories (events) in the single run of sources mode: the largest spot weight."""
         t = TopasPlan.spot_table(myfield, bm, nstat)
         return int(TopasPlan.spot_histories(t).max())
@@ -318,16 +320,20 @@ class TopasPlan:
     @staticmethod
     def header(myfield: Field, bm, opts: TopasExportOptions, nstat_scale: float) -> str:
         """TopasText.header with the spot layout filled in (issue #88)."""
-        layout = {}
+        layout, simulated = {}, None
         if bm is not None:
             histories = TopasPlan.spot_histories(TopasPlan.spot_table(myfield, bm, opts.nstat))
+            # The rounded spot weights, which differ from REQUESTED_HISTORIES. Plan scaling
+            # needs this in both modes.
+            simulated = int(histories.sum())
             if opts.spot_mode == "sources":
                 layout = {"SPOTS": int((histories > 0).sum()), "RUNS": 1,
-                          "HISTORIES_PER_RUN": int(histories.max())}
+                          "EVENTS_PER_RUN": int(histories.max())}
             else:
                 # The time feature runs every spot, even one with 0 histories.
                 layout = {"SPOTS": int(histories.size), "RUNS": int(histories.size)}
-        return TopasText.header(myfield, nstat_scale, opts.nstat, spot_mode=opts.spot_mode, layout=layout)
+        return TopasText.header(myfield, nstat_scale, opts.nstat, spot_mode=opts.spot_mode,
+                                simulated_histories=simulated, layout=layout)
 
     @staticmethod
     def calculate_scaling_factor(myfield: Field, nstat: int = DEFAULTS.nstat) -> float:

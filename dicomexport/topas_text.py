@@ -35,14 +35,20 @@ WORLD_MARGIN = 500.0
 class TopasText:
     @staticmethod
     def header(field: Field, nstat_scale: float, nstat: int,
-               spot_mode: str = DEFAULTS.spot_mode, layout: Optional[dict] = None) -> str:
+               spot_mode: str = DEFAULTS.spot_mode, simulated_histories: Optional[int] = None,
+               layout: Optional[dict] = None) -> str:
         """File header. Its "# KEY: value" lines are read by downstream tools (pregdos).
 
+        In the header, a history is always one primary proton:
+          REQUESTED_HISTORIES  what -N asked for
+          SIMULATED_HISTORIES  what TOPAS actually simulates: the sum of the rounded spot
+                               weights. Plan scaling divides by this, not by REQUESTED.
         SPOT_MODE says how TOPAS steps through the spots (issue #88). ``layout`` adds:
-          SPOTS             spots simulated
-          RUNS              what TOPAS's "Run: N" counts (1 in sources mode, SPOTS otherwise)
-          HISTORIES_PER_RUN what "History: N" counts up to; sources mode only, since in
-                            time-feature mode every run has its own length
+          SPOTS                spots simulated
+          RUNS                 what TOPAS's "Run: N" counts (1 in sources mode, SPOTS otherwise)
+          EVENTS_PER_RUN       sources mode only: events in the single run, each holding one
+                               proton from every spot still active. TOPAS's log calls these
+                               "History: N" and its Standard_Deviation is per event.
         """
         lines = [
             f"# Topas input file for field {field.number}",
@@ -54,6 +60,10 @@ class TopasText:
             f"# TOTAL_NUMBER_OF_PARTICLES: {field.n_particles:.0f}",
             f"# TOTAL_MU: {field.cum_mu:.2f}",
             f"# REQUESTED_HISTORIES: {nstat:.0f}",
+        ]
+        if simulated_histories is not None:
+            lines.append(f"# SIMULATED_HISTORIES: {simulated_histories}")
+        lines += [
             f"# PARTICLE_SCALING: {nstat_scale:.2f}",
             "# ",
             f"# SPOT_MODE: {spot_mode}",

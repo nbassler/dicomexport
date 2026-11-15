@@ -157,13 +157,18 @@ def test_header_states_the_spot_layout(tmp_path):
     assert key(files["sources"], "SPOT_MODE") == "sources"
     assert key(files["sources"], "SPOTS") == str(len(weights))
     assert key(files["sources"], "RUNS") == "1"
-    assert key(files["sources"], "HISTORIES_PER_RUN") == str(max(weights))
+    assert key(files["sources"], "SIMULATED_HISTORIES") == str(sum(weights))
+    assert key(files["sources"], "EVENTS_PER_RUN") == str(max(weights))
 
     n_times = re.search(r"i:Tf/NumberOfSequentialTimes\s*=\s*(\d+)", files["timefeature"]).group(1)
     assert key(files["timefeature"], "SPOT_MODE") == "timefeature"
     assert key(files["timefeature"], "SPOTS") == n_times
     assert key(files["timefeature"], "RUNS") == n_times
-    assert key(files["timefeature"], "HISTORIES_PER_RUN") is None
+    # What pregdos computes today from the time feature: sum(Tf/spotWeight).
+    tf_weights = _time_features(files["timefeature"])["spotWeight"]
+    assert key(files["timefeature"], "SIMULATED_HISTORIES") == str(int(sum(tf_weights)))
+    assert key(files["sources"], "SIMULATED_HISTORIES") == key(files["timefeature"], "SIMULATED_HISTORIES")
+    assert key(files["timefeature"], "EVENTS_PER_RUN") is None
 
 
 def test_sources_is_the_default():
