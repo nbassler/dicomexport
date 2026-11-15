@@ -6,7 +6,7 @@ TopasExportOptions; options a parser does not offer keep their defaults.
 """
 import argparse
 
-from dicomexport.topas_export_options import DEFAULTS, NOZZLE_SIDES, TopasExportOptions
+from dicomexport.topas_export_options import DEFAULTS, NOZZLE_SIDES, SPOT_MODES, TopasExportOptions
 from dicomexport.topas_version import TOPAS_VERSION_HELP, parse_topas_version
 
 
@@ -46,6 +46,16 @@ def add_nozzle_side(parser: argparse.ArgumentParser) -> None:
                              "non-patient research setups.")
 
 
+def add_spot_mode(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument('--spot-mode', dest='spot_mode', choices=SPOT_MODES, default=DEFAULTS.spot_mode,
+                        help=f"How TOPAS steps through the spots (default: {DEFAULTS.spot_mode}). "
+                             "sources: one emittance source per spot, so the whole field is one "
+                             "Geant4 run; much faster, because TOPAS merges every scorer after each "
+                             "run. TOPAS's history count is then the event number, up to the largest "
+                             "spot weight, not the number of protons. timefeature: one run per spot, "
+                             "stepping a single source through the spots.")
+
+
 def options_from_args(args: argparse.Namespace) -> TopasExportOptions:
     """Build the export options from parsed flags. Flags the parser does not offer keep their default."""
     nozzle_side = getattr(args, 'nozzle_side', DEFAULTS.nozzle_side)
@@ -55,4 +65,5 @@ def options_from_args(args: argparse.Namespace) -> TopasExportOptions:
         nr_threads=getattr(args, 'nr_threads', DEFAULTS.nr_threads),
         topas_version=getattr(args, 'topas_version', DEFAULTS.topas_version),
         dose_cube_16bit=getattr(args, 'dose_cube_16bit', DEFAULTS.dose_cube_16bit),
+        spot_mode=getattr(args, 'spot_mode', DEFAULTS.spot_mode),
     )

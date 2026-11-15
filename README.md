@@ -85,6 +85,7 @@ $ PYTHONPATH=. python3 dicomexport/main.py --help
 usage: main.py [-h] [-b BM] [-s SPR_TO_MATERIAL_PATH] [-p BEAM_MODEL_POSITION]
                [-f FIELD_NR] [-N NSTAT] [--threads NR_THREADS]
                [--topas-version X.Y] [--dose-cube-16bit]
+               [--spot-mode {sources,timefeature}]
                [--export-fmt {topas,mcpl,racehorse}]
                [--nozzle-side {pos-z,neg-z}] [-v] [-V]
                study_dir [output_base_path]
@@ -115,6 +116,11 @@ options:
                         source as BeamParticle/BeamEnergy/BeamEnergySpread instead of the Emittance* names, which they do not recognise.
   --dose-cube-16bit     Write the TOPAS DICOM dose cube with 16 instead of 32 bits per pixel. Halves the file size, but every voxel below
                         ~1.5e-5 of the field's peak dose is written as 0, which can remove low-level out-of-field dose.
+  --spot-mode {sources,timefeature}
+                        How TOPAS steps through the spots (default: sources). sources: one emittance source per spot, so the whole field
+                        is one Geant4 run; much faster, because TOPAS merges every scorer after each run. TOPAS's history count is then
+                        the event number, up to the largest spot weight, not the number of protons. timefeature: one run per spot,
+                        stepping a single source through the spots.
   --export-fmt {topas,mcpl,racehorse}
                         Export format (default: topas). Formats: topas (*.txt), mcpl (*.mcpl), racehorse (*.csv).
   --nozzle-side {pos-z,neg-z}
@@ -132,6 +138,7 @@ $ PYTHONPATH=. python3 dicomexport/main_plan_export.py --help
 usage: main_plan_export.py [-h] [-b FBM] [-p BEAM_MODEL_POSITION]
                            [-f FIELD_NR] [-d] [-s SCALE] [-N NSTAT]
                            [--threads NR_THREADS] [--topas-version X.Y]
+                           [--spot-mode {sources,timefeature}]
                            [-nc {5,6,7,9,11}]
                            [--export-fmt {topas,mcpl,racehorse,spotlist}]
                            [--spot-pos-iso] [--test-mode]
@@ -160,6 +167,11 @@ options:
   --topas-version X.Y   TOPAS version the input file is written for, as MAJOR.MINOR (default: 4.2). Versions below 4.2 get the emittance
                         source as BeamParticle/BeamEnergy/BeamEnergySpread instead of the Emittance* names, which they do not recognise.
                         Only applies to Topas export.
+  --spot-mode {sources,timefeature}
+                        How TOPAS steps through the spots (default: sources). sources: one emittance source per spot, so the whole field
+                        is one Geant4 run; much faster, because TOPAS merges every scorer after each run. TOPAS's history count is then
+                        the event number, up to the largest spot weight, not the number of protons. timefeature: one run per spot,
+                        stepping a single source through the spots.
   -nc, --spotlist-column-count {5,6,7,9,11}
                         Number of columns in the spotlist export. Valid values: 5, 6, 7, 9, or 11 (default: 11).
   --export-fmt {topas,mcpl,racehorse,spotlist}

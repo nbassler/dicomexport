@@ -34,7 +34,22 @@ WORLD_MARGIN = 500.0
 
 class TopasText:
     @staticmethod
-    def header(field: Field, nstat_scale: float, nstat: int) -> str:
+    def header(field: Field, nstat_scale: float, nstat: int,
+               spot_mode: str = DEFAULTS.spot_mode, simulated_histories: Optional[int] = None,
+               layout: Optional[dict] = None) -> str:
+        """File header. Its "# KEY: value" lines are read by downstream tools (pregdos).
+
+        In the header, a history is always one primary proton:
+          REQUESTED_HISTORIES  what -N asked for
+          SIMULATED_HISTORIES  what TOPAS actually simulates: the sum of the rounded spot
+                               weights. Plan scaling divides by this, not by REQUESTED.
+        SPOT_MODE says how TOPAS steps through the spots (issue #88). ``layout`` adds:
+          SPOTS                spots simulated
+          RUNS                 what TOPAS's "Run: N" counts (1 in sources mode, SPOTS otherwise)
+          EVENTS_PER_RUN       sources mode only: events in the single run, each holding one
+                               proton from every spot still active. TOPAS's log calls these
+                               "History: N" and its Standard_Deviation is per event.
+        """
         lines = [
             f"# Topas input file for field {field.number}",
             '# ' + '-' * 40,
@@ -45,9 +60,17 @@ class TopasText:
             f"# TOTAL_NUMBER_OF_PARTICLES: {field.n_particles:.0f}",
             f"# TOTAL_MU: {field.cum_mu:.2f}",
             f"# REQUESTED_HISTORIES: {nstat:.0f}",
-            f"# PARTICLE_SCALING: {nstat_scale:.2f}",
-            "#\n"
         ]
+        if simulated_histories is not None:
+            lines.append(f"# SIMULATED_HISTORIES: {simulated_histories}")
+        lines += [
+            f"# PARTICLE_SCALING: {nstat_scale:.2f}",
+            "# ",
+            f"# SPOT_MODE: {spot_mode}",
+        ]
+        for key, value in (layout or {}).items():
+            lines.append(f"# {key}: {value}")
+        lines.append("#\n")
         return "\n".join(lines)
 
     @staticmethod
@@ -326,6 +349,23 @@ class TopasText:
         return "\n".join(lines)
 
     @staticmethod
+    def nozzle_transz(beam_model_position: float, beam_direction: int) -> str:
+        """TransZ of the nozzle group, as written: +bmp on the pos-z side, -bmp on neg-z (#66)."""
+        return f"{beam_model_position}" if beam_direction == 1 else f"-{beam_model_position}"
+
+    @staticmethod
+    def source_parameter_prefix(topas_version: TopasVersion = DEFAULTS.topas_version) -> str:
+        """Prefix of the particle, energy and energy spread parameters of an emittance source.
+
+        They are inherited from TsVGenerator. OpenTOPAS 4.2 renamed them for non-beam
+        sources: there BeamParticle/BeamEnergy/BeamEnergySpread still work but warn on every
+        run (issue #65). TOPAS 3.9 to 4.1 only know the Beam* names and abort on the
+        Emittance* ones (issue #95). The parameters the emittance generator reads itself --
+        Distribution, SigmaX/Y, SigmaXprime/Yprime, CorrelationX/Y -- were never renamed.
+        """
+        return "Emittance" if topas_version >= EMITTANCE_PARAMETER_NAMES_SINCE else "Beam"
+
+    @staticmethod
     def geometry_beam_position_timefeature(beam_model_position: float = 500.0,
                                            beam_direction: int = DEFAULTS.beam_direction) -> str:
         # RotY is pre-computed per spot into the BeamPositionRotY time feature.
@@ -337,7 +377,7 @@ class TopasText:
         #     gantry 90 from the patient's left (issue #66).
         #   pos-Z (beam_direction=1):  TransZ=+bmp, RotY=180-angx. Source mirrored to
         #     gantry+180°; only for non-patient research setups.
-        transz = f"{beam_model_position}" if beam_direction == 1 else f"-{beam_model_position}"
+        transz = TopasText.nozzle_transz(beam_model_position, beam_direction)
         lines = [
             "##############################################",
             "###    GEOM.  B E A M   P O S I T I O N    ###",
@@ -443,13 +483,7 @@ class TopasText:
 
     @staticmethod
     def field_beam_timefeature(topas_version: TopasVersion = DEFAULTS.topas_version) -> str:
-        # Particle, energy and energy spread are inherited from TsVGenerator. OpenTOPAS 4.2
-        # renamed them for non-beam sources: there BeamParticle/BeamEnergy/BeamEnergySpread
-        # still work but warn on every run (issue #65). TOPAS 3.9 to 4.1 only know the Beam*
-        # names and abort on the Emittance* ones (issue #95). The parameters the emittance
-        # generator reads itself -- Distribution, SigmaX/Y, SigmaXprime/Yprime,
-        # CorrelationX/Y -- were never renamed.
-        prefix = "Emittance" if topas_version >= EMITTANCE_PARAMETER_NAMES_SINCE else "Beam"
+        prefix = TopasText.source_parameter_prefix(topas_version)
         lines = [
             "##############################################",
             "###               B  E  A  M               ###",

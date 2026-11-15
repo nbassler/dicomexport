@@ -72,6 +72,7 @@ class TestPregdosCLI:
 
         test_args = [
             "-f1",
+            "--spot-mode=timefeature",  # checks the time-feature text (#88)
             "-b=res/beam_models/DCPT_beam_model__v2.csv",
             "res/test_plans/temp_160MeV_10x10.dcm",
         ]
@@ -96,6 +97,7 @@ class TestPregdosCLI:
 
             test_args = [
                 "-f1",
+                "--spot-mode=timefeature",  # checks the time-feature text (#88)
                 "-b=res/beam_models/DCPT_beam_model__v2.csv",
                 f"--nozzle-side={direction}",
                 "res/test_plans/temp_160MeV_10x10.dcm",
@@ -169,6 +171,7 @@ class TestPregdosCLI:
 
         test_args = [
             "-f1",
+            "--spot-mode=timefeature",  # checks the time-feature text (#88)
             "-b=res/beam_models/DCPT_beam_model__v2.csv",
             "--topas-version=3.9",
             "res/test_plans/temp_160MeV_10x10.dcm",
@@ -189,6 +192,7 @@ class TestPregdosCLI:
 
         test_args = [
             "-f1",
+            "--spot-mode=timefeature",  # checks the time-feature text (#88)
             "-b=res/beam_models/DCPT_beam_model__v2.csv",
             "res/test_plans/temp_160MeV_10x10.dcm",
         ]
