@@ -2,9 +2,12 @@ import argparse
 from pathlib import Path
 
 from dicomexport.__version__ import __version__
+from dicomexport.topas_export_options import TopasExportOptions
 
 
 def create_parser():
+    topas_opts = TopasExportOptions()
+
     parser = argparse.ArgumentParser(
         description="Convert DICOM CT and RTSTRUCT files to geometry needed for TOPAS.")
 
@@ -17,7 +20,7 @@ def create_parser():
     parser.add_argument('fout', nargs='?', type=Path, default="geometry.txt",
                         help="Output TOPAS geometry file (default: geometry.txt).")
 
-    parser.add_argument('--threads', type=int, dest='nr_threads', default=0,
+    parser.add_argument('--threads', type=int, dest='nr_threads', default=topas_opts.nr_threads,
                         help="TOPAS Ts/NumberOfThreads (default: 0). 0 uses all cores on the "
                              "machine that RUNS the file, -1 all but one, N exactly N. "
                              "Resolved at run time, not at export time, so it is safe to "

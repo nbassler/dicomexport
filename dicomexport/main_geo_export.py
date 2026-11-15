@@ -6,6 +6,7 @@ from dicomexport.parser_geo_export import create_parser
 from dicomexport.import_ct import load_ct
 from dicomexport.import_rtstruct import load_rs
 from dicomexport.export_geo_topas import export_geo
+from dicomexport.topas_export_options import TopasExportOptions
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,8 @@ def main(args=None) -> int:
         rs = load_rs(parsed_args.rs_file)
 
     # export the geometry file
-    export_geo(ct, rs, parsed_args.fout, nr_threads=parsed_args.nr_threads)
+    topas_opts = TopasExportOptions(nr_threads=parsed_args.nr_threads)
+    export_geo(ct, rs, parsed_args.fout, opts=topas_opts)
 
     return 0
 

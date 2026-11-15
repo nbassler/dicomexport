@@ -471,7 +471,8 @@ class TopasText:
         return "\n".join(lines)
 
     @staticmethod
-    def scorer_setup_dicom(dose_to_water: bool = True, topas_output_path: str = "") -> str:
+    def scorer_setup_dicom(dose_to_water: bool = True, dose_cube_16bit: bool = True,
+                           topas_output_path: str = "") -> str:
         lines = [
             "##############################################",
             "###       S C O R E R    S E T U P         ###",
@@ -491,7 +492,7 @@ class TopasText:
         lines.append('s:Sc/Dose/OutputType                 = "DICOM"')
         lines.append(
             f's:Sc/Dose/OutputFile                 = "{topas_output_path}"')
-        lines.append('b:Sc/Dose/DICOMOutput32BitsPerPixel  = "F"')
+        lines.append(f'b:Sc/Dose/DICOMOutput32BitsPerPixel  = "{"F" if dose_cube_16bit else "T"}"')
         lines.append('\n')
         return "\n".join(lines)
 

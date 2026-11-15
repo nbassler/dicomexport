@@ -2,10 +2,13 @@ import argparse
 from pathlib import Path
 
 from dicomexport.__version__ import __version__
-from dicomexport.topas_version import DEFAULT_TOPAS_VERSION, TOPAS_VERSION_HELP, parse_topas_version
+from dicomexport.topas_export_options import TopasExportOptions
+from dicomexport.topas_version import TOPAS_VERSION_HELP, parse_topas_version
 
 
 def create_parser():
+    topas_opts = TopasExportOptions()
+
     parser = argparse.ArgumentParser(
         description="Convert DICOM-RT Ion plans to MC-compatible spot lists using a beam model."
     )
@@ -30,15 +33,16 @@ def create_parser():
                         help="Print plan diagnostics and exit", default=False)
     parser.add_argument('-s', '--scale', type=float, dest='scale',
                         help="additional scaling multiplier for MC plan", default=1.0)
-    parser.add_argument('-N', '--nstat', type=int, dest='nstat', help="Target protons for simulation", default=int(1e6))
-    parser.add_argument('--threads', type=int, dest='nr_threads', default=0,
+    parser.add_argument('-N', '--nstat', type=int, dest='nstat', help="Target protons for simulation",
+                        default=topas_opts.nstat)
+    parser.add_argument('--threads', type=int, dest='nr_threads', default=topas_opts.nr_threads,
                         help="TOPAS Ts/NumberOfThreads (default: 0). 0 uses all cores on the "
                              "machine that RUNS the file, -1 all but one, N exactly N. "
                              "Resolved at run time, not at export time, so it is safe to "
                              "export on one node and run on another. Only the --test-mode "
                              "Topas export writes a setup block for it to land in.")
     parser.add_argument('--topas-version', type=parse_topas_version, dest='topas_version',
-                        default=DEFAULT_TOPAS_VERSION, metavar='X.Y',
+                        default=topas_opts.topas_version, metavar='X.Y',
                         help=TOPAS_VERSION_HELP + " Only applies to Topas export.")
     parser.add_argument('-nc', '--spotlist-column-count', type=int, dest='spotlist_column_count',
                         choices=[5, 6, 7, 9, 11], default=11,
@@ -70,7 +74,7 @@ def create_parser():
                              "to MCPL export.")
 
     parser.add_argument('--nozzle-side', dest='nozzle_side', choices=['pos-z', 'neg-z'],
-                        default='neg-z',
+                        default='pos-z' if topas_opts.beam_direction == 1 else 'neg-z',
                         help="Which side of the gantry-local Z axis the nozzle sits on (default: neg-z). "
                              "neg-z reproduces IEC 61217: at gantry 0 the beam enters an HFS patient "
                              "from the anterior side (verified against OpenTOPAS 4.2.3, issue #66). "

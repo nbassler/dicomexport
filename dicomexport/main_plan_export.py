@@ -8,6 +8,7 @@ from dicomexport.model_plan import load_range_shifter_catalog
 from dicomexport.export_plan import export_plan
 from dicomexport.export_mcpl import generate_mcpl_file
 from dicomexport.export_spotlist import export_spotlist
+from dicomexport.topas_export_options import TopasExportOptions
 
 logger = logging.getLogger(__name__)
 
@@ -70,25 +71,27 @@ def main(args=None) -> int:
         )
 
     elif parsed_args.export_fmt == 'topas':
-        beam_direction = 1 if parsed_args.nozzle_side == 'pos-z' else -1
-        if beam_direction == 1:
+        topas_opts = TopasExportOptions(
+            nstat=parsed_args.nstat,
+            beam_direction=1 if parsed_args.nozzle_side == 'pos-z' else -1,
+            nr_threads=parsed_args.nr_threads,
+            topas_version=parsed_args.topas_version,
+        )
+        if topas_opts.beam_direction == 1:
             logger.warning(
                 "--nozzle-side pos-z places the beam source at gantry+180 deg, mirroring "
                 "every field (issue #66). Do not use it for patient plans; the IEC-correct "
                 "setting is neg-z (the default).")
-        if parsed_args.nr_threads != 0 and not parsed_args.test_mode:
+        if topas_opts.nr_threads != 0 and not parsed_args.test_mode:
             logger.info(
                 "--threads has no effect without --test-mode: the plan-only Topas export "
                 "writes a fragment with no setup block, so there is no Ts/NumberOfThreads "
                 "line to set. Use the study export (dicomexport) for a complete input file.")
         export_plan(pln, pln.beam_model, parsed_args.fout,
                     field_nr=parsed_args.field_nr,
-                    nstat=parsed_args.nstat,
                     fmt=parsed_args.export_fmt,
                     test_mode=parsed_args.test_mode,
-                    beam_direction=beam_direction,
-                    nr_threads=parsed_args.nr_threads,
-                    topas_version=parsed_args.topas_version)
+                    opts=topas_opts)
 
     elif parsed_args.export_fmt == 'racehorse':
         # TODO

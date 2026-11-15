@@ -207,3 +207,12 @@ class TestPatientDicomDirectory:
 
         assert 's:Ge/Patient/DicomDirectory          = "../dicom"' in text
         assert 's:Ge/Patient/CloneRTDoseGridFrom     = "../dicom/RD.plan.dcm"' in text
+
+
+class TestDoseCubeBits:
+    def test_default_dose_cube_is_16bit(self):
+        assert 'b:Sc/Dose/DICOMOutput32BitsPerPixel  = "F"' in TopasText.scorer_setup_dicom()
+
+    def test_can_switch_dose_cube_to_32bit(self):
+        assert 'b:Sc/Dose/DICOMOutput32BitsPerPixel  = "T"' in TopasText.scorer_setup_dicom(
+            dose_cube_16bit=False)

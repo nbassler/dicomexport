@@ -155,3 +155,16 @@ class TestPregdosCLI:
             content = f.read_text()
             assert f"# REQUESTED_HISTORIES: {nstat_value}" in content, \
                 f"nStat value not found or incorrect in {f}."
+
+    def test_dose_cube_16bit_flag(self):
+        test_args = [
+            "--no-dose-cube-16bit",
+            f"-b={BEAM_MODEL_PATH}",
+            f"-s={SPR_TABLE_PATH}",
+            f"{DICOM_TEST_DIR}",
+        ]
+        assert study.main(test_args) == 0
+
+        for f in _TOPAS_OUTPUT_FILES:
+            assert 'b:Sc/Dose/DICOMOutput32BitsPerPixel  = "T"' in f.read_text(), \
+                f"--no-dose-cube-16bit did not switch to 32-bit output in {f}."

@@ -2,10 +2,13 @@ import argparse
 from pathlib import Path
 
 from dicomexport.__version__ import __version__
-from dicomexport.topas_version import DEFAULT_TOPAS_VERSION, TOPAS_VERSION_HELP, parse_topas_version
+from dicomexport.topas_export_options import TopasExportOptions
+from dicomexport.topas_version import TOPAS_VERSION_HELP, parse_topas_version
 
 
 def create_parser():
+    topas_opts = TopasExportOptions()
+
     parser = argparse.ArgumentParser(
         description="Convert DICOM CT and RTSTRUCT files to geometry needed for TOPAS.")
 
@@ -41,16 +44,21 @@ def create_parser():
                         help="Field number to export. If not specified, all fields will be exported.")
 
     parser.add_argument('-N', '--nstat', type=int, dest='nstat',
-                        help="Target protons for simulation", default=int(1e6))
+                        help="Target protons for simulation", default=topas_opts.nstat)
 
-    parser.add_argument('--threads', type=int, dest='nr_threads', default=0,
+    parser.add_argument('--threads', type=int, dest='nr_threads', default=topas_opts.nr_threads,
                         help="TOPAS Ts/NumberOfThreads (default: 0). 0 uses all cores on the "
                              "machine that RUNS the file, -1 all but one, N exactly N. "
                              "Resolved at run time, not at export time, so it is safe to "
                              "export on one node and run on another.")
 
     parser.add_argument('--topas-version', type=parse_topas_version, dest='topas_version',
-                        default=DEFAULT_TOPAS_VERSION, metavar='X.Y', help=TOPAS_VERSION_HELP)
+                        default=topas_opts.topas_version, metavar='X.Y', help=TOPAS_VERSION_HELP)
+
+    parser.add_argument('--dose-cube-16bit', action=argparse.BooleanOptionalAction,
+                        dest='dose_cube_16bit', default=topas_opts.dose_cube_16bit,
+                        help="Write RTDose as 16-bit DICOM pixels (default: true). "
+                             "Use --no-dose-cube-16bit for 32-bit output.")
 
     parser.add_argument(
         '--export-fmt', dest='export_fmt', choices=['topas', 'mcpl', 'racehorse'], default='topas',
@@ -59,7 +67,7 @@ def create_parser():
     )
 
     parser.add_argument('--nozzle-side', dest='nozzle_side', choices=['pos-z', 'neg-z'],
-                        default='neg-z',
+                        default='pos-z' if topas_opts.beam_direction == 1 else 'neg-z',
                         help="Which side of the gantry-local Z axis the nozzle sits on (default: neg-z). "
                              "neg-z reproduces IEC 61217: at gantry 0 the beam enters an HFS patient "
                              "from the anterior side (verified against OpenTOPAS 4.2.3, issue #66). "

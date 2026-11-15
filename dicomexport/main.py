@@ -11,6 +11,7 @@ from dicomexport.import_rtstruct import load_rs
 from dicomexport.import_plan import load_plan
 from dicomexport.model_plan import load_range_shifter_catalog
 from dicomexport.export_study_topas import export_study_topas
+from dicomexport.topas_export_options import TopasExportOptions
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +69,14 @@ def main(args=None) -> int:
 
     # export the plan file
     if parsed_args.export_fmt == 'topas':
-        beam_direction = 1 if parsed_args.nozzle_side == 'pos-z' else -1
-        if beam_direction == 1:
+        topas_opts = TopasExportOptions(
+            nstat=parsed_args.nstat,
+            beam_direction=1 if parsed_args.nozzle_side == 'pos-z' else -1,
+            nr_threads=parsed_args.nr_threads,
+            topas_version=parsed_args.topas_version,
+            dose_cube_16bit=parsed_args.dose_cube_16bit,
+        )
+        if topas_opts.beam_direction == 1:
             logger.warning(
                 "--nozzle-side pos-z places the beam source at gantry+180 deg, mirroring "
                 "every field (issue #66). Do not use it for patient plans; the IEC-correct "
@@ -78,10 +85,7 @@ def main(args=None) -> int:
                            parsed_args.output_base_path,
                            field_nr=parsed_args.field_nr,
                            dose_path=rd_path,
-                           nstat=parsed_args.nstat,
-                           beam_direction=beam_direction,
-                           nr_threads=parsed_args.nr_threads,
-                           topas_version=parsed_args.topas_version)
+                           opts=topas_opts)
     elif parsed_args.export_fmt == 'mcpl':
         logger.error(
             "MCPL export is not implemented in the study CLI. Use the plan export "

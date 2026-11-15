@@ -4,7 +4,7 @@ import numpy as np
 from dicomexport.model_plan import Field
 from dicomexport.beam_model import BeamModel
 from dicomexport.topas_text import TopasText
-from dicomexport.topas_version import DEFAULT_TOPAS_VERSION, TopasVersion
+from dicomexport.topas_export_options import TopasExportOptions
 
 logger = logging.getLogger(__name__)
 
@@ -12,43 +12,42 @@ logger = logging.getLogger(__name__)
 class TopasPlan:
     @staticmethod
     def generate(myfield: Field, bm: BeamModel,
-                 nstat=100000, test_mode=False, beam_direction: int = 1,
-                 nr_threads: int = 0,
-                 topas_version: TopasVersion = DEFAULT_TOPAS_VERSION) -> str:
+                 test_mode: bool = False,
+                 opts: TopasExportOptions = TopasExportOptions()) -> str:
         """
         Export the field to a topas input file.
         """
         logger.debug(
-            f"Generating Topas input for field {myfield.number} with nstat={nstat}")
+            f"Generating Topas input for field {myfield.number} with nstat={opts.nstat}")
 
         # calculate scaling factor for number of particles
-        nstat_scale = TopasPlan.calculate_scaling_factor(myfield, nstat)
+        nstat_scale = TopasPlan.calculate_scaling_factor(myfield, opts.nstat)
 
         # show some information about the field
-        TopasPlan.show_plan_data(myfield, bm, nstat=nstat)
+        TopasPlan.show_plan_data(myfield, bm, nstat=opts.nstat)
 
         # build output lines instead of writing to file
         lines = []
-        lines.append(TopasText.header(myfield, nstat_scale, nstat))
+        lines.append(TopasText.header(myfield, nstat_scale, opts.nstat))
         lines.append(TopasText.header2())
 
         lines.append(TopasText.variables(myfield))
         if test_mode:
             # No patient in test mode: the world only has to hold the beam line and the IsoBox.
             world_hl = TopasText.world_half_lengths(beam_reach=bm.beam_model_position)
-            lines.append(TopasText.setup(nr_threads=nr_threads))
+            lines.append(TopasText.setup(nr_threads=opts.nr_threads))
             lines.append(TopasText.world_setup(world_hl))
             lines.append(TopasText.geometry_gantry())
             lines.append(TopasText.geometry_couch())
             lines.append(TopasText.geometry_dcm_to_iec())
             lines.append(TopasText.geometry_isocenter_scorer())
         lines.append(TopasText.geometry_beam_position_timefeature(
-            bm.beam_model_position, beam_direction=beam_direction))
-        lines.append(TopasText.geometry_range_shifter(myfield, beam_direction=beam_direction))
-        lines.append(TopasText.field_beam_timefeature(topas_version=topas_version))
+            bm.beam_model_position, beam_direction=opts.beam_direction))
+        lines.append(TopasText.geometry_range_shifter(myfield, beam_direction=opts.beam_direction))
+        lines.append(TopasText.field_beam_timefeature(topas_version=opts.topas_version))
 
         lines.append(TopasPlan.time_features_string(
-            myfield, bm, nstat, beam_direction=beam_direction))
+            myfield, bm, opts.nstat, beam_direction=opts.beam_direction))
 
         topas_text = "".join(lines)
         return topas_text

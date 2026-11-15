@@ -111,8 +111,20 @@ def test_beam_enters_from_expected_side(tmp_path, nozzle_side, entrance):
 
 def test_default_matches_verified_neg_z():
     """The parser default must stay on the empirically verified IEC-correct side."""
+    from dicomexport.parser_geo_export import create_parser as geo_parser
     from dicomexport.parser_main import create_parser as main_parser
     from dicomexport.parser_plan_export import create_parser as plan_parser
+    from dicomexport.topas_export_options import TopasExportOptions
 
-    assert main_parser().get_default("nozzle_side") == "neg-z"
-    assert plan_parser().get_default("nozzle_side") == "neg-z"
+    opts = TopasExportOptions()
+
+    assert main_parser().get_default("nozzle_side") == ("pos-z" if opts.beam_direction == 1 else "neg-z")
+    assert plan_parser().get_default("nozzle_side") == ("pos-z" if opts.beam_direction == 1 else "neg-z")
+    assert main_parser().get_default("nstat") == opts.nstat
+    assert plan_parser().get_default("nstat") == opts.nstat
+    assert main_parser().get_default("nr_threads") == opts.nr_threads
+    assert plan_parser().get_default("nr_threads") == opts.nr_threads
+    assert geo_parser().get_default("nr_threads") == opts.nr_threads
+    assert main_parser().get_default("topas_version") == opts.topas_version
+    assert plan_parser().get_default("topas_version") == opts.topas_version
+    assert main_parser().get_default("dose_cube_16bit") == opts.dose_cube_16bit
