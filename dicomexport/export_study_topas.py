@@ -8,6 +8,7 @@ from dicomexport.beam_model import BeamModel
 from dicomexport.topas_text import TopasText
 from dicomexport.model_plan import Plan, Field
 from dicomexport.export_plan_topas import TopasPlan
+from dicomexport.topas_version import DEFAULT_TOPAS_VERSION, TopasVersion
 
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,8 @@ logger = logging.getLogger(__name__)
 
 def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: Path,
                        field_nr: int = 0, dose_path: Optional[Path] = None, nstat: int = int(1e6),
-                       beam_direction: int = 1, nr_threads: int = 0) -> None:
+                       beam_direction: int = 1, nr_threads: int = 0,
+                       topas_version: TopasVersion = DEFAULT_TOPAS_VERSION) -> None:
     """
     Export the CT and RTStruct models to a Topas-compatible geometry file.
     """
@@ -32,20 +34,23 @@ def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: 
             logger.info("=" * 50)
             _export_study_field_topas(
                 ct, rs, field, plan.beam_model, output_base_path, dose_path, nstat=nstat,
-                beam_direction=beam_direction, nr_threads=nr_threads)
+                beam_direction=beam_direction, nr_threads=nr_threads,
+                topas_version=topas_version)
             logger.info("-" * 50 + "\n")
     else:
         # Export a single field
         field = plan.fields[field_nr]
         _export_study_field_topas(
             ct, rs, field, plan.beam_model, output_base_path, dose_path, nstat=nstat,
-            beam_direction=beam_direction, nr_threads=nr_threads)
+            beam_direction=beam_direction, nr_threads=nr_threads,
+            topas_version=topas_version)
 
 
 def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optional[BeamModel] = None,
                               output_base_path: Optional[Path] = None,
                               dose_path: Optional[Path] = None, nstat: int = int(1e6),
-                              beam_direction: int = 1, nr_threads: int = 0) -> None:
+                              beam_direction: int = 1, nr_threads: int = 0,
+                              topas_version: TopasVersion = DEFAULT_TOPAS_VERSION) -> None:
     """
     Export a single field to a Topas-compatible geometry file.
     """
@@ -83,7 +88,7 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
         lines.append(TopasText.geometry_beam_position_timefeature(0.0, beam_direction=beam_direction))
 
     lines.append(TopasText.geometry_range_shifter(fld, beam_direction=beam_direction))
-    lines.append(TopasText.field_beam_timefeature())
+    lines.append(TopasText.field_beam_timefeature(topas_version=topas_version))
     lines.append(TopasText.scorer_setup_dicom(
         topas_output_path=str(topas_output_file_str_no_suffix)))
 

@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 from dicomexport.__version__ import __version__
+from dicomexport.topas_version import DEFAULT_TOPAS_VERSION, TOPAS_VERSION_HELP, parse_topas_version
 
 
 def create_parser():
@@ -47,6 +48,9 @@ def create_parser():
                              "machine that RUNS the file, -1 all but one, N exactly N. "
                              "Resolved at run time, not at export time, so it is safe to "
                              "export on one node and run on another.")
+
+    parser.add_argument('--topas-version', type=parse_topas_version, dest='topas_version',
+                        default=DEFAULT_TOPAS_VERSION, metavar='X.Y', help=TOPAS_VERSION_HELP)
 
     parser.add_argument(
         '--export-fmt', dest='export_fmt', choices=['topas', 'mcpl', 'racehorse'], default='topas',
