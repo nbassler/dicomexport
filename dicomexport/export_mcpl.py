@@ -93,8 +93,9 @@ def generate_mcpl_file(
         beam_model (BeamModel): The beam model used for particle simulation.
         output_path (str): The base path for the output MCPL file. The suffix will
             be enforced as ".mcpl".
-        field_list (list[int] | None, optional): A list of field indices to process.
-            If None, all fields in the plan will be processed. Defaults to None.
+        field_list (list[int] | None, optional): DICOM BeamNumbers of the fields to
+            process (issue #96). If None, all fields in the plan will be processed.
+            Defaults to None.
         num_primaries (int, optional): The total number of primary particles to
             generate. Defaults to 10 million (1e7).
         buffer_size (int, optional): The buffer size for writing particles to the
@@ -131,7 +132,7 @@ def generate_mcpl_file(
     else:
         logger.info("MCPL frame: iec -- beam travels toward -Z (source at +D), isocenter at origin.")
 
-    fields = plan.fields if field_list is None else [plan.fields[i - 1] for i in field_list]
+    fields = plan.select_fields(field_list)
 
     # enforce suffix once
     suffix = Path(output_path).suffix
@@ -140,13 +141,13 @@ def generate_mcpl_file(
         suffix = ".mcpl"
     base = Path(output_path).with_suffix(suffix)
 
-    for i, field in enumerate(fields, start=1):
-        logger.info("Processing field %02d: '%s'", i, field.name)
+    for field in fields:
+        logger.info('Exporting %s = BeamNumber %d "%s"', field.label, field.number, field.name)
 
         sampler = _prepare_field_sampler(field, beam_model)
         cache = _prewarm_beam_cache(sampler, beam_model)
 
-        output_path_field = base.with_name(f"{base.stem}_field{field.number:02}{base.suffix}")
+        output_path_field = base.with_name(f"{base.stem}_{field.label}{base.suffix}")
         logger.info("Writing MCPL file: %s", output_path_field)
 
         with open(output_path_field, "wb") as f:

@@ -44,7 +44,7 @@ else:
 with st.expander("Advanced options"):
     output_base = st.text_input("Output filename", value="topas.txt")
     bm_position = st.number_input("Beam model position (mm)", value=500.0)
-    field_nr = st.number_input("Field number (0 = all)", value=0, step=1)
+    field_nr = st.number_input("Field BeamNumber (0 = all)", value=0, step=1)
     nstat = st.number_input("Target protons (nstat)", value=1_000_000, step=100_000)
 
 if st.button("Run export", type="primary"):

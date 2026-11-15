@@ -62,6 +62,15 @@ def main(args=None) -> int:
     rs_catalog = (load_range_shifter_catalog(parsed_args.rs_catalog_path)
                   if parsed_args.rs_catalog_path else None)
     pn = load_plan(study_dir, rs_catalog=rs_catalog)
+
+    # -f is a DICOM BeamNumber (issue #96). Check it before exporting anything.
+    if parsed_args.field_nr:
+        try:
+            pn.select_fields([parsed_args.field_nr])
+        except ValueError as e:
+            logger.error("-f %d: %s", parsed_args.field_nr, e)
+            return 2
+
     pn.beam_model = bm
     pn.apply_beammodel()
 

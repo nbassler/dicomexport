@@ -38,6 +38,8 @@ class TopasText:
         lines = [
             f"# Topas input file for field {field.number}",
             '# ' + '-' * 40,
+            f"# BEAM_NUMBER: {field.number}",
+            f"# BEAM_NAME: {field.name}",
             f"# SOP_INSTANCE_UID {field.sop_instance_uid}",
             "# ",
             f"# TOTAL_NUMBER_OF_PARTICLES: {field.n_particles:.0f}",

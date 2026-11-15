@@ -45,6 +45,9 @@ def load_plan_pld(file_pld: Path, scaling=1.0) -> Plan:
     current_plan.patient_firstname = tokens[4].strip()
     current_plan.plan_label = tokens[5].strip()
     current_plan.beam_name = tokens[6].strip()
+    # A PLD file holds a single field and carries no beam number (issue #96).
+    myfield.number = 1
+    myfield.name = current_plan.beam_name
     # total amount of MUs in this field
     myfield.cum_mu = float(tokens[7].strip())
     myfield.pld_csetweight = float(tokens[8].strip())

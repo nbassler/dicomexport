@@ -21,24 +21,14 @@ def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: 
     Export the CT and RTStruct models to a Topas-compatible geometry file.
     """
 
-    if field_nr < 0 or field_nr >= len(plan.fields):
-        raise ValueError(
-            f"Invalid field number: {field_nr}. Must be between 0 and {len(plan.fields) - 1}.")
-    if field_nr == 0:
-        # Export all fields
-        for field in plan.fields:
-            logger.info("=" * 50)
-            logger.info(
-                f"Exporting field {field.number} to Topas geometry file...")
-            logger.info("=" * 50)
-            _export_study_field_topas(
-                ct, rs, field, plan.beam_model, output_base_path, dose_path, opts=opts)
-            logger.info("-" * 50 + "\n")
-    else:
-        # Export a single field
-        field = plan.fields[field_nr]
+    # field_nr is a DICOM BeamNumber; 0 exports every field (issue #96).
+    for field in plan.select_fields([field_nr] if field_nr else None):
+        logger.info("=" * 50)
+        logger.info(f'Exporting {field.label} = BeamNumber {field.number} "{field.name}"')
+        logger.info("=" * 50)
         _export_study_field_topas(
             ct, rs, field, plan.beam_model, output_base_path, dose_path, opts=opts)
+        logger.info("-" * 50 + "\n")
 
 
 def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optional[BeamModel] = None,
@@ -53,12 +43,12 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     world_hl = TopasText.world_half_lengths(ct, isocenter, beam_reach)
     logger.info("World half-lengths [cm]:      "
                 f"({world_hl[0] / 10:.1f}, {world_hl[1] / 10:.1f}, {world_hl[2] / 10:.1f})")
-    # topas results will be written to output/field_number (no extension, will be handled by Topas
-    # make target string for output file:
-    if output_base_path:
-        topas_output_file_str_no_suffix = Path(f"{output_base_path.stem}_field{fld.number}")
-    else:
-        topas_output_file_str_no_suffix = Path(f"foobar_field{fld.number}")
+    # The input file and the dose cube TOPAS writes share one name: topas_field03.txt writes
+    # topas_field03.dcm (issue #96). The dose path has no directory and no suffix: TOPAS adds
+    # the suffix and writes it where it runs.
+    if output_base_path is None:
+        output_base_path = Path("topas.txt")
+    stem = f"{output_base_path.stem}_{fld.label}"
 
     nstat_scale = TopasPlan.calculate_scaling_factor(fld, opts.nstat)
 
@@ -84,7 +74,7 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     lines.append(TopasText.geometry_range_shifter(fld, beam_direction=opts.beam_direction))
     lines.append(TopasText.field_beam_timefeature(topas_version=opts.topas_version))
     lines.append(TopasText.scorer_setup_dicom(
-        topas_output_path=str(topas_output_file_str_no_suffix),
+        topas_output_path=stem,
         dose_cube_16bit=opts.dose_cube_16bit))
 
     # For now, if no beam model is provided, spots and info are not shown.
@@ -103,11 +93,7 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
         logger.warning(
             "No beam model provided. Limited conversion, TODO: fix this in the future.")
 
-    if output_base_path is None:
-        output_base_path = Path(f"topas_geometry_field{fld.number}")
-
-    output_path = output_base_path.with_name(
-        f"{output_base_path.stem}_field{fld.number:02d}.txt")
+    output_path = output_base_path.with_name(f"{stem}.txt")
     output_path.write_text(topas_string)
     logger.info(
         f"Wrote Topas geometry file for field {fld.number}: {output_path.resolve()}")
