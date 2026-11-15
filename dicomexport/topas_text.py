@@ -8,8 +8,8 @@ from typing import Optional, Tuple
 from dicomexport.model_plan import Field
 from dicomexport.model_ct import CTModel
 from dicomexport.model_rtstruct import RTStruct
-from dicomexport.topas_version import (DEFAULT_TOPAS_VERSION, EMITTANCE_PARAMETER_NAMES_SINCE,
-                                       TopasVersion)
+from dicomexport.topas_export_options import DEFAULTS
+from dicomexport.topas_version import EMITTANCE_PARAMETER_NAMES_SINCE, TopasVersion
 from dicomexport.__version__ import __version__
 
 logger = logging.getLogger(__name__)
@@ -108,7 +108,7 @@ class TopasText:
         return "\n".join(lines)
 
     @staticmethod
-    def setup(show_history_interval: int = 100000, nr_threads: int = 0) -> str:
+    def setup(show_history_interval: int = 100000, nr_threads: int = DEFAULTS.nr_threads) -> str:
         """
         Generate the TOPAS setup section.
 
@@ -325,7 +325,7 @@ class TopasText:
 
     @staticmethod
     def geometry_beam_position_timefeature(beam_model_position: float = 500.0,
-                                           beam_direction: int = 1) -> str:
+                                           beam_direction: int = DEFAULTS.beam_direction) -> str:
         # RotY is pre-computed per spot into the BeamPositionRotY time feature.
         # TOPAS rotation parameters are passive (TsVGeometryComponent composes
         # fRotRelToWorld = R_child * R_parent and the local->world map uses the inverse),
@@ -353,7 +353,7 @@ class TopasText:
         return "\n".join(lines)
 
     @staticmethod
-    def geometry_range_shifter(myfield: Field, beam_direction: int = 1) -> str:
+    def geometry_range_shifter(myfield: Field, beam_direction: int = DEFAULTS.beam_direction) -> str:
         if myfield.range_shifter is None:
             return ""
 
@@ -440,7 +440,7 @@ class TopasText:
         return "\n".join(lines)
 
     @staticmethod
-    def field_beam_timefeature(topas_version: TopasVersion = DEFAULT_TOPAS_VERSION) -> str:
+    def field_beam_timefeature(topas_version: TopasVersion = DEFAULTS.topas_version) -> str:
         # Particle, energy and energy spread are inherited from TsVGenerator. OpenTOPAS 4.2
         # renamed them for non-beam sources: there BeamParticle/BeamEnergy/BeamEnergySpread
         # still work but warn on every run (issue #65). TOPAS 3.9 to 4.1 only know the Beam*
@@ -472,7 +472,7 @@ class TopasText:
 
     @staticmethod
     def scorer_setup_dicom(dose_to_water: bool = True, topas_output_path: str = "",
-                           dose_cube_16bit: bool = False) -> str:
+                           dose_cube_16bit: bool = DEFAULTS.dose_cube_16bit) -> str:
         """DICOM dose scorer on the RTDOSE grid.
 
         dose_cube_16bit: write the cube with 16 instead of 32 bits per pixel. TOPAS scales

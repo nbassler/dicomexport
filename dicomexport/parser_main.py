@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 
 from dicomexport.__version__ import __version__
-from dicomexport.topas_version import DEFAULT_TOPAS_VERSION, TOPAS_VERSION_HELP, parse_topas_version
+from dicomexport.parser_topas_options import add_dose_cube_16bit, add_nozzle_side, add_nstat, add_threads, add_topas_version
 
 
 def create_parser():
@@ -40,22 +40,13 @@ def create_parser():
     parser.add_argument('-f', '--field', type=int, dest='field_nr', default=0,
                         help="Field number to export. If not specified, all fields will be exported.")
 
-    parser.add_argument('-N', '--nstat', type=int, dest='nstat',
-                        help="Target protons for simulation", default=int(1e6))
+    add_nstat(parser)
 
-    parser.add_argument('--threads', type=int, dest='nr_threads', default=0,
-                        help="TOPAS Ts/NumberOfThreads (default: 0). 0 uses all cores on the "
-                             "machine that RUNS the file, -1 all but one, N exactly N. "
-                             "Resolved at run time, not at export time, so it is safe to "
-                             "export on one node and run on another.")
+    add_threads(parser)
 
-    parser.add_argument('--topas-version', type=parse_topas_version, dest='topas_version',
-                        default=DEFAULT_TOPAS_VERSION, metavar='X.Y', help=TOPAS_VERSION_HELP)
+    add_topas_version(parser)
 
-    parser.add_argument('--dose-cube-16bit', action='store_true', dest='dose_cube_16bit', default=False,
-                        help="Write the TOPAS DICOM dose cube with 16 instead of 32 bits per pixel. "
-                             "Halves the file size, but every voxel below ~1.5e-5 of the field's "
-                             "peak dose is written as 0, which can remove low-level out-of-field dose.")
+    add_dose_cube_16bit(parser)
 
     parser.add_argument(
         '--export-fmt', dest='export_fmt', choices=['topas', 'mcpl', 'racehorse'], default='topas',
@@ -63,13 +54,7 @@ def create_parser():
               "Formats: topas (*.txt), mcpl (*.mcpl), racehorse (*.csv).")
     )
 
-    parser.add_argument('--nozzle-side', dest='nozzle_side', choices=['pos-z', 'neg-z'],
-                        default='neg-z',
-                        help="Which side of the gantry-local Z axis the nozzle sits on (default: neg-z). "
-                             "neg-z reproduces IEC 61217: at gantry 0 the beam enters an HFS patient "
-                             "from the anterior side (verified against OpenTOPAS 4.2.3, issue #66). "
-                             "pos-z mirrors the source to gantry+180 deg and is only meant for "
-                             "non-patient research setups.")
+    add_nozzle_side(parser)
 
     parser.add_argument('-v', '--verbosity', action='count', default=0,
                         help="Increase verbosity (can use -v, -vv, etc.).")

@@ -8,6 +8,7 @@ from dicomexport.model_plan import load_range_shifter_catalog
 from dicomexport.export_plan import export_plan
 from dicomexport.export_mcpl import generate_mcpl_file
 from dicomexport.export_spotlist import export_spotlist
+from dicomexport.parser_topas_options import options_from_args
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +71,8 @@ def main(args=None) -> int:
         )
 
     elif parsed_args.export_fmt == 'topas':
-        beam_direction = 1 if parsed_args.nozzle_side == 'pos-z' else -1
-        if beam_direction == 1:
+        opts = options_from_args(parsed_args)
+        if opts.beam_direction == 1:
             logger.warning(
                 "--nozzle-side pos-z places the beam source at gantry+180 deg, mirroring "
                 "every field (issue #66). Do not use it for patient plans; the IEC-correct "
@@ -83,12 +84,9 @@ def main(args=None) -> int:
                 "line to set. Use the study export (dicomexport) for a complete input file.")
         export_plan(pln, pln.beam_model, parsed_args.fout,
                     field_nr=parsed_args.field_nr,
-                    nstat=parsed_args.nstat,
                     fmt=parsed_args.export_fmt,
                     test_mode=parsed_args.test_mode,
-                    beam_direction=beam_direction,
-                    nr_threads=parsed_args.nr_threads,
-                    topas_version=parsed_args.topas_version)
+                    opts=opts)
 
     elif parsed_args.export_fmt == 'racehorse':
         # TODO

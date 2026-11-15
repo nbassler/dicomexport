@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 
 from dicomexport.__version__ import __version__
-from dicomexport.topas_version import DEFAULT_TOPAS_VERSION, TOPAS_VERSION_HELP, parse_topas_version
+from dicomexport.parser_topas_options import add_nozzle_side, add_nstat, add_threads, add_topas_version
 
 
 def create_parser():
@@ -30,16 +30,9 @@ def create_parser():
                         help="Print plan diagnostics and exit", default=False)
     parser.add_argument('-s', '--scale', type=float, dest='scale',
                         help="additional scaling multiplier for MC plan", default=1.0)
-    parser.add_argument('-N', '--nstat', type=int, dest='nstat', help="Target protons for simulation", default=int(1e6))
-    parser.add_argument('--threads', type=int, dest='nr_threads', default=0,
-                        help="TOPAS Ts/NumberOfThreads (default: 0). 0 uses all cores on the "
-                             "machine that RUNS the file, -1 all but one, N exactly N. "
-                             "Resolved at run time, not at export time, so it is safe to "
-                             "export on one node and run on another. Only the --test-mode "
-                             "Topas export writes a setup block for it to land in.")
-    parser.add_argument('--topas-version', type=parse_topas_version, dest='topas_version',
-                        default=DEFAULT_TOPAS_VERSION, metavar='X.Y',
-                        help=TOPAS_VERSION_HELP + " Only applies to Topas export.")
+    add_nstat(parser)
+    add_threads(parser, note=" Only the --test-mode Topas export writes a setup block for it to land in.")
+    add_topas_version(parser, note=" Only applies to Topas export.")
     parser.add_argument('-nc', '--spotlist-column-count', type=int, dest='spotlist_column_count',
                         choices=[5, 6, 7, 9, 11], default=11,
                         help="Number of columns in the spotlist export. Valid values: 5, 6, 7, 9, or 11 (default: 11).")
@@ -69,13 +62,7 @@ def create_parser():
                              "rotx180 for downstream codes that expect a +Z-forward beam. Only applies "
                              "to MCPL export.")
 
-    parser.add_argument('--nozzle-side', dest='nozzle_side', choices=['pos-z', 'neg-z'],
-                        default='neg-z',
-                        help="Which side of the gantry-local Z axis the nozzle sits on (default: neg-z). "
-                             "neg-z reproduces IEC 61217: at gantry 0 the beam enters an HFS patient "
-                             "from the anterior side (verified against OpenTOPAS 4.2.3, issue #66). "
-                             "pos-z mirrors the source to gantry+180 deg and is only meant for "
-                             "non-patient research setups.")
+    add_nozzle_side(parser)
 
     parser.add_argument('-v', '--verbosity', action='count', help="Increase verbosity", default=0)
     parser.add_argument('-V', '--version', action='version', version=__version__)
