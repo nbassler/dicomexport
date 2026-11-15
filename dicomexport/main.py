@@ -81,7 +81,8 @@ def main(args=None) -> int:
                            nstat=parsed_args.nstat,
                            beam_direction=beam_direction,
                            nr_threads=parsed_args.nr_threads,
-                           topas_version=parsed_args.topas_version)
+                           topas_version=parsed_args.topas_version,
+                           dose_cube_16bit=parsed_args.dose_cube_16bit)
     elif parsed_args.export_fmt == 'mcpl':
         logger.error(
             "MCPL export is not implemented in the study CLI. Use the plan export "

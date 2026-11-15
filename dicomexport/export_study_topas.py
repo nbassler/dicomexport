@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)
 def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: Path,
                        field_nr: int = 0, dose_path: Optional[Path] = None, nstat: int = int(1e6),
                        beam_direction: int = 1, nr_threads: int = 0,
-                       topas_version: TopasVersion = DEFAULT_TOPAS_VERSION) -> None:
+                       topas_version: TopasVersion = DEFAULT_TOPAS_VERSION,
+                       dose_cube_16bit: bool = False) -> None:
     """
     Export the CT and RTStruct models to a Topas-compatible geometry file.
     """
@@ -35,7 +36,7 @@ def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: 
             _export_study_field_topas(
                 ct, rs, field, plan.beam_model, output_base_path, dose_path, nstat=nstat,
                 beam_direction=beam_direction, nr_threads=nr_threads,
-                topas_version=topas_version)
+                topas_version=topas_version, dose_cube_16bit=dose_cube_16bit)
             logger.info("-" * 50 + "\n")
     else:
         # Export a single field
@@ -43,14 +44,15 @@ def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: 
         _export_study_field_topas(
             ct, rs, field, plan.beam_model, output_base_path, dose_path, nstat=nstat,
             beam_direction=beam_direction, nr_threads=nr_threads,
-            topas_version=topas_version)
+            topas_version=topas_version, dose_cube_16bit=dose_cube_16bit)
 
 
 def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optional[BeamModel] = None,
                               output_base_path: Optional[Path] = None,
                               dose_path: Optional[Path] = None, nstat: int = int(1e6),
                               beam_direction: int = 1, nr_threads: int = 0,
-                              topas_version: TopasVersion = DEFAULT_TOPAS_VERSION) -> None:
+                              topas_version: TopasVersion = DEFAULT_TOPAS_VERSION,
+                              dose_cube_16bit: bool = False) -> None:
     """
     Export a single field to a Topas-compatible geometry file.
     """
@@ -90,7 +92,8 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     lines.append(TopasText.geometry_range_shifter(fld, beam_direction=beam_direction))
     lines.append(TopasText.field_beam_timefeature(topas_version=topas_version))
     lines.append(TopasText.scorer_setup_dicom(
-        topas_output_path=str(topas_output_file_str_no_suffix)))
+        topas_output_path=str(topas_output_file_str_no_suffix),
+        dose_cube_16bit=dose_cube_16bit))
 
     # For now, if no beam model is provided, spots and info are not shown.
     # This should be revisited in the future.

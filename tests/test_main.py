@@ -139,6 +139,20 @@ class TestPregdosCLI:
             assert particle_line in f.read_text(), \
                 f"--topas-version={version} did not select the right source names in {f}."
 
+    @pytest.mark.parametrize("extra_args, flag", [([], "T"), (["--dose-cube-16bit"], "F")])
+    def test_dose_cube_bit_depth(self, extra_args, flag):
+        """The dose cube is 32-bit unless --dose-cube-16bit is given, in every field file (#111)."""
+        test_args = extra_args + [
+            f"-b={BEAM_MODEL_PATH}",
+            f"-s={SPR_TABLE_PATH}",
+            f"{DICOM_TEST_DIR}",
+        ]
+        assert study.main(test_args) == 0
+
+        for f in _TOPAS_OUTPUT_FILES:
+            assert f'b:Sc/Dose/DICOMOutput32BitsPerPixel  = "{flag}"' in f.read_text(), \
+                f"wrong dose cube bit depth in {f} for args {extra_args}."
+
     def test_nstat_parameter(self):
         nstat_value = int(2e6)
         test_args = [

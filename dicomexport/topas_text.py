@@ -471,7 +471,16 @@ class TopasText:
         return "\n".join(lines)
 
     @staticmethod
-    def scorer_setup_dicom(dose_to_water: bool = True, topas_output_path: str = "") -> str:
+    def scorer_setup_dicom(dose_to_water: bool = True, topas_output_path: str = "",
+                           dose_cube_16bit: bool = False) -> str:
+        """DICOM dose scorer on the RTDOSE grid.
+
+        dose_cube_16bit: write the cube with 16 instead of 32 bits per pixel. TOPAS scales
+            the field's peak to the largest stored value and truncates on the cast
+            (TsVBinnedScorer.cc), so at 16 bits every voxel below ~1.5e-5 of the peak is
+            written as 0 and the out-of-field dose is lost. 32 bits only doubles the file
+            size (issue #111).
+        """
         lines = [
             "##############################################",
             "###       S C O R E R    S E T U P         ###",
@@ -491,7 +500,8 @@ class TopasText:
         lines.append('s:Sc/Dose/OutputType                 = "DICOM"')
         lines.append(
             f's:Sc/Dose/OutputFile                 = "{topas_output_path}"')
-        lines.append('b:Sc/Dose/DICOMOutput32BitsPerPixel  = "F"')
+        bits32 = "F" if dose_cube_16bit else "T"
+        lines.append(f'b:Sc/Dose/DICOMOutput32BitsPerPixel  = "{bits32}"')
         lines.append('\n')
         return "\n".join(lines)
 
