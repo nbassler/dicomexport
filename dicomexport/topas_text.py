@@ -326,6 +326,23 @@ class TopasText:
         return "\n".join(lines)
 
     @staticmethod
+    def nozzle_transz(beam_model_position: float, beam_direction: int) -> str:
+        """TransZ of the nozzle group, as written: +bmp on the pos-z side, -bmp on neg-z (#66)."""
+        return f"{beam_model_position}" if beam_direction == 1 else f"-{beam_model_position}"
+
+    @staticmethod
+    def source_parameter_prefix(topas_version: TopasVersion = DEFAULTS.topas_version) -> str:
+        """Prefix of the particle, energy and energy spread parameters of an emittance source.
+
+        They are inherited from TsVGenerator. OpenTOPAS 4.2 renamed them for non-beam
+        sources: there BeamParticle/BeamEnergy/BeamEnergySpread still work but warn on every
+        run (issue #65). TOPAS 3.9 to 4.1 only know the Beam* names and abort on the
+        Emittance* ones (issue #95). The parameters the emittance generator reads itself --
+        Distribution, SigmaX/Y, SigmaXprime/Yprime, CorrelationX/Y -- were never renamed.
+        """
+        return "Emittance" if topas_version >= EMITTANCE_PARAMETER_NAMES_SINCE else "Beam"
+
+    @staticmethod
     def geometry_beam_position_timefeature(beam_model_position: float = 500.0,
                                            beam_direction: int = DEFAULTS.beam_direction) -> str:
         # RotY is pre-computed per spot into the BeamPositionRotY time feature.
@@ -337,7 +354,7 @@ class TopasText:
         #     gantry 90 from the patient's left (issue #66).
         #   pos-Z (beam_direction=1):  TransZ=+bmp, RotY=180-angx. Source mirrored to
         #     gantry+180°; only for non-patient research setups.
-        transz = f"{beam_model_position}" if beam_direction == 1 else f"-{beam_model_position}"
+        transz = TopasText.nozzle_transz(beam_model_position, beam_direction)
         lines = [
             "##############################################",
             "###    GEOM.  B E A M   P O S I T I O N    ###",
@@ -443,13 +460,7 @@ class TopasText:
 
     @staticmethod
     def field_beam_timefeature(topas_version: TopasVersion = DEFAULTS.topas_version) -> str:
-        # Particle, energy and energy spread are inherited from TsVGenerator. OpenTOPAS 4.2
-        # renamed them for non-beam sources: there BeamParticle/BeamEnergy/BeamEnergySpread
-        # still work but warn on every run (issue #65). TOPAS 3.9 to 4.1 only know the Beam*
-        # names and abort on the Emittance* ones (issue #95). The parameters the emittance
-        # generator reads itself -- Distribution, SigmaX/Y, SigmaXprime/Yprime,
-        # CorrelationX/Y -- were never renamed.
-        prefix = "Emittance" if topas_version >= EMITTANCE_PARAMETER_NAMES_SINCE else "Beam"
+        prefix = TopasText.source_parameter_prefix(topas_version)
         lines = [
             "##############################################",
             "###               B  E  A  M               ###",

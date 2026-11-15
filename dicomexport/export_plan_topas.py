@@ -1,4 +1,6 @@
 import logging
+from dataclasses import dataclass
+
 import numpy as np
 
 from dicomexport.model_plan import Field
@@ -7,6 +9,30 @@ from dicomexport.topas_text import TopasText
 from dicomexport.topas_export_options import DEFAULTS, TopasExportOptions
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class SpotTable:
+    """Per-spot TOPAS beam parameters, one array element per spot in delivery order."""
+    layer: np.ndarray    # 1-based energy layer number
+    energy: np.ndarray   # MeV, at the beam model position
+    espread: np.ndarray  # relative energy spread [%]
+    posx: np.ndarray     # mm, at the beam model plane
+    angx: np.ndarray     # deg
+    posy: np.ndarray     # mm
+    angy: np.ndarray     # deg
+    roty: np.ndarray     # deg, RotY of the nozzle group (includes the nozzle side)
+    sigx: np.ndarray     # mm
+    sigy: np.ndarray     # mm
+    sigxp: np.ndarray    # rad
+    sigyp: np.ndarray    # rad
+    corx: np.ndarray
+    cory: np.ndarray
+    weight: np.ndarray   # primaries to simulate, scaled to nstat; not yet rounded
+
+    @property
+    def n_spots(self) -> int:
+        return int(self.weight.size)
 
 
 class TopasPlan:
@@ -34,32 +60,49 @@ class TopasPlan:
         if test_mode:
             # No patient in test mode: the world only has to hold the beam line and the IsoBox.
             world_hl = TopasText.world_half_lengths(beam_reach=bm.beam_model_position)
-            lines.append(TopasText.setup(nr_threads=opts.nr_threads))
+            lines.append(TopasText.setup(nr_threads=opts.nr_threads,
+                                         **TopasPlan._setup_kwargs(myfield, bm, opts)))
             lines.append(TopasText.world_setup(world_hl))
             lines.append(TopasText.geometry_gantry())
             lines.append(TopasText.geometry_couch())
             lines.append(TopasText.geometry_dcm_to_iec())
             lines.append(TopasText.geometry_isocenter_scorer())
-        lines.append(TopasText.geometry_beam_position_timefeature(
-            bm.beam_model_position, beam_direction=opts.beam_direction))
-        lines.append(TopasText.geometry_range_shifter(myfield, beam_direction=opts.beam_direction))
-        lines.append(TopasText.field_beam_timefeature(topas_version=opts.topas_version))
+        if opts.spot_mode == "sources":
+            lines.append(TopasText.geometry_range_shifter(myfield, beam_direction=opts.beam_direction))
+            lines.append(TopasPlan.sources_string(
+                myfield, bm, opts.nstat, beam_direction=opts.beam_direction,
+                topas_version=opts.topas_version))
+        else:
+            lines.append(TopasText.geometry_beam_position_timefeature(
+                bm.beam_model_position, beam_direction=opts.beam_direction))
+            lines.append(TopasText.geometry_range_shifter(myfield, beam_direction=opts.beam_direction))
+            lines.append(TopasText.field_beam_timefeature(topas_version=opts.topas_version))
 
-        lines.append(TopasPlan.time_features_string(
-            myfield, bm, opts.nstat, beam_direction=opts.beam_direction))
+            lines.append(TopasPlan.time_features_string(
+                myfield, bm, opts.nstat, beam_direction=opts.beam_direction))
 
         topas_text = "".join(lines)
         return topas_text
 
     @staticmethod
-    def time_features_string(myfield: Field, bm: BeamModel, nstat: int = DEFAULTS.nstat,
-                             beam_direction: int = DEFAULTS.beam_direction) -> str:
+    def _setup_kwargs(myfield: Field, bm, opts: TopasExportOptions) -> dict:
+        """Setup-block overrides for the spot mode: sources mode reports progress per event."""
+        if opts.spot_mode == "sources" and bm is not None:
+            return {"show_history_interval": TopasPlan.history_interval(myfield, bm, opts.nstat)}
+        return {}
+
+    @staticmethod
+    def spot_table(myfield: Field, bm: BeamModel, nstat: int = DEFAULTS.nstat,
+                   beam_direction: int = DEFAULTS.beam_direction) -> "SpotTable":
         """
-        Build the TIME FEATURES section for a Topas file and return as a string.
+        Per-spot beam parameters at the beam model plane, as TOPAS needs them.
+
+        Both spot modes are written from this one table, so the time-feature and the
+        one-source-per-spot file place every spot identically (issue #88).
         """
 
         n_spots = myfield.n_spots
-        times = np.zeros(n_spots)
+        layer_index = np.zeros(n_spots, dtype=int)
         energies_real = np.zeros(n_spots)  # actual energies at the beam model position
         espreads = np.zeros(n_spots)
         posx = np.zeros(n_spots)
@@ -89,14 +132,14 @@ class TopasPlan:
                 f"or angles.")
 
         _spot_index = 0
-        for mylayer in myfield.layers:
+        for _layer_nr, mylayer in enumerate(myfield.layers, start=1):
 
             # layer.espread is an absolute energy spread in MeV at the beam model position;
             # convert it to a relative (%) spread for TOPAS (which expects relative energy spread).
             espread_percent = (mylayer.espread / mylayer.energy_measured) * 100.0  # [%]
 
             for spot in mylayer.spots:
-                times[_spot_index] = _spot_index + 1
+                layer_index[_spot_index] = _layer_nr
                 energies_real[_spot_index] = mylayer.energy_measured  # actual energies
                 espreads[_spot_index] = espread_percent
                 posx[_spot_index] = spot.x * \
@@ -115,7 +158,33 @@ class TopasPlan:
                 _spot_index += 1
 
         nstat_scale = TopasPlan.calculate_scaling_factor(myfield, nstat)
-        inv_nstat_scale = 1.0 / nstat_scale
+
+        # RotY of the beam nozzle group per spot.
+        # TOPAS rotation parameters are passive (the local->world map uses the inverse
+        # matrix), so the IEC-correct nozzle sits at gantry-local -Z with no 180° flip:
+        #   neg-Z (beam_direction=-1): -angx          (IEC 61217, default; issue #66)
+        #   pos-Z (beam_direction=1):  180.0 - angx  (source mirrored to gantry+180°,
+        #                                             non-patient research setups only)
+        if beam_direction == 1:
+            beam_pos_roty = 180.0 - angx
+        else:
+            beam_pos_roty = -angx
+
+        return SpotTable(
+            layer=layer_index, energy=energies_real, espread=espreads,
+            posx=posx, angx=angx, posy=posy, angy=angy, roty=beam_pos_roty,
+            sigx=sigx, sigy=sigy, sigxp=sigxp, sigyp=sigyp, corx=corx, cory=cory,
+            weight=nparts * (1.0 / nstat_scale))  # same expression as before #88, so rounding is unchanged
+
+    @staticmethod
+    def time_features_string(myfield: Field, bm: BeamModel, nstat: int = DEFAULTS.nstat,
+                             beam_direction: int = DEFAULTS.beam_direction) -> str:
+        """
+        Build the TIME FEATURES section for a Topas file and return as a string.
+        """
+        t = TopasPlan.spot_table(myfield, bm, nstat, beam_direction)
+        n_spots = t.n_spots
+        times = np.arange(1, n_spots + 1, dtype=float)
 
         lines = []
         lines.append("##############################################\n")
@@ -127,34 +196,119 @@ class TopasPlan:
         lines.append(
             f"d:Tf/TimelineEnd                     = {n_spots+1} s\n\n")
 
-        # Pre-compute BeamPositionRotY (RotY of the beam nozzle group) per spot.
-        # TOPAS rotation parameters are passive (the local->world map uses the inverse
-        # matrix), so the IEC-correct nozzle sits at gantry-local -Z with no 180° flip:
-        #   neg-Z (beam_direction=-1): -angx          (IEC 61217, default; issue #66)
-        #   pos-Z (beam_direction=1):  180.0 - angx  (source mirrored to gantry+180°,
-        #                                             non-patient research setups only)
-        if beam_direction == 1:
-            beam_pos_roty = 180.0 - angx
-        else:
-            beam_pos_roty = -angx
-
-        lines.append(_topas_array(times, energies_real, "Energy", "f", 3, "MeV"))
-        lines.append(_topas_array(times, espreads, "EnergySpread", "f", 5, ""))
-        lines.append(_topas_array(times, posx, "spotPositionX", "f", 2, "mm"))
-        lines.append(_topas_array(times, angx, "spotAngleX", "f", 3, "deg"))
-        lines.append(_topas_array(times, beam_pos_roty, "BeamPositionRotY", "f", 3, "deg"))
-        lines.append(_topas_array(times, posy, "spotPositionY", "f", 2, "mm"))
-        lines.append(_topas_array(times, angy, "spotAngleY", "f", 3, "deg"))
-        lines.append(_topas_array(times, sigx, "SigmaX", "f", 5, "mm"))
-        lines.append(_topas_array(times, sigy, "SigmaY", "f", 5, "mm"))
-        lines.append(_topas_array(times, sigxp, "SigmaXprime", "f", 5, ""))
-        lines.append(_topas_array(times, sigyp, "SigmaYprime", "f", 5, ""))
-        lines.append(_topas_array(times, corx, "CorrelationX", "f", 5, ""))
-        lines.append(_topas_array(times, cory, "CorrelationY", "f", 5, ""))
-        lines.append(_topas_array(times, nparts *
-                     inv_nstat_scale, "spotWeight", "f", 0, ""))
+        lines.append(_topas_array(times, t.energy, "Energy", "f", 3, "MeV"))
+        lines.append(_topas_array(times, t.espread, "EnergySpread", "f", 5, ""))
+        lines.append(_topas_array(times, t.posx, "spotPositionX", "f", 2, "mm"))
+        lines.append(_topas_array(times, t.angx, "spotAngleX", "f", 3, "deg"))
+        lines.append(_topas_array(times, t.roty, "BeamPositionRotY", "f", 3, "deg"))
+        lines.append(_topas_array(times, t.posy, "spotPositionY", "f", 2, "mm"))
+        lines.append(_topas_array(times, t.angy, "spotAngleY", "f", 3, "deg"))
+        lines.append(_topas_array(times, t.sigx, "SigmaX", "f", 5, "mm"))
+        lines.append(_topas_array(times, t.sigy, "SigmaY", "f", 5, "mm"))
+        lines.append(_topas_array(times, t.sigxp, "SigmaXprime", "f", 5, ""))
+        lines.append(_topas_array(times, t.sigyp, "SigmaYprime", "f", 5, ""))
+        lines.append(_topas_array(times, t.corx, "CorrelationX", "f", 5, ""))
+        lines.append(_topas_array(times, t.cory, "CorrelationY", "f", 5, ""))
+        lines.append(_topas_array(times, t.weight, "spotWeight", "f", 0, ""))
 
         return "".join(lines)
+
+    @staticmethod
+    def spot_histories(t: "SpotTable") -> np.ndarray:
+        """Histories per spot, rounded exactly as the time feature writes spotWeight (".0f")."""
+        return np.array([int(f"{w:.0f}") for w in t.weight], dtype=np.int64)
+
+    @staticmethod
+    def sources_string(myfield: Field, bm: BeamModel, nstat: int = DEFAULTS.nstat,
+                       beam_direction: int = DEFAULTS.beam_direction,
+                       topas_version=DEFAULTS.topas_version) -> str:
+        """
+        One Group plus one Emittance source per spot, instead of a time feature (issue #88).
+
+        TOPAS runs as many events as the largest NumberOfHistoriesInRun, and each source
+        fires only in events below its own count, so the whole field is one Geant4 run with
+        exactly the primaries of the time feature. The time feature runs one run per spot,
+        and TOPAS merges every scorer after every run; with a full RTDOSE grid that merge
+        dominates the run time.
+
+        The Groups have no solid: they only place and tilt each source, exactly as
+        Ge/BeamPosition does per spot in time-feature mode.
+        """
+        t = TopasPlan.spot_table(myfield, bm, nstat, beam_direction)
+        histories = TopasPlan.spot_histories(t)
+        keep = histories > 0
+        if not keep.any():
+            raise ValueError(
+                f"Field {myfield.number}: no spot gets a single history at -N {nstat}. "
+                f"Increase -N.")
+        if not keep.all():
+            # The time feature keeps these spots but runs them with 0 histories, so dropping
+            # them delivers the same primaries.
+            logger.warning(
+                "Field %d: %d of %d spots round to 0 histories at -N %d and are left out "
+                "(%.3g of %.3g primaries). Increase -N to keep them.",
+                myfield.number, int((~keep).sum()), t.n_spots, nstat,
+                float(t.weight[~keep].sum()), float(t.weight.sum()))
+
+        transz = TopasText.nozzle_transz(bm.beam_model_position, beam_direction)
+        prefix = TopasText.source_parameter_prefix(topas_version)
+        width = max(4, len(str(t.n_spots)))
+
+        def row(key: str, value: str) -> str:
+            return f"{key:<44} = {value}"
+
+        lines = [
+            "##############################################",
+            "###   B E A M :   O N E   S O U R C E      ###",
+            "###          P E R   S P O T               ###",
+            "##############################################",
+            f"# {int(keep.sum())} spots. TOPAS runs {int(histories.max())} events in a single run;",
+            "# each spot fires in the events below its NumberOfHistoriesInRun.",
+            "",
+        ]
+        layer = None
+        for i in np.flatnonzero(keep):
+            if t.layer[i] != layer:
+                layer = t.layer[i]
+                lines.append(f"# Energy layer {layer}: {t.energy[i]:.3f} MeV")
+            g = f"Spot{i + 1:0{width}d}"
+            p = f"Ge/{g}/"
+            s = f"So/{g}/"
+            lines += [
+                row(f"s:{p}Parent", '"Gantry"'),
+                row(f"s:{p}Type", '"Group"'),
+                row(f"d:{p}TransX", f"{t.posx[i]:.2f} mm"),
+                row(f"d:{p}TransY", f"{-t.posy[i]:.2f} mm"),
+                row(f"d:{p}TransZ", f"{transz} mm"),
+                row(f"d:{p}RotX", f"{-t.angy[i]:.3f} deg"),
+                row(f"d:{p}RotY", f"{t.roty[i]:.3f} deg"),
+                row(f"d:{p}RotZ", "0.00 deg"),
+                row(f"s:{s}Type", '"Emittance"'),
+                row(f"s:{s}Component", f'"{g}"'),
+                row(f"s:{s}{prefix}Particle", '"proton"'),
+                row(f"d:{s}{prefix}Energy", f"{t.energy[i]:.3f} MeV"),
+                row(f"u:{s}{prefix}EnergySpread", f"{t.espread[i]:.5f}"),
+                row(f"s:{s}Distribution", '"BiGaussian"'),
+                row(f"d:{s}SigmaX", f"{t.sigx[i]:.5f} mm"),
+                row(f"d:{s}SigmaY", f"{t.sigy[i]:.5f} mm"),
+                row(f"u:{s}SigmaXprime", f"{t.sigxp[i]:.5f}"),
+                row(f"u:{s}SigmaYprime", f"{t.sigyp[i]:.5f}"),
+                row(f"u:{s}CorrelationX", f"{t.corx[i]:.5f}"),
+                row(f"u:{s}CorrelationY", f"{t.cory[i]:.5f}"),
+                row(f"i:{s}NumberOfHistoriesInRun", f"{histories[i]}"),
+                "",
+            ]
+        return "\n".join(lines) + "\n"
+
+    @staticmethod
+    def history_interval(myfield: Field, bm: BeamModel, nstat: int = DEFAULTS.nstat) -> int:
+        """Ts/ShowHistoryCountAtInterval for sources mode: about 100 progress lines per field.
+
+        In sources mode a history is an event, and a field has only as many events as its
+        largest spot weight -- a few hundred, not the ~1e5 of the time feature.
+        """
+        t = TopasPlan.spot_table(myfield, bm, nstat)
+        return max(1, int(TopasPlan.spot_histories(t).max()) // 100)
 
     @staticmethod
     def calculate_scaling_factor(myfield: Field, nstat: int = DEFAULTS.nstat) -> float:

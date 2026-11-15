@@ -58,21 +58,21 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     if ct.spr_to_material_path:
         lines.append(TopasText.spr_to_material(ct.spr_to_material_path))
     lines.append(TopasText.variables(fld, ct.dicom_origin))
-    lines.append(TopasText.setup(nr_threads=opts.nr_threads))
+    lines.append(TopasText.setup(nr_threads=opts.nr_threads, **TopasPlan._setup_kwargs(fld, bm, opts)))
     lines.append(TopasText.world_setup(world_hl))
     if dose_path:
         lines.append(TopasText.geometry_patient_dicom(dose_path, ct.directory))
     lines.append(TopasText.geometry_gantry())
     lines.append(TopasText.geometry_couch())
     lines.append(TopasText.geometry_dcm_to_iec())
-    if bm:
+    sources = opts.spot_mode == "sources"
+    if not sources:
         lines.append(TopasText.geometry_beam_position_timefeature(
-            bm.beam_model_position, beam_direction=opts.beam_direction))
-    else:
-        lines.append(TopasText.geometry_beam_position_timefeature(0.0, beam_direction=opts.beam_direction))
+            bm.beam_model_position if bm else 0.0, beam_direction=opts.beam_direction))
 
     lines.append(TopasText.geometry_range_shifter(fld, beam_direction=opts.beam_direction))
-    lines.append(TopasText.field_beam_timefeature(topas_version=opts.topas_version))
+    if not sources:
+        lines.append(TopasText.field_beam_timefeature(topas_version=opts.topas_version))
     lines.append(TopasText.scorer_setup_dicom(
         topas_output_path=stem,
         dose_cube_16bit=opts.dose_cube_16bit))
@@ -82,8 +82,13 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     # best would be to refactor the code to have a default beam model with basic parameters.
     # and move the load beam model from __init__.py to a new dedicated function in BeamModel class.
     if bm:
-        lines.append(TopasPlan.time_features_string(
-            fld, bm, nstat=opts.nstat, beam_direction=opts.beam_direction))
+        if sources:
+            lines.append(TopasPlan.sources_string(
+                fld, bm, nstat=opts.nstat, beam_direction=opts.beam_direction,
+                topas_version=opts.topas_version))
+        else:
+            lines.append(TopasPlan.time_features_string(
+                fld, bm, nstat=opts.nstat, beam_direction=opts.beam_direction))
         topas_string = "\n".join(lines)
 
         # show some information about the field

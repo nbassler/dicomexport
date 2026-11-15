@@ -75,8 +75,9 @@ def _read_scorer_sum(csv_path: Path) -> float:
 
 @pytest.mark.skipif(shutil.which("topas") is None,
                     reason="TOPAS not installed; skipping beam direction integration test")
+@pytest.mark.parametrize("spot_mode", ["timefeature", "sources"])
 @pytest.mark.parametrize("nozzle_side, entrance", [("neg-z", "neg_y"), ("pos-z", "pos_y")])
-def test_beam_enters_from_expected_side(tmp_path, nozzle_side, entrance):
+def test_beam_enters_from_expected_side(tmp_path, nozzle_side, entrance, spot_mode):
     repo_root = Path(__file__).resolve().parent.parent
     test_args = [
         "-f1",
@@ -84,6 +85,7 @@ def test_beam_enters_from_expected_side(tmp_path, nozzle_side, entrance):
         f"-b={repo_root / 'res/beam_models/DCPT_beam_model__v2.csv'}",
         "--test-mode",
         f"--nozzle-side={nozzle_side}",
+        f"--spot-mode={spot_mode}",
         str(repo_root / "res/test_plans/temp_160MeV_10x10.dcm"),
         str(tmp_path / "plan.txt"),
     ]
@@ -95,6 +97,11 @@ def test_beam_enters_from_expected_side(tmp_path, nozzle_side, entrance):
 
     result = subprocess.run(["topas", plan_file.name], cwd=tmp_path,
                             capture_output=True, text=True, timeout=600)
+    # The time-feature file is the long-verified one, so its failure means the TOPAS
+    # environment is broken. A failing sources file is a bug in what we write (#88).
+    if result.returncode != 0 and spot_mode == "sources":
+        pytest.fail("TOPAS rejected the --spot-mode sources file: "
+                    + result.stdout[-1500:] + result.stderr[-500:])
     if result.returncode != 0:
         pytest.skip("TOPAS present but failed to run (environment problem?): "
                     + result.stdout[-500:] + result.stderr[-500:])
