@@ -68,6 +68,22 @@ class TestPlanExport:
                                  "--export-fmt", fmt, "-N", "1000"]) == 0
         assert sorted(p.name for p in tmp_path.glob(f"out_field*{suffix}")) == [f"out_field07{suffix}"]
 
+    @pytest.mark.parametrize("fmt, suffix", [("topas", ".txt"), ("spotlist", ".txt"), ("mcpl", ".mcpl")])
+    def test_negative_beam_number_is_selected_like_any_other(self, tmp_path, fmt, suffix):
+        """DICOM only requires BeamNumbers to be unique; every format must honour -f the same way."""
+        import pydicom
+        plan = make_ccb_style_plan(SOURCE_PLAN, tmp_path / "negative.dcm",
+                                   ref_order=(-3, 7), with_delivery=(-3, 7))
+        # The fixture derives the meterset from the number (1000 * n); keep it positive.
+        ds = pydicom.dcmread(plan)
+        for ref in ds.FractionGroupSequence[0].ReferencedBeamSequence:
+            ref.BeamMeterset = abs(ref.BeamMeterset)
+        ds.save_as(plan)
+        out = tmp_path / f"out{suffix}"
+        assert plan_export.main([str(plan), str(out), "-b", BEAM_MODEL, "--field=-3",
+                                 "--export-fmt", fmt, "-N", "1000"]) == 0
+        assert sorted(p.name for p in tmp_path.glob(f"out_field*{suffix}")) == [f"out_field-3{suffix}"]
+
     def test_header_carries_beam_number_and_name(self, tmp_path, sparse_plan):
         out = tmp_path / "out.txt"
         assert plan_export.main([str(sparse_plan), str(out), "-b", BEAM_MODEL, "-f", "12"]) == 0

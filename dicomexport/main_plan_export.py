@@ -72,7 +72,7 @@ def main(args=None) -> int:
             pln.beam_model,
             output_path=parsed_args.fout,
             field_list=[parsed_args.field_nr]
-            if parsed_args.field_nr > 0 else None,
+            if parsed_args.field_nr else None,
             num_primaries=parsed_args.nstat,
             rng_seed=42,
             rot180x=(parsed_args.mcpl_frame == 'rotx180'),
@@ -104,7 +104,7 @@ def main(args=None) -> int:
         export_spotlist(
             pln,
             parsed_args.fout,
-            field_list=[parsed_args.field_nr] if parsed_args.field_nr > 0 else None,
+            field_list=[parsed_args.field_nr] if parsed_args.field_nr else None,
             col_count=parsed_args.spotlist_column_count,
             spot_pos_iso=parsed_args.spot_pos_iso,
         )
