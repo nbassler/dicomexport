@@ -55,7 +55,7 @@ def create_parser():
     parser.add_argument('--dose-cube-16bit', action='store_true', dest='dose_cube_16bit', default=False,
                         help="Write the TOPAS DICOM dose cube with 16 instead of 32 bits per pixel. "
                              "Halves the file size, but every voxel below ~1.5e-5 of the field's "
-                             "peak dose is written as 0, which removes the out-of-field dose.")
+                             "peak dose is written as 0, which can remove low-level out-of-field dose.")
 
     parser.add_argument(
         '--export-fmt', dest='export_fmt', choices=['topas', 'mcpl', 'racehorse'], default='topas',
