@@ -4,6 +4,7 @@ import numpy as np
 from dicomexport.model_plan import Field
 from dicomexport.beam_model import BeamModel
 from dicomexport.topas_text import TopasText
+from dicomexport.topas_version import DEFAULT_TOPAS_VERSION, TopasVersion
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,8 @@ class TopasPlan:
     @staticmethod
     def generate(myfield: Field, bm: BeamModel,
                  nstat=100000, test_mode=False, beam_direction: int = 1,
-                 nr_threads: int = 0) -> str:
+                 nr_threads: int = 0,
+                 topas_version: TopasVersion = DEFAULT_TOPAS_VERSION) -> str:
         """
         Export the field to a topas input file.
         """
@@ -43,7 +45,7 @@ class TopasPlan:
         lines.append(TopasText.geometry_beam_position_timefeature(
             bm.beam_model_position, beam_direction=beam_direction))
         lines.append(TopasText.geometry_range_shifter(myfield, beam_direction=beam_direction))
-        lines.append(TopasText.field_beam_timefeature())
+        lines.append(TopasText.field_beam_timefeature(topas_version=topas_version))
 
         lines.append(TopasPlan.time_features_string(
             myfield, bm, nstat, beam_direction=beam_direction))

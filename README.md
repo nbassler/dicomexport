@@ -72,12 +72,19 @@ Both the full study exporter (`dicomexport/main.py`, installed as `dicomexport`)
 
 For TOPAS export, the range shifter position follows the selected nozzle side.
 
+### TOPAS version
+
+By default the TOPAS input files are written for current OpenTOPAS and **need OpenTOPAS 4.2 or later**. For an older TOPAS, pass its version:
+
+- `--topas-version X.Y`
+
 ### Full study export options
 
 ```
 $ PYTHONPATH=. python3 dicomexport/main.py --help
 usage: main.py [-h] [-b BM] [-s SPR_TO_MATERIAL_PATH] [-p BEAM_MODEL_POSITION]
                [-f FIELD_NR] [-N NSTAT] [--threads NR_THREADS]
+               [--topas-version X.Y]
                [--export-fmt {topas,mcpl,racehorse}]
                [--nozzle-side {pos-z,neg-z}] [-v] [-V]
                study_dir [output_base_path]
@@ -104,6 +111,8 @@ options:
                         Target protons for simulation
   --threads NR_THREADS  TOPAS Ts/NumberOfThreads (default: 0). 0 uses all cores on the machine that RUNS the file, -1 all but one, N
                         exactly N. Resolved at run time, not at export time, so it is safe to export on one node and run on another.
+  --topas-version X.Y   TOPAS version the input file is written for, as MAJOR.MINOR (default: 4.2). Versions below 4.2 get the emittance
+                        source as BeamParticle/BeamEnergy/BeamEnergySpread instead of the Emittance* names, which they do not recognise.
   --export-fmt {topas,mcpl,racehorse}
                         Export format (default: topas). Formats: topas (*.txt), mcpl (*.mcpl), racehorse (*.csv).
   --nozzle-side {pos-z,neg-z}
@@ -120,7 +129,8 @@ options:
 $ PYTHONPATH=. python3 dicomexport/main_plan_export.py --help
 usage: main_plan_export.py [-h] [-b FBM] [-p BEAM_MODEL_POSITION]
                            [-f FIELD_NR] [-d] [-s SCALE] [-N NSTAT]
-                           [--threads NR_THREADS] [-nc {5,6,7,9,11}]
+                           [--threads NR_THREADS] [--topas-version X.Y]
+                           [-nc {5,6,7,9,11}]
                            [--export-fmt {topas,mcpl,racehorse,spotlist}]
                            [--spot-pos-iso] [--test-mode]
                            [--mcpl-frame {iec,rotx180}]
@@ -145,6 +155,9 @@ options:
   --threads NR_THREADS  TOPAS Ts/NumberOfThreads (default: 0). 0 uses all cores on the machine that RUNS the file, -1 all but one, N
                         exactly N. Resolved at run time, not at export time, so it is safe to export on one node and run on another.
                         Only the --test-mode Topas export writes a setup block for it to land in.
+  --topas-version X.Y   TOPAS version the input file is written for, as MAJOR.MINOR (default: 4.2). Versions below 4.2 get the emittance
+                        source as BeamParticle/BeamEnergy/BeamEnergySpread instead of the Emittance* names, which they do not recognise.
+                        Only applies to Topas export.
   -nc, --spotlist-column-count {5,6,7,9,11}
                         Number of columns in the spotlist export. Valid values: 5, 6, 7, 9, or 11 (default: 11).
   --export-fmt {topas,mcpl,racehorse,spotlist}

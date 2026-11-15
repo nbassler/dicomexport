@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 from dicomexport.__version__ import __version__
+from dicomexport.topas_version import DEFAULT_TOPAS_VERSION, TOPAS_VERSION_HELP, parse_topas_version
 
 
 def create_parser():
@@ -36,6 +37,9 @@ def create_parser():
                              "Resolved at run time, not at export time, so it is safe to "
                              "export on one node and run on another. Only the --test-mode "
                              "Topas export writes a setup block for it to land in.")
+    parser.add_argument('--topas-version', type=parse_topas_version, dest='topas_version',
+                        default=DEFAULT_TOPAS_VERSION, metavar='X.Y',
+                        help=TOPAS_VERSION_HELP + " Only applies to Topas export.")
     parser.add_argument('-nc', '--spotlist-column-count', type=int, dest='spotlist_column_count',
                         choices=[5, 6, 7, 9, 11], default=11,
                         help="Number of columns in the spotlist export. Valid values: 5, 6, 7, 9, or 11 (default: 11).")

@@ -161,6 +161,50 @@ class TestPregdosCLI:
 
         test_output_file.unlink()
 
+    @pytest.mark.parametrize("test_mode", [False, True])
+    def test_topas_version_selects_source_names(self, test_mode):
+        """--topas-version 3.9 gives Beam* source names, also without --test-mode (#95)."""
+        test_output_file = Path("plan_field01.txt")
+        test_output_file.unlink(missing_ok=True)
+
+        test_args = [
+            "-f1",
+            "-b=res/beam_models/DCPT_beam_model__v2.csv",
+            "--topas-version=3.9",
+            "res/test_plans/temp_160MeV_10x10.dcm",
+        ]
+        if test_mode:
+            test_args.insert(0, "--test-mode")
+
+        assert main_plan_export.main(test_args) == 0
+        content = test_output_file.read_text()
+        assert 's:So/Field/BeamParticle              = "proton"' in content
+        assert "EmittanceParticle" not in content
+
+        test_output_file.unlink()
+
+    def test_topas_version_defaults_to_emittance_names(self):
+        test_output_file = Path("plan_field01.txt")
+        test_output_file.unlink(missing_ok=True)
+
+        test_args = [
+            "-f1",
+            "-b=res/beam_models/DCPT_beam_model__v2.csv",
+            "res/test_plans/temp_160MeV_10x10.dcm",
+        ]
+
+        assert main_plan_export.main(test_args) == 0
+        content = test_output_file.read_text()
+        assert 's:So/Field/EmittanceParticle         = "proton"' in content
+        assert "BeamParticle" not in content
+
+        test_output_file.unlink()
+
+    def test_topas_version_rejects_garbage(self):
+        with pytest.raises(SystemExit) as exc_info:
+            main_plan_export.main(["--topas-version=foo", "res/test_plans/temp_160MeV_10x10.dcm"])
+        assert exc_info.value.code == 2
+
     def test_threads_defaults_to_all_cores(self):
         """Without --threads the output is unchanged from before issue #85."""
         test_output_file = Path("plan_field01.txt")
