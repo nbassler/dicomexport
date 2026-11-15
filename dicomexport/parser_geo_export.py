@@ -23,6 +23,11 @@ def create_parser():
                              "Resolved at run time, not at export time, so it is safe to "
                              "export on one node and run on another.")
 
+    parser.add_argument('--dose-cube-16bit', action='store_true', dest='dose_cube_16bit', default=False,
+                        help="Write the TOPAS DICOM dose cube with 16 instead of 32 bits per pixel. "
+                             "Halves the file size, but every voxel below ~1.5e-5 of the field's "
+                             "peak dose is written as 0, which can remove low-level out-of-field dose.")
+
     parser.add_argument('-v', '--verbosity', action='count', default=0,
                         help="Increase verbosity (can use -v, -vv, etc.).")
 

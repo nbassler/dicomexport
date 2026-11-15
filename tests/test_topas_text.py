@@ -92,6 +92,18 @@ class TestWorldHalfLengths:
         assert "d:Ge/World/HLZ             = 1315.40 mm" in text
 
 
+class TestDoseCubeBitDepth:
+    """At 16 bits TOPAS writes every voxel below ~1.5e-5 of the peak as 0 (issue #111)."""
+
+    def test_default_is_32_bit(self):
+        assert 'b:Sc/Dose/DICOMOutput32BitsPerPixel  = "T"' in TopasText.scorer_setup_dicom()
+
+    def test_16_bit_on_request(self):
+        text = TopasText.scorer_setup_dicom(dose_cube_16bit=True)
+        assert 'b:Sc/Dose/DICOMOutput32BitsPerPixel  = "F"' in text
+        assert '"T"' not in text
+
+
 class TestSetupThreads:
     """Ts/NumberOfThreads is a verbatim pass-through of the TOPAS surface (issue #85).
 

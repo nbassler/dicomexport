@@ -84,7 +84,7 @@ By default the TOPAS input files are written for current OpenTOPAS and **need Op
 $ PYTHONPATH=. python3 dicomexport/main.py --help
 usage: main.py [-h] [-b BM] [-s SPR_TO_MATERIAL_PATH] [-p BEAM_MODEL_POSITION]
                [-f FIELD_NR] [-N NSTAT] [--threads NR_THREADS]
-               [--topas-version X.Y]
+               [--topas-version X.Y] [--dose-cube-16bit]
                [--export-fmt {topas,mcpl,racehorse}]
                [--nozzle-side {pos-z,neg-z}] [-v] [-V]
                study_dir [output_base_path]
@@ -113,6 +113,8 @@ options:
                         exactly N. Resolved at run time, not at export time, so it is safe to export on one node and run on another.
   --topas-version X.Y   TOPAS version the input file is written for, as MAJOR.MINOR (default: 4.2). Versions below 4.2 get the emittance
                         source as BeamParticle/BeamEnergy/BeamEnergySpread instead of the Emittance* names, which they do not recognise.
+  --dose-cube-16bit     Write the TOPAS DICOM dose cube with 16 instead of 32 bits per pixel. Halves the file size, but every voxel below
+                        ~1.5e-5 of the field's peak dose is written as 0, which can remove low-level out-of-field dose.
   --export-fmt {topas,mcpl,racehorse}
                         Export format (default: topas). Formats: topas (*.txt), mcpl (*.mcpl), racehorse (*.csv).
   --nozzle-side {pos-z,neg-z}

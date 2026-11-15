@@ -9,15 +9,16 @@ from dicomexport.topas_text import TopasText
 logger = logging.getLogger(__name__)
 
 
-def export_geo(ct: CTModel, rs: RTStruct, output_path: Path, nr_threads: int = 0) -> None:
-    content = TopasGeo.generate(ct, rs, nr_threads=nr_threads)
+def export_geo(ct: CTModel, rs: RTStruct, output_path: Path, nr_threads: int = 0,
+               dose_cube_16bit: bool = False) -> None:
+    content = TopasGeo.generate(ct, rs, nr_threads=nr_threads, dose_cube_16bit=dose_cube_16bit)
     output_path.write_text(content)
     logger.info(f"Wrote Topas geometry file: {output_path.resolve()}")
 
 
 class TopasGeo:
     @staticmethod
-    def generate(ct: CTModel, rs: RTStruct, nr_threads: int = 0):
+    def generate(ct: CTModel, rs: RTStruct, nr_threads: int = 0, dose_cube_16bit: bool = False):
         """
         Export the CT and RTStruct models to a Topas-compatible geometry file.
         """
@@ -27,6 +28,6 @@ class TopasGeo:
         # No plan here, so the isocenter is unknown and assumed to be at the DICOM origin.
         lines.append(TopasText.world_setup(TopasText.world_half_lengths(ct)))
         lines.append(TopasText.geometry_patient(ct, rs))
-        lines.append(TopasText.scorer_setup_dicom())
+        lines.append(TopasText.scorer_setup_dicom(dose_cube_16bit=dose_cube_16bit))
         topas_string = "\n".join(lines)
         return topas_string
