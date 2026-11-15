@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 from dicomexport.__version__ import __version__
+from dicomexport.parser_topas_options import add_dose_cube_16bit, add_threads
 
 
 def create_parser():
@@ -17,16 +18,9 @@ def create_parser():
     parser.add_argument('fout', nargs='?', type=Path, default="geometry.txt",
                         help="Output TOPAS geometry file (default: geometry.txt).")
 
-    parser.add_argument('--threads', type=int, dest='nr_threads', default=0,
-                        help="TOPAS Ts/NumberOfThreads (default: 0). 0 uses all cores on the "
-                             "machine that RUNS the file, -1 all but one, N exactly N. "
-                             "Resolved at run time, not at export time, so it is safe to "
-                             "export on one node and run on another.")
+    add_threads(parser)
 
-    parser.add_argument('--dose-cube-16bit', action='store_true', dest='dose_cube_16bit', default=False,
-                        help="Write the TOPAS DICOM dose cube with 16 instead of 32 bits per pixel. "
-                             "Halves the file size, but every voxel below ~1.5e-5 of the field's "
-                             "peak dose is written as 0, which can remove low-level out-of-field dose.")
+    add_dose_cube_16bit(parser)
 
     parser.add_argument('-v', '--verbosity', action='count', default=0,
                         help="Increase verbosity (can use -v, -vv, etc.).")
