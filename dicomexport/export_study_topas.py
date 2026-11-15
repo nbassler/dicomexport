@@ -53,7 +53,7 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     nstat_scale = TopasPlan.calculate_scaling_factor(fld, opts.nstat)
 
     lines = []
-    lines.append(TopasText.header(fld, nstat_scale, opts.nstat))
+    lines.append(TopasPlan.header(fld, bm, opts, nstat_scale))
     lines.append(TopasText.header2())
     if ct.spr_to_material_path:
         lines.append(TopasText.spr_to_material(ct.spr_to_material_path))

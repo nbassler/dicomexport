@@ -128,6 +128,7 @@ class TestPregdosCLI:
     def test_topas_version_parameter(self, version, particle_line):
         """--topas-version reaches the source block of every generated field file (#95)."""
         test_args = [
+            "--spot-mode=timefeature",  # checks the time-feature text (#88)
             f"--topas-version={version}",
             f"-b={BEAM_MODEL_PATH}",
             f"-s={SPR_TABLE_PATH}",

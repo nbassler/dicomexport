@@ -34,7 +34,16 @@ WORLD_MARGIN = 500.0
 
 class TopasText:
     @staticmethod
-    def header(field: Field, nstat_scale: float, nstat: int) -> str:
+    def header(field: Field, nstat_scale: float, nstat: int,
+               spot_mode: str = DEFAULTS.spot_mode, layout: Optional[dict] = None) -> str:
+        """File header. Its "# KEY: value" lines are read by downstream tools (pregdos).
+
+        SPOT_MODE says how TOPAS steps through the spots (issue #88). ``layout`` adds:
+          SPOTS             spots simulated
+          RUNS              what TOPAS's "Run: N" counts (1 in sources mode, SPOTS otherwise)
+          HISTORIES_PER_RUN what "History: N" counts up to; sources mode only, since in
+                            time-feature mode every run has its own length
+        """
         lines = [
             f"# Topas input file for field {field.number}",
             '# ' + '-' * 40,
@@ -46,8 +55,12 @@ class TopasText:
             f"# TOTAL_MU: {field.cum_mu:.2f}",
             f"# REQUESTED_HISTORIES: {nstat:.0f}",
             f"# PARTICLE_SCALING: {nstat_scale:.2f}",
-            "#\n"
+            "# ",
+            f"# SPOT_MODE: {spot_mode}",
         ]
+        for key, value in (layout or {}).items():
+            lines.append(f"# {key}: {value}")
+        lines.append("#\n")
         return "\n".join(lines)
 
     @staticmethod

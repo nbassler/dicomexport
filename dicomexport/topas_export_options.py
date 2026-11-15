@@ -30,7 +30,7 @@ class TopasExportOptions:
     # Write the DICOM dose cube at 16 instead of 32 bits per pixel (issue #111).
     dose_cube_16bit: bool = False
     # One source per spot, or a time feature stepping one source (issue #88).
-    spot_mode: str = "timefeature"
+    spot_mode: str = "sources"
 
     def __post_init__(self):
         if self.beam_direction not in NOZZLE_SIDES:

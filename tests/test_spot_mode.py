@@ -63,6 +63,9 @@ def _assert_same_spots(timefeature_text, sources_text):
             assert float(src[param.format(name)]) == pytest.approx(sign * tf[tf_name][k], abs=1e-9), \
                 f"{name}: {param.format(name)} differs from Tf/{tf_name}"
     assert kept == sum(1 for key in src if key.endswith("/NumberOfHistoriesInRun"))
+    # The nozzle distance and side: one TransZ for Ge/BeamPosition, the same on every spot.
+    transz = re.search(r"^d:Ge/BeamPosition/TransZ\s*=\s*(\S+) mm", timefeature_text, re.M).group(1)
+    assert {v for k, v in src.items() if k.endswith("/TransZ")} == {transz}
     return kept
 
 
@@ -140,3 +143,30 @@ def test_parsers_offer_both_modes(create, positionals):
         assert create().parse_args(positionals + ["--spot-mode", mode]).spot_mode == mode
     with pytest.raises(SystemExit):
         create().parse_args(positionals + ["--spot-mode", "bogus"])
+
+
+def test_header_states_the_spot_layout(tmp_path):
+    """pregdos scales its progress bar from these keys instead of parsing every source (#88)."""
+    files = _plan_files(tmp_path, "--test-mode")
+
+    def key(text, name):
+        m = re.search(rf"^# {name}: (\S+)$", text, re.M)
+        return m.group(1) if m else None
+
+    weights = [int(v) for v in re.findall(r"NumberOfHistoriesInRun\s*=\s*(\d+)", files["sources"])]
+    assert key(files["sources"], "SPOT_MODE") == "sources"
+    assert key(files["sources"], "SPOTS") == str(len(weights))
+    assert key(files["sources"], "RUNS") == "1"
+    assert key(files["sources"], "HISTORIES_PER_RUN") == str(max(weights))
+
+    n_times = re.search(r"i:Tf/NumberOfSequentialTimes\s*=\s*(\d+)", files["timefeature"]).group(1)
+    assert key(files["timefeature"], "SPOT_MODE") == "timefeature"
+    assert key(files["timefeature"], "SPOTS") == n_times
+    assert key(files["timefeature"], "RUNS") == n_times
+    assert key(files["timefeature"], "HISTORIES_PER_RUN") is None
+
+
+def test_sources_is_the_default():
+    """3.2x faster on the head phantom at 100k primaries / 28 threads, same dose (#88)."""
+    assert main_parser().parse_args(["s"]).spot_mode == "sources"
+    assert plan_parser().parse_args(["p.dcm"]).spot_mode == "sources"
