@@ -121,6 +121,24 @@ class TestPregdosCLI:
             assert "i:Ts/NumberOfThreads                    = 0" in f.read_text(), \
                 f"default NumberOfThreads is not 0 in {f}."
 
+    @pytest.mark.parametrize("version, particle_line", [
+        ("3.9", 's:So/Field/BeamParticle              = "proton"'),
+        ("4.2.3", 's:So/Field/EmittanceParticle         = "proton"'),
+    ])
+    def test_topas_version_parameter(self, version, particle_line):
+        """--topas-version reaches the source block of every generated field file (#95)."""
+        test_args = [
+            f"--topas-version={version}",
+            f"-b={BEAM_MODEL_PATH}",
+            f"-s={SPR_TABLE_PATH}",
+            f"{DICOM_TEST_DIR}",
+        ]
+        assert study.main(test_args) == 0
+
+        for f in _TOPAS_OUTPUT_FILES:
+            assert particle_line in f.read_text(), \
+                f"--topas-version={version} did not select the right source names in {f}."
+
     def test_nstat_parameter(self):
         nstat_value = int(2e6)
         test_args = [

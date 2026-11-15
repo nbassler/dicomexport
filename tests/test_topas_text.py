@@ -1,7 +1,10 @@
+import argparse
+
 import pytest
 
 from dicomexport.model_ct import CTModel, Image
 from dicomexport.topas_text import TopasText, WORLD_MARGIN
+from dicomexport.topas_version import EMITTANCE_PARAMETER_NAMES_SINCE, parse_topas_version
 
 
 def _make_ct(columns: int, rows: int, n_slices: int,
@@ -103,6 +106,69 @@ class TestSetupThreads:
     def test_value_reaches_the_input_file(self, nr_threads):
         text = TopasText.setup(nr_threads=nr_threads)
         assert f"i:Ts/NumberOfThreads                    = {nr_threads}" in text
+
+
+_EMITTANCE_NAMES = ("So/Field/EmittanceParticle", "So/Field/EmittanceEnergy",
+                    "So/Field/EmittanceEnergySpread")
+_BEAM_NAMES = ("So/Field/BeamParticle", "So/Field/BeamEnergy", "So/Field/BeamEnergySpread")
+
+
+class TestEmittanceSourceNames:
+    """Particle/energy/spread names of the emittance source depend on the TOPAS version (#95).
+
+    OpenTOPAS 4.2 introduced the Emittance* names (Beam* still accepted, with a warning);
+    TOPAS 3.9 to 4.1 only know Beam* and abort on Emittance*.
+    """
+
+    def test_default_uses_emittance_names(self):
+        text = TopasText.field_beam_timefeature()
+        assert 's:So/Field/EmittanceParticle         = "proton"' in text
+        assert "d:So/Field/EmittanceEnergy           = Tf/Energy/Value MeV" in text
+        assert "u:So/Field/EmittanceEnergySpread     = Tf/EnergySpread/Value" in text
+        for name in _BEAM_NAMES:
+            assert name not in text
+
+    @pytest.mark.parametrize("version", [(4, 2), (4, 3), (5, 0)])
+    def test_new_topas_uses_emittance_names(self, version):
+        text = TopasText.field_beam_timefeature(topas_version=version)
+        for name in _EMITTANCE_NAMES:
+            assert name in text
+        for name in _BEAM_NAMES:
+            assert name not in text
+
+    @pytest.mark.parametrize("version", [(3, 9), (4, 0), (4, 1)])
+    def test_old_topas_uses_beam_names(self, version):
+        text = TopasText.field_beam_timefeature(topas_version=version)
+        assert 's:So/Field/BeamParticle              = "proton"' in text
+        assert "d:So/Field/BeamEnergy                = Tf/Energy/Value MeV" in text
+        assert "u:So/Field/BeamEnergySpread          = Tf/EnergySpread/Value" in text
+        for name in _EMITTANCE_NAMES:
+            assert name not in text
+
+    @pytest.mark.parametrize("version", [(3, 9), (4, 3)])
+    def test_source_type_and_shape_do_not_depend_on_version(self, version):
+        text = TopasText.field_beam_timefeature(topas_version=version)
+        assert 's:So/Field/Type                      = "Emittance"' in text
+        assert 's:So/Field/Distribution              = "BiGaussian"' in text
+        assert "u:So/Field/CorrelationX              = Tf/CorrelationX/Value" in text
+
+
+class TestParseTopasVersion:
+
+    @pytest.mark.parametrize("text, expected", [
+        ("3.9", (3, 9)), ("4.2", (4, 2)), ("4.2.3", (4, 2)), ("4.2.p3", (4, 2)), ("4.10", (4, 10)),
+    ])
+    def test_accepts(self, text, expected):
+        assert parse_topas_version(text) == expected
+
+    @pytest.mark.parametrize("text", ["", "4", "foo", "4.x", "v4.2", "4.2.3.1"])
+    def test_rejects(self, text):
+        with pytest.raises(argparse.ArgumentTypeError):
+            parse_topas_version(text)
+
+    def test_version_compares_numerically(self):
+        # (4, 10) must count as newer than (4, 2), which a string compare would get wrong.
+        assert parse_topas_version("4.10") >= EMITTANCE_PARAMETER_NAMES_SINCE
 
 
 class TestPatientDicomDirectory:

@@ -5,6 +5,7 @@ from dicomexport.model_plan import Plan
 from dicomexport.beam_model import BeamModel
 from dicomexport.export_plan_topas import TopasPlan
 from dicomexport.export_plan_racehorse import RacehorsePlan
+from dicomexport.topas_version import DEFAULT_TOPAS_VERSION, TopasVersion
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,8 @@ logger = logging.getLogger(__name__)
 # toplevel export plan method
 def export_plan(pln: Plan, bm: BeamModel, output_base_path: Path, field_nr: int = -1,
                 nstat: int = int(1e6), fmt: str = "topas", test_mode: bool = False,
-                beam_direction: int = 1, nr_threads: int = 0) -> None:
+                beam_direction: int = 1, nr_threads: int = 0,
+                topas_version: TopasVersion = DEFAULT_TOPAS_VERSION) -> None:
     """
     Export one or all fields from a Plan to output files.
     If field_nr >= 1, export only that field.
@@ -35,7 +37,8 @@ def export_plan(pln: Plan, bm: BeamModel, output_base_path: Path, field_nr: int 
                 logger.debug(f"Exported field {field.number} layer {layer.number} to Racehorse format.")
         elif fmt == "topas":
             text = TopasPlan.generate(field, bm, nstat=nstat, test_mode=test_mode,
-                                      beam_direction=beam_direction, nr_threads=nr_threads)
+                                      beam_direction=beam_direction, nr_threads=nr_threads,
+                                      topas_version=topas_version)
             _out_path(output_base_path, field.number).write_text(text)
             logger.debug(f"Exported field {field.number} to Topas format.")
         else:

@@ -87,7 +87,8 @@ def main(args=None) -> int:
                     fmt=parsed_args.export_fmt,
                     test_mode=parsed_args.test_mode,
                     beam_direction=beam_direction,
-                    nr_threads=parsed_args.nr_threads)
+                    nr_threads=parsed_args.nr_threads,
+                    topas_version=parsed_args.topas_version)
 
     elif parsed_args.export_fmt == 'racehorse':
         # TODO
