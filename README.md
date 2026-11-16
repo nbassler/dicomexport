@@ -66,7 +66,7 @@ Both the full study exporter (`dicomexport/main.py`, installed as `dicomexport`)
 (`dicomexport/main_plan_export.py`, installed as `plan-export`) support:
 
 - `-p, --beam-model-position`: beam model distance in mm upstream of the isocenter (always positive, independent of beam transport direction). If omitted, the value is read from the `BMODPOS` key in the CSV header; if that key is also absent, it defaults to `500.0` mm.
-- `--nozzle-side {pos-z,neg-z}`: side of the gantry-local `Z` axis where the nozzle/source is placed. The default, `neg-z`, is the setting that reproduces IEC 61217: at gantry 0 the beam enters a head-first-supine patient from the anterior side, and at gantry 90 from the patient's left. This is verified against OpenTOPAS 4.2.3 by `tests/test_topas_beam_direction.py`.
+- `--nozzle-side {pos-z,neg-z}`: side of the gantry-local `Z` axis where the nozzle/source is placed. The default, `neg-z`, is the setting that reproduces IEC 61217: at gantry 0 the beam enters a head-first-supine patient from the anterior side, and at gantry 90 from the patient's left. This is verified against OpenTOPAS 4.2.3 and 4.3.0 by `tests/test_topas_beam_direction.py`.
 
   `pos-z` mirrors the source to the opposite side of the isocenter, i.e. every field behaves as if the gantry were rotated by 180°. It is only meaningful for non-patient research setups, and the exporter warns when it is selected. It was the default up to and including v1.4.3, which made all patient dose distributions mirrored — see issue #66.
 
@@ -74,7 +74,7 @@ For TOPAS export, the range shifter position follows the selected nozzle side.
 
 ### TOPAS version
 
-By default the TOPAS input files are written for current OpenTOPAS and **need OpenTOPAS 4.2 or later**. For an older TOPAS, pass its version:
+By default the TOPAS input files are written for OpenTOPAS 4.3 and **need OpenTOPAS 4.2 or later**. For an older TOPAS, pass its version:
 
 - `--topas-version X.Y`
 
@@ -112,7 +112,7 @@ options:
                         Target protons for simulation
   --threads NR_THREADS  TOPAS Ts/NumberOfThreads (default: 0). 0 uses all cores on the machine that RUNS the file, -1 all but one, N
                         exactly N. Resolved at run time, not at export time, so it is safe to export on one node and run on another.
-  --topas-version X.Y   TOPAS version the input file is written for, as MAJOR.MINOR (default: 4.2). Versions below 4.2 get the emittance
+  --topas-version X.Y   TOPAS version the input file is written for, as MAJOR.MINOR (default: 4.3). Versions below 4.2 get the emittance
                         source as BeamParticle/BeamEnergy/BeamEnergySpread instead of the Emittance* names, which they do not recognise.
   --dose-cube-16bit     Write the TOPAS DICOM dose cube with 16 instead of 32 bits per pixel. Halves the file size, but every voxel below
                         ~1.5e-5 of the field's peak dose is written as 0, which can remove low-level out-of-field dose.
@@ -125,8 +125,8 @@ options:
                         Export format (default: topas). Formats: topas (*.txt), mcpl (*.mcpl), racehorse (*.csv).
   --nozzle-side {pos-z,neg-z}
                         Which side of the gantry-local Z axis the nozzle sits on (default: neg-z). neg-z reproduces IEC 61217: at
-                        gantry 0 the beam enters an HFS patient from the anterior side (verified against OpenTOPAS 4.2.3, issue
-                        #66). pos-z mirrors the source to gantry+180 deg and is only meant for non-patient research setups.
+                        gantry 0 the beam enters an HFS patient from the anterior side (verified against OpenTOPAS 4.2.3 and 4.3.0,
+                        issue #66). pos-z mirrors the source to gantry+180 deg and is only meant for non-patient research setups.
   -v, --verbosity       Increase verbosity (can use -v, -vv, etc.).
   -V, --version         Show version and exit.
   ```
@@ -164,7 +164,7 @@ options:
   --threads NR_THREADS  TOPAS Ts/NumberOfThreads (default: 0). 0 uses all cores on the machine that RUNS the file, -1 all but one, N
                         exactly N. Resolved at run time, not at export time, so it is safe to export on one node and run on another.
                         Only the --test-mode Topas export writes a setup block for it to land in.
-  --topas-version X.Y   TOPAS version the input file is written for, as MAJOR.MINOR (default: 4.2). Versions below 4.2 get the emittance
+  --topas-version X.Y   TOPAS version the input file is written for, as MAJOR.MINOR (default: 4.3). Versions below 4.2 get the emittance
                         source as BeamParticle/BeamEnergy/BeamEnergySpread instead of the Emittance* names, which they do not recognise.
                         Only applies to Topas export.
   --spot-mode {sources,timefeature}
@@ -185,8 +185,8 @@ options:
                         sign of Y; use it for downstream codes that expect a +Z-forward beam. Only applies to MCPL export.
   --nozzle-side {pos-z,neg-z}
                         Which side of the gantry-local Z axis the nozzle sits on (default: neg-z). neg-z reproduces IEC 61217: at
-                        gantry 0 the beam enters an HFS patient from the anterior side (verified against OpenTOPAS 4.2.3, issue
-                        #66). pos-z mirrors the source to gantry+180 deg and is only meant for non-patient research setups.
+                        gantry 0 the beam enters an HFS patient from the anterior side (verified against OpenTOPAS 4.2.3 and 4.3.0,
+                        issue #66). pos-z mirrors the source to gantry+180 deg and is only meant for non-patient research setups.
   -v, --verbosity       Increase verbosity
   -V, --version         show program's version number and exit
 ```
