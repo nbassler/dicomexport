@@ -2,7 +2,8 @@ import argparse
 from pathlib import Path
 
 from dicomexport.__version__ import __version__
-from dicomexport.parser_topas_options import add_nozzle_side, add_nstat, add_spot_mode, add_threads, add_topas_version
+from dicomexport.parser_topas_options import (add_batches, add_nozzle_side, add_nstat, add_spot_mode, add_threads,
+                                              add_topas_version)
 
 
 def create_parser():
@@ -34,6 +35,7 @@ def create_parser():
     add_threads(parser, note=" Only the --test-mode Topas export writes a setup block for it to land in.")
     add_topas_version(parser, note=" Only applies to Topas export.")
     add_spot_mode(parser)
+    add_batches(parser)
     parser.add_argument('-nc', '--spotlist-column-count', type=int, dest='spotlist_column_count',
                         choices=[5, 6, 7, 9, 11], default=11,
                         help="Number of columns in the spotlist export. Valid values: 5, 6, 7, 9, or 11 (default: 11).")

@@ -88,7 +88,7 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
         if sources:
             lines.append(TopasPlan.sources_string(
                 fld, bm, nstat=opts.nstat, beam_direction=opts.beam_direction,
-                topas_version=opts.topas_version, table=table))
+                topas_version=opts.topas_version, table=table, batches=opts.n_batches))
         else:
             lines.append(TopasPlan.time_features_string(
                 fld, bm, nstat=opts.nstat, beam_direction=opts.beam_direction, table=table))

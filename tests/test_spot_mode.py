@@ -69,13 +69,15 @@ def _assert_same_spots(timefeature_text, sources_text):
     return kept
 
 
-def _plan_files(tmp_path, *extra):
+def _plan_files(tmp_path, *extra, batches="1"):
+    """Both spot modes; sources mode in one batch, so its spot weights equal the time feature's."""
     out = {}
     for mode in ("timefeature", "sources"):
         d = tmp_path / mode
         d.mkdir()
+        b = ["--batches", batches] if mode == "sources" and batches is not None else []
         assert plan_export.main([PLAN, str(d / "p.txt"), "-b", BEAM_MODEL, "-N", "100000",
-                                 "--spot-mode", mode, *extra]) == 0
+                                 "--spot-mode", mode, *b, *extra]) == 0
         out[mode] = (d / "p_field01.txt").read_text()
     return out
 
@@ -91,15 +93,16 @@ def test_study_export_places_every_spot_identically(tmp_path):
     for mode in ("timefeature", "sources"):
         d = tmp_path / mode
         d.mkdir()
+        batches = ["--batches", "1"] if mode == "sources" else []
         assert study.main(["-b", BEAM_MODEL, "-s", SPR_TABLE, "-N", "200000", "--spot-mode", mode,
-                           STUDY, str(d / "topas.txt")]) == 0
+                           *batches, STUDY, str(d / "topas.txt")]) == 0
         texts[mode] = {f.name: f.read_text() for f in d.glob("topas_field*.txt")}
     assert sorted(texts["sources"]) == ["topas_field01.txt", "topas_field02.txt", "topas_field03.txt"]
     for name in texts["sources"]:
         _assert_same_spots(texts["timefeature"][name], texts["sources"][name])
 
 
-def test_sources_mode_has_no_time_feature(tmp_path):
+def test_one_batch_has_no_time_feature(tmp_path):
     text = _plan_files(tmp_path, "--test-mode")["sources"]
     assert "Tf/" not in text
     assert "BeamPosition" not in text
@@ -205,3 +208,76 @@ def test_negative_spot_weight_is_refused_by_the_topas_writer(mode):
     plan.fields[0].layers[0].spots[0].mu = -1.0
     with pytest.raises(ValueError, match="negative weight"):
         TopasPlan.generate(plan.fields[0], plan.beam_model, opts=TopasExportOptions(spot_mode=mode))
+
+
+# --- batches (issue #121) -------------------------------------------------------------
+
+
+def _key(text, name):
+    m = re.search(rf"^# {name}: (\S+)$", text, re.M)
+    return m.group(1) if m else None
+
+
+def test_sources_mode_runs_ten_identical_batches_by_default(tmp_path):
+    files = _plan_files(tmp_path, "--test-mode", batches=None)
+    src = files["sources"]
+    # The batch count is the only Tf/ parameter: nothing changes between the runs.
+    assert re.findall(r"^\w+:Tf/.*$", src, re.M) == [
+        f"{'i:Tf/NumberOfSequentialTimes':<44} = 10"]
+    assert "BeamPosition" not in src
+    per_batch = [int(v) for v in re.findall(r"NumberOfHistoriesInRun\s*=\s*(\d+)", src)]
+    assert _key(src, "RUNS") == "10"
+    assert _key(src, "EVENTS_PER_RUN") == str(max(per_batch))
+    assert _key(src, "SPOTS") == str(len(per_batch))
+    assert _key(src, "SIMULATED_HISTORIES") == str(10 * sum(per_batch))
+    # Each spot gets a tenth of its time-feature weight, up to rounding to whole histories.
+    tf = _time_features(files["timefeature"])["spotWeight"]
+    assert sum(per_batch) * 10 == pytest.approx(sum(tf), rel=0.01)
+
+
+def test_batches_split_every_spot_weight(tmp_path):
+    from dicomexport.beam_model import BeamModel
+    from dicomexport.export_plan_topas import TopasPlan
+    from dicomexport.import_plan import load_plan
+    from pathlib import Path
+    plan = load_plan(Path("res/test_plans/temp_160MeV_10x10.dcm"))
+    plan.beam_model = BeamModel(Path(BEAM_MODEL))
+    plan.apply_beammodel()
+    t = TopasPlan.spot_table(plan.fields[0], plan.beam_model, 100000)
+    assert list(TopasPlan.spot_histories(t, 1)) == [int(f"{w:.0f}") for w in t.weight]
+    assert list(TopasPlan.spot_histories(t, 4)) == [int(f"{w / 4:.0f}") for w in t.weight]
+
+
+@pytest.mark.parametrize("create, positionals", [(main_parser, ["s"]), (plan_parser, ["p.dcm"])])
+def test_parsers_offer_batches(create, positionals):
+    assert create().parse_args(positionals).batches is None
+    assert create().parse_args(positionals + ["--batches", "5"]).batches == 5
+
+
+@pytest.mark.parametrize("bad", [["--batches", "0"], ["--spot-mode", "timefeature", "--batches", "5"]])
+@pytest.mark.parametrize("entry, positionals", [(study.main, ["s", "out.txt"]), (plan_export.main, [PLAN, "out.txt"])])
+def test_bad_batches_fail_at_the_command_line(entry, positionals, bad, capsys):
+    with pytest.raises(SystemExit) as e:
+        entry(positionals + bad)
+    assert e.value.code == 2
+    assert "--batches" in capsys.readouterr().err
+
+
+def test_timefeature_ignores_the_batch_default():
+    from dicomexport.topas_export_options import TopasExportOptions
+    assert TopasExportOptions().n_batches == 10
+    assert TopasExportOptions(spot_mode="timefeature").n_batches == 1
+    assert TopasExportOptions(spot_mode="timefeature", batches=1).n_batches == 1
+    assert TopasExportOptions(batches=3).n_batches == 3
+
+
+def test_coarse_rounding_per_batch_warns(tmp_path, caplog):
+    with caplog.at_level(logging.WARNING):
+        assert plan_export.main([PLAN, str(tmp_path / "p.txt"), "-b", BEAM_MODEL, "-N", "100000"]) == 0
+    assert "of the primaries between spots" in caplog.text
+    assert "lower --batches" in caplog.text
+
+
+def test_no_spot_left_per_batch_names_batches(tmp_path):
+    with pytest.raises(ValueError, match="lower --batches"):
+        plan_export.main([PLAN, str(tmp_path / "p.txt"), "-b", BEAM_MODEL, "-N", "1000"])

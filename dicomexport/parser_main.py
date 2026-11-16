@@ -2,8 +2,8 @@ import argparse
 from pathlib import Path
 
 from dicomexport.__version__ import __version__
-from dicomexport.parser_topas_options import (add_dose_cube_16bit, add_nozzle_side, add_nstat, add_spot_mode,
-                                              add_threads, add_topas_version)
+from dicomexport.parser_topas_options import (add_batches, add_dose_cube_16bit, add_nozzle_side, add_nstat,
+                                              add_spot_mode, add_threads, add_topas_version)
 
 
 def create_parser():
@@ -50,6 +50,7 @@ def create_parser():
     add_dose_cube_16bit(parser)
 
     add_spot_mode(parser)
+    add_batches(parser)
 
     parser.add_argument(
         '--export-fmt', dest='export_fmt', choices=['topas', 'mcpl', 'racehorse'], default='topas',

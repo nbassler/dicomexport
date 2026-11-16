@@ -85,7 +85,7 @@ $ PYTHONPATH=. python3 dicomexport/main.py --help
 usage: main.py [-h] [-b BM] [-s SPR_TO_MATERIAL_PATH] [-p BEAM_MODEL_POSITION]
                [-f FIELD_NR] [-N NSTAT] [--threads NR_THREADS]
                [--topas-version X.Y] [--dose-cube-16bit]
-               [--spot-mode {sources,timefeature}]
+               [--spot-mode {sources,timefeature}] [--batches B]
                [--export-fmt {topas,mcpl,racehorse}]
                [--nozzle-side {pos-z,neg-z}] [-v] [-V]
                study_dir [output_base_path]
@@ -121,6 +121,11 @@ options:
                         is one Geant4 run; much faster, because TOPAS merges every scorer after each run. TOPAS's history count is then
                         the event number, up to the largest spot weight, not the number of protons. timefeature: one run per spot,
                         stepping a single source through the spots.
+  --batches B           Sources mode only: split each field into B identical TOPAS runs (default: 10). -N stays the total over all runs:
+                        each run simulates 1/B of every spot's protons, about N/B in all, so B does not multiply the number of protons. A
+                        scorer with Sc/<name>/OutputAfterRun writes one result per run, from which the statistical uncertainty follows by
+                        batch means. The DICOM dose cube adds up over all runs. Spot weights are rounded per run, so a larger B needs a
+                        larger -N.
   --export-fmt {topas,mcpl,racehorse}
                         Export format (default: topas). Formats: topas (*.txt), mcpl (*.mcpl), racehorse (*.csv).
   --nozzle-side {pos-z,neg-z}
@@ -138,7 +143,7 @@ $ PYTHONPATH=. python3 dicomexport/main_plan_export.py --help
 usage: main_plan_export.py [-h] [-b FBM] [-p BEAM_MODEL_POSITION]
                            [-f FIELD_NR] [-d] [-s SCALE] [-N NSTAT]
                            [--threads NR_THREADS] [--topas-version X.Y]
-                           [--spot-mode {sources,timefeature}]
+                           [--spot-mode {sources,timefeature}] [--batches B]
                            [-nc {5,6,7,9,11}]
                            [--export-fmt {topas,mcpl,racehorse,spotlist}]
                            [--spot-pos-iso] [--test-mode]
@@ -172,6 +177,11 @@ options:
                         is one Geant4 run; much faster, because TOPAS merges every scorer after each run. TOPAS's history count is then
                         the event number, up to the largest spot weight, not the number of protons. timefeature: one run per spot,
                         stepping a single source through the spots.
+  --batches B           Sources mode only: split each field into B identical TOPAS runs (default: 10). -N stays the total over all runs:
+                        each run simulates 1/B of every spot's protons, about N/B in all, so B does not multiply the number of protons. A
+                        scorer with Sc/<name>/OutputAfterRun writes one result per run, from which the statistical uncertainty follows by
+                        batch means. The DICOM dose cube adds up over all runs. Spot weights are rounded per run, so a larger B needs a
+                        larger -N.
   -nc, --spotlist-column-count {5,6,7,9,11}
                         Number of columns in the spotlist export. Valid values: 5, 6, 7, 9, or 11 (default: 11).
   --export-fmt {topas,mcpl,racehorse,spotlist}

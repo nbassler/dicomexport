@@ -81,7 +81,8 @@ def test_beam_enters_from_expected_side(tmp_path, nozzle_side, entrance, spot_mo
     repo_root = Path(__file__).resolve().parent.parent
     test_args = [
         "-f1",
-        "-N", "500",
+        # Sources mode runs 10 batches by default (#121): enough for every spot in every batch.
+        "-N", "5000" if spot_mode == "sources" else "500",
         f"-b={repo_root / 'res/beam_models/DCPT_beam_model__v2.csv'}",
         "--test-mode",
         f"--nozzle-side={nozzle_side}",
