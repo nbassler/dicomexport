@@ -4,8 +4,7 @@ import numpy as np
 from pathlib import Path
 
 from dicomexport.model_plan import (Plan, Field, Layer, Spot, RangeShifter,
-                                    DEFAULT_RANGE_SHIFTER_CATALOG, NO_RANGE_SHIFTER_ID,
-                                    default_range_shifter_catalog)
+                                    NO_RANGE_SHIFTER_ID, default_range_shifter_catalog)
 
 logger = logging.getLogger(__name__)
 
@@ -533,19 +532,18 @@ def _build_range_shifter(rs_item, catalog: dict | None = None,
         return number, None
 
     # matching is intentionally case-sensitive: IDs are site-local labels used verbatim
-    default = default_range_shifter_catalog()
-    catalog = default if catalog is None else catalog
+    catalog = default_range_shifter_catalog() if catalog is None else catalog
     if rs_id not in catalog:
         where = f" on beam {field_nr}" if field_nr is not None else ""
         known = ", ".join(sorted(k for k in catalog if k != NO_RANGE_SHIFTER_ID)) or "(none)"
-        source = (f"the default catalog ({DEFAULT_RANGE_SHIFTER_CATALOG})" if catalog is default
-                  else "the range shifter catalog supplied with --range-shifter-catalog")
+        source = getattr(catalog, "source", "") or "the range shifter catalog passed in"
         raise ValueError(
             f"Unknown RangeShifterID '{rs_id}'{where}. It is not in {source}, which "
             f"defines: {known}. A DICOM plan gives no thickness or material, so the "
-            f"shifter has to be looked up. Supply a catalog listing every shifter this "
-            f"plan uses with --range-shifter-catalog FILE; the README.md next to the "
-            f"default catalog describes the format.")
+            f"shifter has to be looked up. Add it to range_shifters.csv in the configuration "
+            f"directory, or pass a catalog listing every shifter this plan uses with "
+            f"--range-shifter-catalog FILE. The README.md of the shipped defaults "
+            f"describes the format.")
 
     spec = catalog[rs_id]
     return number, RangeShifter(

@@ -4,10 +4,11 @@ import logging
 from dicomexport.parser_plan_export import create_parser
 from dicomexport.beam_model import BeamModel
 from dicomexport.import_plan import load_plan
-from dicomexport.model_plan import load_range_shifter_catalog
+from dicomexport.config import ConfigError
 from dicomexport.export_plan import export_plan
 from dicomexport.export_mcpl import generate_mcpl_file
 from dicomexport.export_spotlist import export_spotlist
+from dicomexport.parser_config import config_from_args, range_shifter_catalog_from_args
 from dicomexport.parser_topas_options import check_options, options_from_args
 
 logger = logging.getLogger(__name__)
@@ -33,12 +34,14 @@ def main(args=None) -> int:
         logger.error(f"Input plan file not found: {parsed_args.fin}")
         return 1
 
+    try:
+        cfg = config_from_args(parsed_args)
+        rs_catalog = range_shifter_catalog_from_args(parsed_args, cfg)
+    except (ConfigError, ValueError) as e:
+        logger.error("%s", e)
+        return 2
+
     # load the plan
-    rs_catalog = None
-    if parsed_args.rs_catalog_path:
-        rs_catalog = load_range_shifter_catalog(parsed_args.rs_catalog_path)
-        logger.info("Range shifter catalog %s replaces the default one: %s",
-                    parsed_args.rs_catalog_path, ", ".join(rs_catalog))
     pln = load_plan(parsed_args.fin, rs_catalog=rs_catalog)
 
     # -f is a DICOM BeamNumber (issue #96). Check it before exporting anything.
@@ -54,13 +57,15 @@ def main(args=None) -> int:
         print(pln)
         return 0
 
-    # Next, load the beam model.
-    if not parsed_args.fbm:
-        logger.error(
-            "No beam model provided. Use -b to specify a beam model CSV file.")
-        raise ValueError("Beam model file is required.")
+    # Next, load the beam model: -b, or the one the configuration directory makes unambiguous.
+    try:
+        bm_path = cfg.beam_model(parsed_args.fbm)
+    except ConfigError as e:
+        logger.error("%s", e)
+        return 2
+    logger.info("Beam model: %s", bm_path)
 
-    pln.beam_model = BeamModel(parsed_args.fbm,
+    pln.beam_model = BeamModel(bm_path,
                                beam_model_position=parsed_args.beam_model_position)
     logger.debug("Applying beam model to plan...")
     pln.apply_beammodel()

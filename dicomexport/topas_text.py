@@ -75,15 +75,20 @@ class TopasText:
         return "\n".join(lines)
 
     @staticmethod
-    def header2() -> str:
-        "Add a footer to the topas file with generation date and username."
+    def header2(sources: Optional[dict] = None) -> str:
+        """Generation date, user and version, and the data files the export used.
+
+        ``sources`` become "# KEY: value" lines, like those of header(), for downstream tools
+        (issue #112): CONFIG_DIR, BEAM_MODEL, CT_TO_MATERIAL, RANGE_SHIFTER_CATALOG.
+        """
 
         lines = [
             f"# Generated {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} by user '{getpass.getuser()}'",
             f"# using dicomexport {__version__}",
             "# https://github.com/nbassler/dicomexport",
-            "#\n"
         ]
+        lines += [f"# {key}: {value}" for key, value in (sources or {}).items()]
+        lines.append("#\n")
 
         return "\n".join(lines)
 

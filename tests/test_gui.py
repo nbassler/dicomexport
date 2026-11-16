@@ -4,32 +4,24 @@ from typing import Any, ClassVar
 import pytest
 
 
-class TestListFiles:
+class TestGuiConfig:
+    """The GUIs list the configuration directory in effect (issue #112)."""
 
-    def setup_method(self):
-        from dicomexport.gui.utils import BEAM_MODELS_DIR, CT_TO_MATERIAL_DIR, list_files
-        self.list_files = list_files
-        self.beam_models_dir = BEAM_MODELS_DIR
-        self.ct_to_material_dir = CT_TO_MATERIAL_DIR
+    def test_lists_the_shipped_defaults_without_a_site_directory(self):
+        from dicomexport.config import DEFAULTS_DIR
+        from dicomexport.gui.utils import by_name, gui_config
+        cfg = gui_config()
+        assert cfg.path == DEFAULTS_DIR
+        assert "HUtoMaterialSchneider.txt" in by_name(cfg.ct_to_material_tables())
+        assert cfg.default_beam_model().name == "DCPT_beam_model__v5.csv"
 
-    def test_finds_csv_files(self):
-        result = self.list_files(self.beam_models_dir, [".csv"])
-        assert len(result) > 0, "Expected at least one beam model CSV"
-        for name, path in result.items():
-            assert path.suffix == ".csv"
-
-    def test_finds_ct_to_material_tables(self):
-        result = self.list_files(self.ct_to_material_dir, [".txt"])
-        assert "HUtoMaterialSchneider.txt" in result
-
-    def test_filters_by_suffix(self):
-        result = self.list_files(self.beam_models_dir, [".txt"])
-        assert len(result) == 0, "No .txt files expected in beam_models/"
-
-    def test_keys_are_filenames(self):
-        result = self.list_files(self.beam_models_dir, [".csv"])
-        for name, path in result.items():
-            assert name == path.name
+    def test_lists_a_site_directory(self, tmp_path, monkeypatch):
+        from dicomexport.config import ENV_VAR
+        from dicomexport.gui.utils import by_name, gui_config
+        (tmp_path / "beam_models").mkdir()
+        (tmp_path / "beam_models" / "SITE_bm.csv").write_text("70,70,1,1,1,1\n")
+        monkeypatch.setenv(ENV_VAR, str(tmp_path))
+        assert list(by_name(gui_config().beam_models())) == ["SITE_bm.csv"]
 
 
 class TestQtWindow:

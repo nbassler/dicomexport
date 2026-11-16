@@ -1,16 +1,19 @@
-# placeholder for geometry export functionality
+import json
 import sys
 import logging
 from pathlib import Path
 
+from dicomexport.__version__ import __version__
 from dicomexport.parser_main import create_parser
 from dicomexport.beam_model import BeamModel
+from dicomexport.config import ENV_VAR, ConfigDir, ConfigError, init_config_dir
 from dicomexport.dicom_scan import RTDOSE, scan_study
 from dicomexport.import_ct import load_ct
 from dicomexport.import_rtstruct import load_rs
 from dicomexport.import_plan import load_plan
-from dicomexport.model_plan import load_range_shifter_catalog
+from dicomexport.model_plan import range_shifter_catalog_of
 from dicomexport.export_study_topas import export_study_topas
+from dicomexport.parser_config import config_from_args, range_shifter_catalog_from_args
 from dicomexport.parser_topas_options import check_options, options_from_args
 
 logger = logging.getLogger(__name__)
@@ -51,20 +54,40 @@ def main(args=None) -> int:
     if parsed_args.verbosity > 1:
         logging.basicConfig(level=logging.DEBUG)
 
+    if parsed_args.init_config:
+        return init_config(parsed_args.init_config)
+
+    # Errors are logged and returned rather than raised: the Qt GUI runs main() in a thread
+    # and shows the log, where an exception would end the thread without a word.
+    try:
+        cfg = config_from_args(parsed_args)
+        if parsed_args.list_config:
+            return list_config(cfg, parsed_args.list_config)
+        if parsed_args.study_dir is None:
+            parser.error("the following arguments are required: study_dir")
+        bm_path = cfg.beam_model(parsed_args.bm)
+        table_path = cfg.ct_to_material_table(parsed_args.spr_to_material_path)
+        rs_catalog = range_shifter_catalog_from_args(parsed_args, cfg)
+    except (ConfigError, ValueError) as e:
+        logger.error("%s", e)
+        return 2
+    if cfg.is_shipped:
+        logger.warning(
+            "Using the defaults shipped with dicomexport (%s): DCPT's beam models, the OpenTOPAS "
+            "example table and other centres' range shifters. They are examples, not your "
+            "site's data. Set up a configuration directory with --init-config.", cfg.path)
+    logger.info("Beam model: %s", bm_path)
+    logger.info("CT-number-to-material table: %s", table_path)
+
     # load the CT files
     study_dir = parsed_args.study_dir
     ct = load_ct(study_dir)
-    ct.spr_to_material_path = parsed_args.spr_to_material_path
+    ct.spr_to_material_path = table_path
 
     rs = load_rs(study_dir)
-    bm = BeamModel(parsed_args.bm,
+    bm = BeamModel(bm_path,
                    beam_model_position=parsed_args.beam_model_position)
 
-    rs_catalog = None
-    if parsed_args.rs_catalog_path:
-        rs_catalog = load_range_shifter_catalog(parsed_args.rs_catalog_path)
-        logger.info("Range shifter catalog %s replaces the default one: %s",
-                    parsed_args.rs_catalog_path, ", ".join(rs_catalog))
     pn = load_plan(study_dir, rs_catalog=rs_catalog)
 
     # -f is a DICOM BeamNumber (issue #96). Check it before exporting anything.
@@ -88,11 +111,19 @@ def main(args=None) -> int:
                 "--nozzle-side pos-z places the beam source at gantry+180 deg, mirroring "
                 "every field (issue #66). Do not use it for patient plans; the IEC-correct "
                 "setting is neg-z (the default).")
+        # Named in the header of every TOPAS file, so a run says which data it used.
+        sources = {
+            "CONFIG_DIR": str(cfg),
+            "BEAM_MODEL": str(bm_path),
+            "CT_TO_MATERIAL": str(table_path),
+            "RANGE_SHIFTER_CATALOG": rs_catalog.source,
+        }
         export_study_topas(ct, rs, pn,
                            parsed_args.output_base_path,
                            field_nr=parsed_args.field_nr,
                            dose_path=rd_path,
-                           opts=opts)
+                           opts=opts,
+                           sources=sources)
     elif parsed_args.export_fmt == 'mcpl':
         logger.error(
             "MCPL export is not implemented in the study CLI. Use the plan export "
@@ -106,6 +137,43 @@ def main(args=None) -> int:
         logger.error("Unknown export format: %s", parsed_args.export_fmt)
         return 2
 
+    return 0
+
+
+def init_config(target: Path) -> int:
+    """--init-config: copy the shipped defaults into target, never overwriting."""
+    copied, skipped = init_config_dir(target)
+    for p in copied:
+        print(f"copied   {p}")
+    for p in skipped:
+        print(f"skipped  {p} (exists, left unchanged)")
+    print(f"{len(copied)} copied, {len(skipped)} skipped. Edit the files in {target}; "
+          f"dicomexport uses it when given as --config-dir, or as ${ENV_VAR}, "
+          f"or when it is ~/.config/dicomexport or /etc/dicomexport.")
+    return 0
+
+
+def list_config(cfg: ConfigDir, fmt: str) -> int:
+    """--list-config: what the configuration directory in effect offers."""
+    catalog = range_shifter_catalog_of(cfg.path)
+    listing = {"dicomexport_version": __version__, **cfg.listing(list(catalog))}
+    if fmt == "json":
+        print(json.dumps(listing, indent=2))
+        return 0
+
+    def show(title: str, entries: list) -> None:
+        print(f"{title}:")
+        for e in entries or [{"name": "(none)", "default": False}]:
+            print(f"  {e['name']}{'  (default)' if e['default'] else ''}")
+
+    print(f"Configuration directory: {cfg}")
+    show("Beam models (-b)", listing["beam_models"])
+    show("CT-number-to-material tables (-s)", listing["ct_to_material"])
+    rs = listing["range_shifters"]
+    print(f"Range shifters ({rs['path']}{'' if rs['exists'] else ', missing'}):")
+    print(f"  {', '.join(rs['ids']) or '(none)'}")
+    m = listing["materials"]
+    print(f"Materials: {m['path']}{'' if m['exists'] else ' (missing)'}")
     return 0
 
 

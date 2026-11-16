@@ -16,9 +16,13 @@ logger = logging.getLogger(__name__)
 
 def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: Path,
                        field_nr: int = 0, dose_path: Optional[Path] = None,
-                       opts: TopasExportOptions = DEFAULTS) -> None:
+                       opts: TopasExportOptions = DEFAULTS,
+                       sources: Optional[dict[str, str]] = None) -> None:
     """
     Export the CT and RTStruct models to a Topas-compatible geometry file.
+
+    ``sources`` names the data files the export used (configuration directory, beam model,
+    tables), written into the header of every field file (issue #112).
     """
 
     # field_nr is a DICOM BeamNumber; 0 exports every field (issue #96).
@@ -27,14 +31,15 @@ def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: 
         logger.info(f'Exporting {field.label} = BeamNumber {field.number} "{field.name}"')
         logger.info("=" * 50)
         _export_study_field_topas(
-            ct, rs, field, plan.beam_model, output_base_path, dose_path, opts=opts)
+            ct, rs, field, plan.beam_model, output_base_path, dose_path, opts=opts, sources=sources)
         logger.info("-" * 50 + "\n")
 
 
 def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optional[BeamModel] = None,
                               output_base_path: Optional[Path] = None,
                               dose_path: Optional[Path] = None,
-                              opts: TopasExportOptions = DEFAULTS) -> None:
+                              opts: TopasExportOptions = DEFAULTS,
+                              sources: Optional[dict[str, str]] = None) -> None:
     """
     Export a single field to a Topas-compatible geometry file.
     """
@@ -57,7 +62,7 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     table = TopasPlan.spot_table(fld, bm, opts.nstat, opts.beam_direction) if bm else None
 
     lines.append(TopasPlan.header(fld, table, opts, nstat_scale))
-    lines.append(TopasText.header2())
+    lines.append(TopasText.header2(sources))
     if ct.spr_to_material_path:
         lines.append(TopasText.spr_to_material(ct.spr_to_material_path))
     lines.append(TopasText.variables(fld, ct.dicom_origin))

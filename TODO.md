@@ -60,42 +60,43 @@ materials.txt           TOPAS Ma/ definitions (#94, not shipped yet)
 #112 is done in three steps, one pull request each, so each can be reviewed and merged on
 its own.
 
-### 1. #112, step 1: ship the data (PR #125, open)
+### 1. #112, step 1: ship the data (done, PR #125 merged)
 
-On branch `112-site-data-directory-built-in-defaults-for-beam-models-hu-tables-and-catalogs-extended-and-overridden-per-site`.
-`dicomexport/defaults/` with beam models v2 and v5, `HUtoMaterialSchneider.txt` and
-`range_shifters.csv` (replacing the `RS_CATALOG` dict); GUIs and PyInstaller builds read
-it; `res/` holds only test data. CLI unchanged. All tests pass; a wheel built from it was
-installed outside the repository and exported the head phantom.
+`dicomexport/defaults/` is package data; frozen builds ship it beside the executable.
+**Not yet verified: the PyInstaller packaging.** Check it on the 2.0.0 pre-release: the
+Windows zip holds `dicomexport.exe`, `dicomexport-cli.exe` and `defaults/`; the GUI opens and
+lists beam models and tables; an exported `includeFile` still exists after the GUI is
+closed; the Linux archive holds the binary and `defaults/`.
 
-Still to do: merge #125. **The PyInstaller builds are untested
-locally:** check the CI build jobs. Frozen builds read `defaults/` from beside the executable
-(`config.py`), not from inside it: a `--onefile` executable unpacks bundled data into a
-temporary directory deleted on exit, and an exported `includeFile` would point there
-(Copilot review). So the Windows zip holds both executables plus `defaults/`, the Linux
-archive holds the binary plus `defaults/`, and the bare `dicomexport-cli.exe` is no longer a
-release asset.
+### 2. #112, step 2: the configuration directory (done on branch `112-step2-config-dir`, not committed)
 
-### 2. #112, step 2: the configuration directory
+Built as decided:
 
-- The search order above, in `dicomexport/config.py`. Log the directory in effect and name
-  it in the TOPAS file header.
-- **DECIDED: `-b` may be omitted.** In the shipped `defaults/` it means
-  `DCPT_beam_model__v5.csv`, named once in the code. In a site's directory only when it holds
-  exactly one beam model; otherwise stop and list the names. The code default never applies
-  to a site's directory.
-- PROPOSED: `-b` and `-s`/`-S` also take a name, looked up in the directory in effect. The
-  same "exactly one, or stop and list" rule for tables.
-- **OPEN: the starting copy.** It must never overwrite existing files (DECIDED). Either a
-  documented `cp -rn` plus how to find the installed package path, or a small command that
-  copies only missing files, lists what it skipped, and also works on Windows. Re-running it
-  after an upgrade adds new shipped files and leaves edited ones alone.
-- PROPOSED: a listing command that prints, as JSON, what the directory in effect offers:
-  its path, beam models, tables, range-shifter IDs, the path of `materials.txt`. Not the
-  material names, which would mean reading a TOPAS file.
-- PROPOSED: make no release between step 1 and step 2. Until step 2 the GUIs list only
-  `defaults/`, so a GUI user has no safe place for a table of their own.
-- Update the GUIs to list the directory in effect instead of `defaults/`.
+- The search order, in `config.find_config_dir()`. `--config-dir` and
+  `$DICOMEXPORT_CONFIG_DIR` must exist when given; the user and system directories are used
+  only if they exist. `tests/conftest.py` keeps tests away from the real ones.
+- `-b` and `-s` take a path (used as given, #63) or a name in the directory in effect, with
+  or without suffix. Either may be omitted when unambiguous. `DCPT_beam_model__v5.csv` is the
+  `-b` default only in the shipped defaults; a site's directory needs exactly one beam model
+  to omit `-b`. A fresh `--init-config` copies both DCPT models, so it needs `-b`.
+- `--init-config DIR` copies the shipped defaults, **never overwriting** (DECIDED), and
+  lists what it copied and skipped.
+- `--list-config [text|json]` (DECIDED). JSON keys: `dicomexport_version`, `config_dir`,
+  `found_by`, `is_shipped_defaults`, `beam_models` and `ct_to_material` (lists of
+  `{name, path, default}`), `range_shifters` (`{path, exists, ids}`), `materials`
+  (`{path, exists}`).
+- The range-shifter catalog is `range_shifters.csv` of the directory in effect; a missing
+  file is an empty catalog. `--range-shifter-catalog` replaces it. An unknown ID names the
+  catalog's file.
+- Every study TOPAS file names its data in the header: `# CONFIG_DIR:`, `# BEAM_MODEL:`,
+  `# CT_TO_MATERIAL:`, `# RANGE_SHIFTER_CATALOG:`.
+- A warning whenever the shipped defaults are in effect: they are other sites' data.
+- `plan-export` shares `--config-dir`, `-b` and the catalog rules. Not `-s`, which it has
+  for something else (`--scale`), nor `--init-config`/`--list-config`.
+- Both GUIs list the directory in effect, preselect the default beam model, and pass
+  `--config-dir` on.
+- `main()` returns 2 with a logged message on a configuration error instead of raising,
+  because the Qt GUI runs it in a thread.
 
 ### 3. #112, step 3: `-S`
 
@@ -179,17 +180,25 @@ dicomexport's `--help` and release notes before coding against an option name or
     search order from a service: it would look in the service account's `~/.config` and in
     `/etc/dicomexport/`, which another installation on the same host may own.
   - When the key is empty, dicomexport uses its shipped defaults (or whatever the search
-    order finds). Either way, **record the directory in effect with each run** in
-    `run.json` (it is in the TOPAS file header, and in the listing).
+    order finds) and logs a warning. Either way, **record the data a run used** in
+    `run.json`: every field file's header has `# CONFIG_DIR:`, `# BEAM_MODEL:`,
+    `# CT_TO_MATERIAL:` and `# RANGE_SHIFTER_CATALOG:` lines.
+  - A site sets its directory up with `dicomexport --init-config DIR`, which never
+    overwrites. That copies both DCPT beam models, so `-b` is required there until the site
+    removes one.
   - If pregdos's RPM/DEB packages (pregdos#86) ever install such a directory, mark its files
     as configuration (`%config(noreplace)`), so a package upgrade never replaces site data.
 - **Delete pregdos's own copies:** `pregdos/data/beam_models/`, `pregdos/data/ct_to_material/`,
   and `_builtin_beam_models()` / `_builtin_material_tables()` in `webserver.py`. dicomexport
   ships the same data: the beam models are numerically identical (dicomexport's are the
   cleaned-up copies), the HU table is identical to the OpenTOPAS 4.3.0 example.
-- **Build the setup page's choices from dicomexport's listing** (PROPOSED in step 2), not from
-  pregdos's package data. pregdos still offers both beam models; it should keep passing
+- **Build the setup page's choices from `dicomexport --list-config json --config-dir DIR`**,
+  not from pregdos's package data. Each beam model and table comes with `name`, `path` and
+  `default`; preselect the one with `default: true`. pregdos still offers both beam models; it should keep passing
   `-b` explicitly, since a site's directory with more than one beam model requires it.
+- **Configuration errors exit with code 2 and a one-line message** on stderr: a missing
+  `--config-dir`, an ambiguous or unknown `-b`/`-s`, a malformed `range_shifters.csv`.
+  Show the message.
 - **Range shifters need no UI.** pregdos never passed `--range-shifter-catalog`, so every run
   used the shipped catalog. With `--config-dir`, the site's `range_shifters.csv` is used
   automatically. An unknown ID makes dicomexport exit non-zero with a message naming it:

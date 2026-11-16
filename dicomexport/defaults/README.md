@@ -1,7 +1,6 @@
-# dicomexport defaults
+# dicomexport configuration directory
 
-The data dicomexport needs besides the DICOM study, shipped with the package so that it runs
-straight after installation:
+The data dicomexport needs besides the DICOM study:
 
 ```text
 beam_models/*.csv       beam models, one is chosen per export (-b)
@@ -9,13 +8,46 @@ ct_to_material/*.txt    CT-number-to-material tables for TOPAS, one is chosen pe
 range_shifters.csv      range shifter catalog, looked up by the plan's RangeShifterID
 ```
 
-**These are examples, not your site's calibration.** The beam models are DCPT's, the table
-is the OpenTOPAS example, and the range shifters are those dicomexport has met at four
-centres. Each subdirectory has its own README.
+This README is in two places: in the `defaults/` directory shipped inside the installed
+dicomexport package, and in every site's copy of it.
 
-**Do not edit the files here.** This directory belongs to the installed package and is
-replaced on every upgrade. A site keeps its own data in a copy of this directory elsewhere
-(issue #112).
+**In the shipped `defaults/`, do not edit anything.** It belongs to the installed package and
+is replaced on every upgrade. Its files are examples, not your site's calibration: the beam
+models are DCPT's, the table is the OpenTOPAS example, and the range shifters are those
+dicomexport has met at four centres.
+
+**In a site's copy, edit freely.** Add your beam models and tables, list your range
+shifters, remove what does not apply. An upgrade never touches it.
+
+## Setting up a site's configuration directory
+
+```bash
+dicomexport --init-config /etc/dicomexport      # or ~/.config/dicomexport, or any directory
+```
+
+This copies the shipped defaults into the directory. It never overwrites a file that is
+already there, so re-running it after an upgrade only adds files the site does not have yet.
+
+dicomexport uses exactly one configuration directory, never a mix. It takes the first of:
+
+1. `--config-dir DIR`
+2. `$DICOMEXPORT_CONFIG_DIR`
+3. `~/.config/dicomexport/` (`%APPDATA%\dicomexport\` on Windows)
+4. `/etc/dicomexport/` (not on Windows)
+5. the shipped `defaults/`
+
+`dicomexport --list-config` shows which one is in effect and what it offers. Every TOPAS file
+names the directory and the files it used in its header.
+
+**Choosing files.** `-b` and `-s` take a file path, or the name of a file in the directory in
+effect, with or without its suffix: `-b DCPT_beam_model__v5`. Either may be omitted when the
+choice is unambiguous: a directory with exactly one beam model or one table. Only in the
+shipped defaults is `DCPT_beam_model__v5.csv` the beam model used without `-b`; a site's
+directory with both DCPT models needs `-b`, so dicomexport never picks a calibration on a
+site's behalf.
+
+Keeping a site's directory under version control (git) gives every revision of a beam model
+or a calibration a history, and a backup.
 
 ## Range shifter catalog: `range_shifters.csv`
 
@@ -24,16 +56,18 @@ the isocenter — but never by a thickness, a material or a density. Those are p
 of the physical device, so dicomexport must look them up in `range_shifters.csv`.
 
 When a plan names a shifter that is not in it, the export stops with a message naming the
-ID. Supply a catalog that lists it:
+ID and the file. Add the shifter to `range_shifters.csv` in the site's configuration
+directory, or, for a single run, pass a catalog that lists it:
 
 ```bash
 dicomexport ... --range-shifter-catalog my_shifters.csv
 ```
 
-### A supplied file replaces the default catalog, it does not extend it
+### One catalog per run, never merged
 
-Whatever the file defines is the *complete* set of known shifters for that run. This is
-deliberate:
+The catalog of the configuration directory in effect is the *complete* set of known
+shifters, and a file passed with `--range-shifter-catalog` replaces it. Neither extends
+another. This is deliberate:
 
 - an export then depends on exactly one source, so two dicomexport releases cannot give
   different geometry from the same inputs;
