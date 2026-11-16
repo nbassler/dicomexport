@@ -4,7 +4,8 @@ import numpy as np
 from pathlib import Path
 
 from dicomexport.model_plan import (Plan, Field, Layer, Spot, RangeShifter,
-                                    RS_CATALOG, NO_RANGE_SHIFTER_ID)
+                                    DEFAULT_RANGE_SHIFTER_CATALOG, NO_RANGE_SHIFTER_ID,
+                                    default_range_shifter_catalog)
 
 logger = logging.getLogger(__name__)
 
@@ -15,10 +16,10 @@ def load_plan_dicom(file_dcm: Path, rs_catalog: dict | None = None) -> Plan:
     Args:
         file_dcm: the plan file.
         rs_catalog: range shifter catalog to resolve RangeShifterID against.
-            None uses the built-in RS_CATALOG; a loaded catalog replaces it
+            None uses the shipped default catalog; a loaded catalog replaces it
             entirely (see model_plan.load_range_shifter_catalog).
     """
-    catalog = RS_CATALOG if rs_catalog is None else rs_catalog
+    catalog = default_range_shifter_catalog() if rs_catalog is None else rs_catalog
 
     p = Plan()
     try:
@@ -532,18 +533,19 @@ def _build_range_shifter(rs_item, catalog: dict | None = None,
         return number, None
 
     # matching is intentionally case-sensitive: IDs are site-local labels used verbatim
-    catalog = RS_CATALOG if catalog is None else catalog
+    default = default_range_shifter_catalog()
+    catalog = default if catalog is None else catalog
     if rs_id not in catalog:
         where = f" on beam {field_nr}" if field_nr is not None else ""
         known = ", ".join(sorted(k for k in catalog if k != NO_RANGE_SHIFTER_ID)) or "(none)"
-        source = ("the built-in catalog" if catalog is RS_CATALOG
+        source = (f"the default catalog ({DEFAULT_RANGE_SHIFTER_CATALOG})" if catalog is default
                   else "the range shifter catalog supplied with --range-shifter-catalog")
         raise ValueError(
             f"Unknown RangeShifterID '{rs_id}'{where}. It is not in {source}, which "
             f"defines: {known}. A DICOM plan gives no thickness or material, so the "
             f"shifter has to be looked up. Supply a catalog listing every shifter this "
-            f"plan uses with --range-shifter-catalog FILE; see "
-            f"res/range_shifters/README.md for the format and examples.")
+            f"plan uses with --range-shifter-catalog FILE; the README.md next to the "
+            f"default catalog describes the format.")
 
     spec = catalog[rs_id]
     return number, RangeShifter(

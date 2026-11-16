@@ -9,7 +9,7 @@ import dicomexport.main_plan_export as plan_export
 from dicomexport.parser_main import create_parser as main_parser
 from dicomexport.parser_plan_export import create_parser as plan_parser
 
-BEAM_MODEL = "res/beam_models/DCPT_beam_model__v2.csv"
+BEAM_MODEL = "dicomexport/defaults/beam_models/DCPT_beam_model__v2.csv"
 SPR_TABLE = "res/spr_tables/SPRtoMaterial__Brain.txt"
 STUDY = "res/test_studies/DCPT_headphantom/"
 PLAN = "res/test_plans/temp_sobp_10x10.dcm"

@@ -1,8 +1,9 @@
 """Shipped CT-number-to-material tables must not make TOPAS index DensityCorrection out of bounds.
 
-This checks the tables in res/spr_tables/ as data. dicomexport itself never parses these
-files: it passes them to TOPAS (see TODO.md, "dicomexport does not interpret TOPAS parameter
-files"). Validation for tables supplied by users belongs to the front end (Eurados/pregdos#131).
+This checks the tables in res/spr_tables/ and dicomexport/defaults/ct_to_material/ as data.
+dicomexport itself never parses these files: it passes them to TOPAS (see TODO.md, "dicomexport
+does not interpret TOPAS parameter files"). Validation for tables supplied by users belongs to
+the front end (Eurados/pregdos#131).
 
 What TOPAS does, from OpenTOPAS 4.3.0 geometry/TsImagingToMaterialSchneider.cc:
 
@@ -21,8 +22,10 @@ from pathlib import Path
 
 import pytest
 
-SPR_TABLE_DIR = Path(__file__).parent.parent / "res" / "spr_tables"
-TABLES = sorted(SPR_TABLE_DIR.glob("*.txt"))
+REPO = Path(__file__).parent.parent
+SPR_TABLE_DIR = REPO / "res" / "spr_tables"
+# The test tables, and the ones dicomexport ships (issue #112).
+TABLES = sorted(SPR_TABLE_DIR.glob("*.txt")) + sorted((REPO / "dicomexport" / "defaults" / "ct_to_material").glob("*.txt"))
 
 TOPAS_DEFAULT_MIN_IMAGING_VALUE = -1000
 

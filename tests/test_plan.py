@@ -10,7 +10,8 @@ import mcpl
 import numpy as np
 import pytest
 
-from dicomexport.model_plan import Plan, RS_CATALOG, load_range_shifter_catalog
+from dicomexport.model_plan import (Plan, DEFAULT_RANGE_SHIFTER_CATALOG, default_range_shifter_catalog,
+                                    load_range_shifter_catalog)
 from dicomexport.import_plan import load_plan
 from dicomexport.import_plan_dicom import _rs_isocenter_distance, _resolve_sad
 from dicomexport.beam_model import BeamModel
@@ -71,7 +72,7 @@ class TestPlan:
 class TestMCPLExport:
     def test_mcpl_export_roundtrip_100(self):
         plan_path = "res/test_plans/temp_160MeV_10x10.dcm"
-        bm_path = "res/beam_models/DCPT_beam_model__v2.csv"
+        bm_path = "dicomexport/defaults/beam_models/DCPT_beam_model__v2.csv"
 
         with tempfile.TemporaryDirectory() as td:
             out_path = os.path.join(td, "myoutput.mcpl")
@@ -121,7 +122,7 @@ class TestSpotlistExport:
     @pytest.mark.parametrize("col_count", [5, 6, 7, 9, 11])
     def test_spotlist_export(self, col_count):
         plan_path = "res/test_plans/temp_160MeV_10x10.dcm"
-        bm_path = "res/beam_models/DCPT_beam_model__v2.csv"
+        bm_path = "dicomexport/defaults/beam_models/DCPT_beam_model__v2.csv"
 
         with tempfile.TemporaryDirectory() as td:
             out_path = os.path.join(td, "myspotlist.dat")
@@ -354,7 +355,7 @@ class TestTopasRejectsZeroSad:
 
     def test_zero_sad_raises_instead_of_writing_inf(self, tmp_path):
         plan = load_plan(Path("res") / "test_plans" / "temp_160MeV_10x10.dcm")
-        plan.beam_model = BeamModel(Path("res") / "beam_models" / "DCPT_beam_model__v2.csv")
+        plan.beam_model = BeamModel(Path("dicomexport") / "defaults" / "beam_models" / "DCPT_beam_model__v2.csv")
         plan.apply_beammodel()
         field = plan.fields[0]
         field.sad = (0.0, 0.0)              # simulate the pre-fix state
@@ -369,7 +370,7 @@ class TestBackprojectionUsesSad:
     @staticmethod
     def _plan(path):
         plan = load_plan(path)
-        plan.beam_model = BeamModel(Path("res") / "beam_models" / "DCPT_beam_model__v2.csv")
+        plan.beam_model = BeamModel(Path("dicomexport") / "defaults" / "beam_models" / "DCPT_beam_model__v2.csv")
         plan.apply_beammodel()
         return plan
 
@@ -443,7 +444,7 @@ class TestSadValidationEdgeCases:
     @pytest.mark.parametrize("bad", [(float("nan"), 2560.0), (float("inf"), 2560.0)])
     def test_topas_rejects_non_finite_sad(self, bad):
         plan = load_plan(Path("res") / "test_plans" / "temp_160MeV_10x10.dcm")
-        plan.beam_model = BeamModel(Path("res") / "beam_models" / "DCPT_beam_model__v2.csv")
+        plan.beam_model = BeamModel(Path("dicomexport") / "defaults" / "beam_models" / "DCPT_beam_model__v2.csv")
         plan.apply_beammodel()
         field = plan.fields[0]
         field.sad = bad
@@ -453,7 +454,7 @@ class TestSadValidationEdgeCases:
     @pytest.mark.parametrize("bad", [(float("nan"), 2560.0), (float("inf"), 2560.0)])
     def test_spotlist_treats_non_finite_sad_as_parallel(self, bad, caplog):
         plan = load_plan(Path("res") / "test_plans" / "temp_160MeV_10x10.dcm")
-        plan.beam_model = BeamModel(Path("res") / "beam_models" / "DCPT_beam_model__v2.csv")
+        plan.beam_model = BeamModel(Path("dicomexport") / "defaults" / "beam_models" / "DCPT_beam_model__v2.csv")
         plan.apply_beammodel()
         for field in plan.fields:
             field.sad = bad
@@ -467,7 +468,7 @@ class TestSadValidationEdgeCases:
     def test_spotlist_rejects_bad_beam_model_position(self, tmp_path, bad):
         """Must fail before announcing an export plane; nan used to slip through."""
         plan = load_plan(Path("res") / "test_plans" / "temp_160MeV_10x10.dcm")
-        bm = BeamModel(Path("res") / "beam_models" / "DCPT_beam_model__v2.csv")
+        bm = BeamModel(Path("dicomexport") / "defaults" / "beam_models" / "DCPT_beam_model__v2.csv")
         plan.beam_model = bm
         plan.apply_beammodel()
         bm.beam_model_position = bad
@@ -579,28 +580,28 @@ class TestReferencedBeamPairing:
 
 
 class TestRangeShifterCatalog:
-    """Issue #76: the catalog is built in, and a user CSV replaces it wholesale."""
+    """Issue #76: a catalog ships with the package (#112), and a user CSV replaces it wholesale."""
 
     PLAN = Path("res") / "test_plans" / "temp_160MeV_10x10.dcm"
 
-    @pytest.mark.parametrize("name,expected", [
-        ("rs_dcpt", {"RS_2CM", "RS_3CM", "RS_5CM"}),
-        ("rs_ccb", {"RS_Block"}),
-        ("rs_skandion", {"RS_3.5"}),
-        ("rs_wpe", {"RS74", "RS51", "RS25"}),
-    ])
-    def test_shipped_catalogs_load(self, name, expected):
-        catalog = load_range_shifter_catalog(Path("res") / "range_shifters" / f"{name}.csv")
-        assert set(catalog) - {"None"} == expected
-        for entry in catalog.values():
-            assert entry["thickness"] >= 0.0
+    def test_default_catalog_is_shipped_with_the_package(self):
+        """Issue #112: the catalog is package data, so a pip install has it."""
+        assert DEFAULT_RANGE_SHIFTER_CATALOG.is_file()
+        assert DEFAULT_RANGE_SHIFTER_CATALOG.parent.name == "defaults"
+        assert default_range_shifter_catalog() is default_range_shifter_catalog()  # read once
 
-    def test_shipped_catalogs_agree_with_the_builtin(self):
-        """The example files mirror RS_CATALOG, so they cannot drift apart unnoticed."""
-        merged = {}
-        for name in ("rs_dcpt", "rs_ccb", "rs_skandion", "rs_wpe"):
-            merged.update(load_range_shifter_catalog(Path("res") / "range_shifters" / f"{name}.csv"))
-        assert merged == RS_CATALOG
+    def test_default_catalog_contents(self):
+        """Pins every shipped shifter. A thickness or density changed by accident is a dose error."""
+        assert default_range_shifter_catalog() == {
+            "RS_2CM": {"thickness": 20.0, "material": "Lexan"},  # DCPT
+            "RS_3CM": {"thickness": 30.0, "material": "Lexan"},  # DCPT
+            "RS_5CM": {"thickness": 50.0, "material": "Lexan"},  # DCPT
+            "RS_Block": {"thickness": 36.5, "material": "Lexan"},  # CCB
+            "RS_3.5": {"thickness": 30.62, "material": "Lexan"},  # Skandion, name quotes WET
+            "RS74": {"thickness": 65.0, "material": "Lexan"},  # WPE, tabulated density
+            "RS51": {"thickness": 44.4, "material": "Lexan", "density": 1.19},  # WPE
+            "RS25": {"thickness": 21.6, "material": "Lexan", "density": 1.19},  # WPE
+        }
 
     def test_density_column_is_optional(self, tmp_path):
         """A row without a density must not gain one, or every export carries an override."""
@@ -766,11 +767,12 @@ class TestRangeShifterCatalog:
         message = str(exc.value)
         assert "RS_NOT_KNOWN" in message
         assert "on beam 1" in message
-        assert "built-in catalog" in message
+        assert "default catalog" in message
+        assert str(DEFAULT_RANGE_SHIFTER_CATALOG) in message
         assert "--range-shifter-catalog" in message
 
     def test_supplied_catalog_replaces_the_builtin(self, tmp_path):
-        """A built-in ID must become unknown once a catalog that omits it is supplied."""
+        """A default ID must become unknown once a catalog that omits it is supplied."""
         plan_path = make_ccb_style_plan(self.PLAN, tmp_path / "rs.dcm",
                                         ref_order=(1,), with_delivery=(1,),
                                         range_shifter_id="RS_5CM")
@@ -778,7 +780,9 @@ class TestRangeShifterCatalog:
         assert rs is not None                       # the plan inserts one
         assert rs.thickness == pytest.approx(50.0)
 
-        only_ccb = load_range_shifter_catalog(Path("res") / "range_shifters" / "rs_ccb.csv")
+        only_ccb_file = tmp_path / "rs_ccb.csv"
+        only_ccb_file.write_text("RS_Block,36.5,Lexan\n")
+        only_ccb = load_range_shifter_catalog(only_ccb_file)
         with pytest.raises(ValueError, match="supplied with --range-shifter-catalog"):
             load_plan(plan_path, rs_catalog=only_ccb)
 

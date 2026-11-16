@@ -52,18 +52,17 @@ jobs:
 
     - name: Build CLI EXE
       run: |
-        pyinstaller --onefile --name dicomexport-cli dicomexport/main.py
+        pyinstaller --onefile --name dicomexport-cli --add-data "dicomexport/defaults;dicomexport/defaults" dicomexport/main.py
 
     - name: Build GUI EXE
       run: |
-        pyinstaller --onefile --windowed --name dicomexport --add-data "dicomexport/gui/main_window.ui;dicomexport/gui" dicomexport/gui/qt_app.py
+        pyinstaller --onefile --windowed --name dicomexport --add-data "dicomexport/gui/main_window.ui;dicomexport/gui" --add-data "dicomexport/defaults;dicomexport/defaults" dicomexport/gui/qt_app.py
 
-    - name: Package GUI zip (exe + res/)
+    - name: Package GUI zip
       shell: pwsh
       run: |
         New-Item -ItemType Directory -Path dicomexport-windows
         Copy-Item dist\dicomexport.exe dicomexport-windows\
-        Copy-Item -Recurse res dicomexport-windows\res
         Compress-Archive -Path dicomexport-windows -DestinationPath dist\dicomexport-windows.zip
 
   build-linux:
@@ -87,4 +86,4 @@ jobs:
 
     - name: Build binary
       run: |
-        pyinstaller --onefile --name dicomexport dicomexport/main.py
+        pyinstaller --onefile --name dicomexport --add-data "dicomexport/defaults:dicomexport/defaults" dicomexport/main.py

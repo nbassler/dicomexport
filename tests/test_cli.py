@@ -41,7 +41,7 @@ class TestPregdosCLI:
         test_args = [
             "-f1",
             "-vv",
-            "-b=res/beam_models/DCPT_beam_model__v2.csv",
+            "-b=dicomexport/defaults/beam_models/DCPT_beam_model__v2.csv",
             f"res/test_plans/{dicom_file_name}",
         ]
 
@@ -73,7 +73,7 @@ class TestPregdosCLI:
         test_args = [
             "-f1",
             "--spot-mode=timefeature",  # checks the time-feature text (#88)
-            "-b=res/beam_models/DCPT_beam_model__v2.csv",
+            "-b=dicomexport/defaults/beam_models/DCPT_beam_model__v2.csv",
             "res/test_plans/temp_160MeV_10x10.dcm",
         ]
         assert main_plan_export.main(test_args) == 0
@@ -98,7 +98,7 @@ class TestPregdosCLI:
             test_args = [
                 "-f1",
                 "--spot-mode=timefeature",  # checks the time-feature text (#88)
-                "-b=res/beam_models/DCPT_beam_model__v2.csv",
+                "-b=dicomexport/defaults/beam_models/DCPT_beam_model__v2.csv",
                 f"--nozzle-side={direction}",
                 "res/test_plans/temp_160MeV_10x10.dcm",
             ]
@@ -120,7 +120,7 @@ class TestPregdosCLI:
 
         test_args = [
             "-f1",
-            "-b=res/beam_models/DCPT_beam_model__v2.csv",
+            "-b=dicomexport/defaults/beam_models/DCPT_beam_model__v2.csv",
             "--test-mode",
             "res/test_plans/temp_160MeV_10x10.dcm",
         ]
@@ -148,7 +148,7 @@ class TestPregdosCLI:
 
         test_args = [
             "-f1",
-            "-b=res/beam_models/DCPT_beam_model__v2.csv",
+            "-b=dicomexport/defaults/beam_models/DCPT_beam_model__v2.csv",
             "--test-mode",
             f"--threads={nr_threads}",
             "res/test_plans/temp_160MeV_10x10.dcm",
@@ -172,7 +172,7 @@ class TestPregdosCLI:
         test_args = [
             "-f1",
             "--spot-mode=timefeature",  # checks the time-feature text (#88)
-            "-b=res/beam_models/DCPT_beam_model__v2.csv",
+            "-b=dicomexport/defaults/beam_models/DCPT_beam_model__v2.csv",
             "--topas-version=3.9",
             "res/test_plans/temp_160MeV_10x10.dcm",
         ]
@@ -193,7 +193,7 @@ class TestPregdosCLI:
         test_args = [
             "-f1",
             "--spot-mode=timefeature",  # checks the time-feature text (#88)
-            "-b=res/beam_models/DCPT_beam_model__v2.csv",
+            "-b=dicomexport/defaults/beam_models/DCPT_beam_model__v2.csv",
             "res/test_plans/temp_160MeV_10x10.dcm",
         ]
 
@@ -216,7 +216,7 @@ class TestPregdosCLI:
 
         test_args = [
             "-f1",
-            "-b=res/beam_models/DCPT_beam_model__v2.csv",
+            "-b=dicomexport/defaults/beam_models/DCPT_beam_model__v2.csv",
             "--test-mode",
             "res/test_plans/temp_160MeV_10x10.dcm",
         ]

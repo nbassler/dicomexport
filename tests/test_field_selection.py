@@ -10,7 +10,7 @@ from dicomexport.model_plan import Field, Plan
 from tests.dicom_fixtures import make_ccb_style_plan
 
 SOURCE_PLAN = Path("res") / "test_plans" / "temp_160MeV_10x10.dcm"
-BEAM_MODEL = "res/beam_models/DCPT_beam_model__v2.csv"
+BEAM_MODEL = "dicomexport/defaults/beam_models/DCPT_beam_model__v2.csv"
 SPR_TABLE = "res/spr_tables/SPRtoMaterial__Brain.txt"
 STUDY = "res/test_studies/DCPT_headphantom/"
 

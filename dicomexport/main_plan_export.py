@@ -34,8 +34,11 @@ def main(args=None) -> int:
         return 1
 
     # load the plan
-    rs_catalog = (load_range_shifter_catalog(parsed_args.rs_catalog_path)
-                  if parsed_args.rs_catalog_path else None)
+    rs_catalog = None
+    if parsed_args.rs_catalog_path:
+        rs_catalog = load_range_shifter_catalog(parsed_args.rs_catalog_path)
+        logger.info("Range shifter catalog %s replaces the default one: %s",
+                    parsed_args.rs_catalog_path, ", ".join(rs_catalog))
     pln = load_plan(parsed_args.fin, rs_catalog=rs_catalog)
 
     # -f is a DICOM BeamNumber (issue #96). Check it before exporting anything.

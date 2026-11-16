@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
 
 from dicomexport.__version__ import __version__
 from dicomexport.beam_model import read_bmodpos
-from dicomexport.gui.utils import BEAM_MODELS_DIR, SPR_TABLES_DIR, list_files
+from dicomexport.gui.utils import BEAM_MODELS_DIR, CT_TO_MATERIAL_DIR, list_files
 from dicomexport.main import main as dicomexport_main
 from dicomexport.parser_main import create_parser
 
@@ -63,7 +63,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"DICOM Export {__version__}")
 
         self._beam_models = list_files(BEAM_MODELS_DIR, [".csv"])
-        self._spr_tables = list_files(SPR_TABLES_DIR, [".csv", ".txt"])
+        self._spr_tables = list_files(CT_TO_MATERIAL_DIR, [".txt"])
 
         self.beam_model.addItems(self._beam_models.keys())
         self.spr_table.addItems(self._spr_tables.keys())
@@ -130,13 +130,14 @@ class MainWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
-    if not BEAM_MODELS_DIR.exists() or not SPR_TABLES_DIR.exists():
+    if not BEAM_MODELS_DIR.exists() or not CT_TO_MATERIAL_DIR.exists():
         QMessageBox.critical(
             None, "Missing resources",
-            f"Could not find the required resource folders:\n"
+            f"Could not find the shipped data folders:\n"
             f"  {BEAM_MODELS_DIR}\n"
-            f"  {SPR_TABLES_DIR}\n\n"
-            "Make sure 'res/' is in the same folder as the executable.")
+            f"  {CT_TO_MATERIAL_DIR}\n\n"
+            "The installation is incomplete. A PyInstaller build must add "
+            "dicomexport/defaults as data.")
         sys.exit(1)
     window = MainWindow()
     window.show()

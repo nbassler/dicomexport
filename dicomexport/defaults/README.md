@@ -1,18 +1,36 @@
-# Range shifter catalogs
+# dicomexport defaults
+
+The data dicomexport needs besides the DICOM study, shipped with the package so that it runs
+straight after installation:
+
+```text
+beam_models/*.csv       beam models, one is chosen per export (-b)
+ct_to_material/*.txt    CT-number-to-material tables for TOPAS, one is chosen per export (-s)
+range_shifters.csv      range shifter catalog, looked up by the plan's RangeShifterID
+```
+
+**These are examples, not your site's calibration.** The beam models are DCPT's, the table
+is the OpenTOPAS example, and the range shifters are those dicomexport has met at four
+centres. Each subdirectory has its own README.
+
+**Do not edit the files here.** This directory belongs to the installed package and is
+replaced on every upgrade. A site keeps its own data in a copy of this directory elsewhere
+(issue #112).
+
+## Range shifter catalog: `range_shifters.csv`
 
 A range shifter is described in a DICOM RT Ion Plan by an ID, a type and a distance from
 the isocenter — but never by a thickness, a material or a density. Those are properties
-of the physical device, so dicomexport must look them up.
+of the physical device, so dicomexport must look them up in `range_shifters.csv`.
 
-dicomexport carries a small built-in catalog (`RS_CATALOG` in `dicomexport/model_plan.py`)
-covering the shifters it has met so far. When a plan names a shifter that is not in it,
-supply your own catalog:
+When a plan names a shifter that is not in it, the export stops with a message naming the
+ID. Supply a catalog that lists it:
 
 ```bash
-dicomexport ... --range-shifter-catalog res/range_shifters/rs_dcpt.csv
+dicomexport ... --range-shifter-catalog my_shifters.csv
 ```
 
-## The file replaces the built-in catalog, it does not extend it
+### A supplied file replaces the default catalog, it does not extend it
 
 Whatever the file defines is the *complete* set of known shifters for that run. This is
 deliberate:
@@ -30,7 +48,7 @@ the file.
 `RangeShifterID` values of `None`, meaning no shifter, always resolve and never need to
 be listed.
 
-## Format
+### Format
 
 Comma-separated, one shifter per row, `#` starts a comment:
 
@@ -62,7 +80,7 @@ WET/thickness ratio of 1.14 and CCB's `RS_Block` 1.15, both consistent with Lexa
 ratio far from the material's own is a sign that the catalogued thickness is wrong, not a
 number to compute with.
 
-## Density
+### Density
 
 Nominally identical plastic is not cast at an identical density. WPE's `RS51` and `RS25`
 are Lexan at 1.19 g/cm³, where the ICRU/NIST tabulation gives 1.20 — a 1% difference in
@@ -105,18 +123,17 @@ costs ~1%. dicomexport warns when a density override names one. If you need a de
 override on a NIST material, define the material yourself with an explicit
 `MeanExcitationEnergy` and name *that* in the catalog.
 
-## Files here
+### The shipped catalog
 
-| File | Site | |
-| --- | --- | --- |
-| `rs_dcpt.csv` | DCPT, Aarhus | 2, 3 and 5 cm Lexan |
-| `rs_ccb.csv` | CCB, Krakow | `RS_Block` |
-| `rs_skandion.csv` | Skandionkliniken, Uppsala | `RS_3.5` |
-| `rs_wpe.csv` | WPE, Essen | `RS74`, `RS51`, `RS25` — the last two at a stated 1.19 g/cm³ |
+| Site | Shifters |
+| --- | --- |
+| DCPT, Aarhus | `RS_2CM`, `RS_3CM`, `RS_5CM`: 2, 3 and 5 cm Lexan |
+| CCB, Krakow | `RS_Block` |
+| Skandionkliniken, Uppsala | `RS_3.5` |
+| WPE, Essen | `RS74`, `RS51`, `RS25`, the last two at a stated 1.19 g/cm³ |
 
-These mirror the built-in catalog exactly — it is the union of the four — so they double
-as worked examples, and a test asserts they cannot drift apart. Contributions of further
-*non-confidential* shifters are welcome as pull requests.
+Each site's rows carry its provenance as comments in `range_shifters.csv`. Contributions of
+further *non-confidential* shifters are welcome as pull requests.
 
 Thicknesses that a centre treats as confidential should stay in a local file and out of
 this repository — that is the main reason the interface is a file rather than a

@@ -10,7 +10,7 @@ from dicomexport.main import get_path_dicom_dose
 from tests.dicom_fixtures import write_dicom
 
 DICOM_TEST_DIR = Path("res/test_studies/DCPT_headphantom/")
-BEAM_MODEL_PATH = Path("res/beam_models/DCPT_beam_model__v2.csv")
+BEAM_MODEL_PATH = Path("dicomexport/defaults/beam_models/DCPT_beam_model__v2.csv")
 SPR_TABLE_PATH = Path("res/spr_tables/SPRtoMaterial__Brain.txt")
 
 _TOPAS_OUTPUT_FILES = [Path(f"topas_field{i:02d}.txt") for i in range(1, 4)]
