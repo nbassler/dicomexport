@@ -11,9 +11,9 @@ from dicomexport.topas_export_options import DEFAULTS, TopasExportOptions
 
 logger = logging.getLogger(__name__)
 
-# Warn when rounding the spot weights to whole histories moves more than this fraction of
-# the primaries from one spot to another (issue #121).
-MAX_ROUNDING_MOVED = 0.01
+# Warn when rounding the spot weights to whole histories changes them by more than this
+# fraction of all primaries, summed over the spots (issue #121).
+MAX_ROUNDING_CHANGE = 0.01
 
 
 @dataclass(frozen=True)
@@ -279,14 +279,14 @@ class TopasPlan:
                 "(%.3g of %.3g primaries). Increase -N to keep them.",
                 myfield.number, int((~keep).sum()), t.n_spots, per_run, nstat,
                 float(t.weight[~keep].sum()), float(t.weight.sum()))
-        # Rounding moves primaries between spots. Each spot is rounded to a multiple of B, so
-        # about B * spots / 4 primaries move, which grows with B at a given -N.
-        moved = float(np.abs(histories * batches - t.weight).sum() / t.weight.sum())
-        if moved > MAX_ROUNDING_MOVED:
+        # Rounding changes the spot weights: each spot is rounded to a multiple of B, which
+        # changes about B * spots / 4 primaries in all and grows with B at a given -N.
+        changed = float(np.abs(histories * batches - t.weight).sum() / t.weight.sum())
+        if changed > MAX_ROUNDING_CHANGE:
             logger.warning(
-                "Field %d: rounding spot weights to whole histories%s moves %.1f%% of the "
-                "primaries between spots at -N %d. Increase -N%s.",
-                myfield.number, per_run, 100.0 * moved, nstat,
+                "Field %d: rounding spot weights to whole histories%s changes them by %.1f%% of "
+                "all primaries; %d primaries are simulated for -N %d. Increase -N%s.",
+                myfield.number, per_run, 100.0 * changed, int(histories.sum()) * batches, nstat,
                 " or lower --batches" if batches > 1 else "")
 
         transz = TopasText.nozzle_transz(bm.beam_model_position, beam_direction)

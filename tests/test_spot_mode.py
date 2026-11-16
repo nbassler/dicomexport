@@ -274,7 +274,7 @@ def test_timefeature_ignores_the_batch_default():
 def test_coarse_rounding_per_batch_warns(tmp_path, caplog):
     with caplog.at_level(logging.WARNING):
         assert plan_export.main([PLAN, str(tmp_path / "p.txt"), "-b", BEAM_MODEL, "-N", "100000"]) == 0
-    assert "of the primaries between spots" in caplog.text
+    assert "of all primaries" in caplog.text
     assert "lower --batches" in caplog.text
 
 

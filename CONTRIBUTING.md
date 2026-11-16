@@ -37,7 +37,7 @@ It does **not** catch a beam that is mirrored to the opposite side of the isocen
 ```bash
 plan-export res/test_plans/temp_160MeV_10x10.dcm topas_beamcheck.txt \
   -b res/beam_models/DCPT_beam_model__v2.csv \
-  --test-mode -N 1000 -f 1
+  --test-mode -N 5000 -f 1
 ```
 
 **2. Run the simulation with the [OpenTOPAS](https://github.com/OpenTOPAS/OpenTOPAS) Docker image:**
