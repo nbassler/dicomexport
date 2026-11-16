@@ -10,9 +10,9 @@ from typing import Tuple
 
 TopasVersion = Tuple[int, int]
 
-# Newest TOPAS the output has been verified against (OpenTOPAS 4.2.3). Raise it only
+# Newest TOPAS the output has been verified against (OpenTOPAS 4.3.0, #113). Raise it only
 # after checking the newer release for further parameter changes.
-DEFAULT_TOPAS_VERSION: TopasVersion = (4, 2)
+DEFAULT_TOPAS_VERSION: TopasVersion = (4, 3)
 
 # OpenTOPAS 4.2.0 introduced EmittanceParticle/EmittanceEnergy/EmittanceEnergySpread
 # (TsVGenerator::ResolveGeneratorParameterName). TOPAS 3.9 to 4.1 only know the

@@ -41,7 +41,7 @@ def add_nozzle_side(parser: argparse.ArgumentParser) -> None:
                         default=DEFAULTS.nozzle_side,
                         help=f"Which side of the gantry-local Z axis the nozzle sits on (default: {DEFAULTS.nozzle_side}). "
                              "neg-z reproduces IEC 61217: at gantry 0 the beam enters an HFS patient "
-                             "from the anterior side (verified against OpenTOPAS 4.2.3, issue #66). "
+                             "from the anterior side (verified against OpenTOPAS 4.2.3 and 4.3.0, issue #66). "
                              "pos-z mirrors the source to gantry+180 deg and is only meant for "
                              "non-patient research setups.")
 
