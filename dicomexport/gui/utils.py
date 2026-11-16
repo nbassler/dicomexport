@@ -1,15 +1,11 @@
-import sys
 from pathlib import Path
 
-# When frozen by PyInstaller (--onefile), __file__ is inside a temp extraction
-# directory. Use the directory of the actual executable instead.
-if getattr(sys, "frozen", False):
-    PROJECT_ROOT = Path(sys.executable).parent
-else:
-    PROJECT_ROOT = Path(__file__).parent.parent.parent
+from dicomexport.config import BEAM_MODELS, CT_TO_MATERIAL, DEFAULTS_DIR
 
-BEAM_MODELS_DIR = PROJECT_ROOT / "res" / "beam_models"
-SPR_TABLES_DIR = PROJECT_ROOT / "res" / "spr_tables"
+# The shipped data (issue #112). In a PyInstaller build this is the defaults/ folder beside
+# the executable, which persists: a table listed here is written into TOPAS includeFile.
+BEAM_MODELS_DIR = DEFAULTS_DIR / BEAM_MODELS
+CT_TO_MATERIAL_DIR = DEFAULTS_DIR / CT_TO_MATERIAL
 
 
 def list_files(folder: Path, suffixes: list) -> dict:

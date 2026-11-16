@@ -39,19 +39,23 @@ streamlit run dicomexport/gui/app.py
 You are then ready to convert dicom files to topas input scripts.
 Example:
 
-The test directory `res/test_studies/DCPT_headphantom/`has a set of CT files, a RS structure file, a RN plan file with 3 fields in it.
+The test directory `res/test_studies/DCPT_headphantom/` has a set of CT files, a RS structure file, a RN plan file with 3 fields in it.
 You also need to specify a beam model. The beam model position is read automatically from the
 `BMODPOS` key in the CSV header; you can override it with `-p` if needed.
-Finally you need to point to a Stopping power ratio to material table.
+Finally you need to point to a CT-number-to-material table that expects what the CT holds,
+here Hounsfield units.
+
+Example beam models, a table and a range shifter catalog ship with dicomexport in
+`dicomexport/defaults/`. They are examples, not your site's calibration; see the README there.
 
 ```bash
-PYTHONPATH=. python3 dicomexport/main.py -v -b=res/beam_models/DCPT_beam_model__v2.csv -s=res/spr_tables/SPRtoMaterial__Brain.txt res/test_studies/DCPT_headphantom/
+PYTHONPATH=. python3 dicomexport/main.py -v -b=dicomexport/defaults/beam_models/DCPT_beam_model__v5.csv -s=dicomexport/defaults/ct_to_material/HUtoMaterialSchneider.txt res/test_studies/DCPT_headphantom/
 ```
 which will produce three topas files, ready to run:
 
 ```
-$ PYTHONPATH=. python3 dicomexport/main.py -v -b=res/beam_models/DCPT_beam_model__v2.csv -s
-res/spr_tables/SPRtoMaterial__Brain.txt res/test_studies/DCPT_headphantom/
+$ PYTHONPATH=. python3 dicomexport/main.py -v -b=dicomexport/defaults/beam_models/DCPT_beam_model__v5.csv -s
+dicomexport/defaults/ct_to_material/HUtoMaterialSchneider.txt res/test_studies/DCPT_headphantom/
 INFO:dicomexport.import_rtstruct:Using RTSTRUCT file: RS.1.2.246.352.205.5439556202947041733.367077883804944283.dcm
 INFO:dicomexport.import_rtstruct:Imported RTSTRUCT: DCPT_headphantom with 11 ROIs
 WARNING:__main__:Multiple DICOM RTDOSE files found, using the first one.
@@ -206,7 +210,7 @@ Can export files which are useful for passing them to FLUKA via the `SOURCE` car
 Here a 7-column spotlist is exported:
 
 ```bash
-$ PYTHONPATH=. python3 dicomexport/main_plan_export.py --export-fmt=spotlist -nc=7 res/test_plans/temp_sobp_10x10.dcm -v -b res/beam_models/DCPT_beam_model__v2.csv
+$ PYTHONPATH=. python3 dicomexport/main_plan_export.py --export-fmt=spotlist -nc=7 res/test_plans/temp_sobp_10x10.dcm -v -b dicomexport/defaults/beam_models/DCPT_beam_model__v2.csv
 ```
 
 ### Example for [MCPL](https://mctools.github.io/mcpl/) phase space export
@@ -215,7 +219,7 @@ The MCPL format is a standardized and efficient way to handle phase space files,
 To export a DICOM plan to the MCPL format, you can use the following command:
 
 ```bash
-PYTHONPATH=. python3 dicomexport/main_plan_export.py res/test_plans/temp_sobp_10x10.dcm -b=res/beam_models/DCPT_beam_model__v2.csv --export-fmt=mcpl -v -N=1000000 temp_sobp_10x10.mcpl
+PYTHONPATH=. python3 dicomexport/main_plan_export.py res/test_plans/temp_sobp_10x10.dcm -b=dicomexport/defaults/beam_models/DCPT_beam_model__v2.csv --export-fmt=mcpl -v -N=1000000 temp_sobp_10x10.mcpl
 ```
 ```
 INFO:dicomexport.export_mcpl:Processing field:

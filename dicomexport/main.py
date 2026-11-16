@@ -60,8 +60,11 @@ def main(args=None) -> int:
     bm = BeamModel(parsed_args.bm,
                    beam_model_position=parsed_args.beam_model_position)
 
-    rs_catalog = (load_range_shifter_catalog(parsed_args.rs_catalog_path)
-                  if parsed_args.rs_catalog_path else None)
+    rs_catalog = None
+    if parsed_args.rs_catalog_path:
+        rs_catalog = load_range_shifter_catalog(parsed_args.rs_catalog_path)
+        logger.info("Range shifter catalog %s replaces the default one: %s",
+                    parsed_args.rs_catalog_path, ", ".join(rs_catalog))
     pn = load_plan(study_dir, rs_catalog=rs_catalog)
 
     # -f is a DICOM BeamNumber (issue #96). Check it before exporting anything.

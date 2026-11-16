@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 from typing import Any, ClassVar
 
 import pytest
@@ -8,25 +7,27 @@ import pytest
 class TestListFiles:
 
     def setup_method(self):
-        from dicomexport.gui.utils import list_files
+        from dicomexport.gui.utils import BEAM_MODELS_DIR, CT_TO_MATERIAL_DIR, list_files
         self.list_files = list_files
+        self.beam_models_dir = BEAM_MODELS_DIR
+        self.ct_to_material_dir = CT_TO_MATERIAL_DIR
 
     def test_finds_csv_files(self):
-        result = self.list_files(Path("res/beam_models"), [".csv"])
+        result = self.list_files(self.beam_models_dir, [".csv"])
         assert len(result) > 0, "Expected at least one beam model CSV"
         for name, path in result.items():
             assert path.suffix == ".csv"
 
-    def test_finds_spr_tables(self):
-        result = self.list_files(Path("res/spr_tables"), [".csv", ".txt"])
-        assert len(result) > 0, "Expected at least one SPR table"
+    def test_finds_ct_to_material_tables(self):
+        result = self.list_files(self.ct_to_material_dir, [".txt"])
+        assert "HUtoMaterialSchneider.txt" in result
 
     def test_filters_by_suffix(self):
-        result = self.list_files(Path("res/beam_models"), [".txt"])
+        result = self.list_files(self.beam_models_dir, [".txt"])
         assert len(result) == 0, "No .txt files expected in beam_models/"
 
     def test_keys_are_filenames(self):
-        result = self.list_files(Path("res/beam_models"), [".csv"])
+        result = self.list_files(self.beam_models_dir, [".csv"])
         for name, path in result.items():
             assert name == path.name
 

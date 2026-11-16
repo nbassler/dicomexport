@@ -49,6 +49,20 @@ geo-export = "dicomexport.main_geo_export:main"
 where = ["."]
 include = ["dicomexport*"]
 
+# The shipped beam models, CT-number-to-material tables and range shifter catalog (issue #112),
+# so dicomexport runs straight after installation. Listed explicitly rather than left to
+# setuptools-scm, so a file is never dropped from the wheel for not being committed yet.
+[tool.setuptools.package-data]
+dicomexport = [
+    "defaults/*.csv",
+    "defaults/*.md",
+    "defaults/beam_models/*.csv",
+    "defaults/beam_models/*.md",
+    "defaults/ct_to_material/*.txt",
+    "defaults/ct_to_material/*.md",
+    "gui/*.ui",
+]
+
 [tool.pytest.ini_options]
 log_cli = true
 log_cli_level = "INFO"

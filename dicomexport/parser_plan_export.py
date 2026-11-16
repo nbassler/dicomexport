@@ -22,9 +22,10 @@ def create_parser():
                         "header, or defaults to 500.0 mm if absent.",
                         default=None)
     parser.add_argument('--range-shifter-catalog', type=Path, dest='rs_catalog_path', default=None,
-                        help="Range shifter catalog CSV. REPLACES the built-in catalog, so it "
+                        help="Range shifter catalog CSV. REPLACES the default catalog "
+                             "(range_shifters.csv in dicomexport's defaults directory), so it "
                              "must list every range shifter the plan uses. "
-                             "See res/range_shifters/README.md.")
+                             "The README.md next to the default catalog describes the format.")
     parser.add_argument('-f', '--field', type=int, dest='field_nr', default=0,
                         help="DICOM BeamNumber of the field to export. If not specified, all fields will be exported.")
     parser.add_argument('-d', '--diag', action='store_true', dest="diag",

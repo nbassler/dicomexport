@@ -4,7 +4,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from dicomexport.gui.utils import BEAM_MODELS_DIR, SPR_TABLES_DIR, list_files
+from dicomexport.gui.utils import BEAM_MODELS_DIR, CT_TO_MATERIAL_DIR, list_files
 
 
 @st.cache_resource
@@ -14,7 +14,7 @@ def get_beam_models() -> dict:
 
 @st.cache_resource
 def get_spr_tables() -> dict:
-    return list_files(SPR_TABLES_DIR, [".csv", ".txt"])
+    return list_files(CT_TO_MATERIAL_DIR, [".txt"])
 
 
 beam_models = get_beam_models()
@@ -34,11 +34,11 @@ else:
     beam_model_path = Path(_bm_str).resolve(strict=False) if _bm_str else None
 
 if spr_tables:
-    spr_table_name = st.selectbox("SPR-to-material table", options=list(spr_tables))
+    spr_table_name = st.selectbox("CT-number-to-material table", options=list(spr_tables))
     spr_table_path: Path | None = spr_tables[spr_table_name]
 else:
-    st.warning(f"No SPR tables found in {SPR_TABLES_DIR}")
-    _spr_str = st.text_input("SPR-to-material table", placeholder="C:\\path\\to\\spr_table.txt")
+    st.warning(f"No CT-number-to-material tables found in {CT_TO_MATERIAL_DIR}")
+    _spr_str = st.text_input("CT-number-to-material table", placeholder="C:\\path\\to\\spr_table.txt")
     spr_table_path = Path(_spr_str).resolve(strict=False) if _spr_str else None
 
 with st.expander("Advanced options"):

@@ -15,13 +15,16 @@ _BM_6COL_DATA = """\
 150,150.4,0.73,3519991,3.886,2.802
 """
 
-beam_models_dir = Path("res") / "beam_models"
+# The shipped beam models, and the 6-column test fixture that is not a beam model.
+shipped_beam_models_dir = Path("dicomexport") / "defaults" / "beam_models"
+test_beam_models_dir = Path("res") / "beam_models"
+beam_models_dir = shipped_beam_models_dir
 
 
 class TestBeamModel:
 
     def setup_method(self):
-        beam_model_files = sorted(beam_models_dir.glob("*.csv"))
+        beam_model_files = sorted(shipped_beam_models_dir.glob("*.csv")) + sorted(test_beam_models_dir.glob("*.csv"))
         if not beam_model_files:
             pytest.skip("No beam model files found in the directory.")
         self.beam_models = [
@@ -62,7 +65,7 @@ class TestBeamModelPosition:
         assert bm.beam_model_position == pytest.approx(600.0)
 
     def test_no_bmodpos_uses_default(self):
-        bm = BeamModel(beam_models_dir / "bm_test_6col.csv")
+        bm = BeamModel(test_beam_models_dir / "bm_test_6col.csv")
         assert bm.beam_model_position == pytest.approx(500.0)
 
     def test_cli_override(self):

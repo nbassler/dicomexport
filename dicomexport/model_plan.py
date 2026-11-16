@@ -1,3 +1,4 @@
+import functools
 import sys
 import logging
 from dataclasses import dataclass, field as dc_field
@@ -6,6 +7,7 @@ from io import StringIO
 from pathlib import Path
 
 from dicomexport.beam_model import BeamModel, get_fwhm
+from dicomexport.config import DEFAULTS_DIR, RANGE_SHIFTERS
 
 logger = logging.getLogger(__name__)
 
@@ -18,44 +20,34 @@ INDENT = "    "
 #: produced a degenerate TsBox in the TOPAS output.
 NO_RANGE_SHIFTER_ID = "None"
 
-#: Physical thickness [mm], material and optional material density [g/cm3] of the range
-#: shifters dicomexport has met. A DICOM plan names only the RangeShifterID, so these
-#: have to be looked up.
-#:
-#: "density" is absent for the common case: the device is the named material at whatever
-#: density the Monte Carlo code has tabulated for it. Give it only where a centre states
-#: a density of its own -- shifters that are nominally the same plastic are not all cast
-#: at the same density, and 1% of density is 1% of stopping power. Note that an override
-#: makes the TOPAS exporter define a variant material; see geometry_range_shifter().
-#:
-#: Mirrored as per-site CSVs under res/range_shifters/, which also serve as the
-#: worked examples for --range-shifter-catalog.
-RS_CATALOG = {
-    "RS_2CM": {"thickness": 20.0, "material": "Lexan"},  # DCPT
-    "RS_3CM": {"thickness": 30.0, "material": "Lexan"},  # DCPT
-    "RS_5CM": {"thickness": 50.0, "material": "Lexan"},  # DCPT
-    "RS_Block": {"thickness": 36.5, "material": "Lexan"},  # CCB
-    "RS_3.5": {"thickness": 30.62, "material": "Lexan"},  # Skandion, name quotes WET
-    # WPE. RS74 is Lexan at the tabulated 1.20 g/cm3, so it needs no override; the other
-    # two are stated by the centre as 1.19 and do.
-    "RS74": {"thickness": 65.0, "material": "Lexan"},
-    "RS51": {"thickness": 44.4, "material": "Lexan", "density": 1.19},
-    "RS25": {"thickness": 21.6, "material": "Lexan", "density": 1.19},
-}
+#: The range shifter catalog shipped with dicomexport (issue #112). A DICOM plan names only
+#: the RangeShifterID, so thickness, material and an optional stated density have to be
+#: looked up. See defaults/README.md for the format and why "density" is usually absent.
+DEFAULT_RANGE_SHIFTER_CATALOG = DEFAULTS_DIR / RANGE_SHIFTERS
+
+
+@functools.cache
+def default_range_shifter_catalog() -> dict:
+    """The shipped catalog, read once. Callers must not modify it.
+
+    Cached, so it is always the same object: _build_range_shifter tells it apart from a
+    catalog the user supplied by identity, to name the right source in its error.
+    """
+    return load_range_shifter_catalog(DEFAULT_RANGE_SHIFTER_CATALOG)
 
 
 def load_range_shifter_catalog(path: Path) -> dict:
     """
-    Read a range shifter catalog CSV and return it in RS_CATALOG form.
+    Read a range shifter catalog CSV into ``{id: {"thickness", "material"[, "density"]}}``.
 
-    The result *replaces* the built-in catalog rather than extending it, so the file
-    must list every shifter the plan uses. See res/range_shifters/README.md for why,
-    and for the format: ``id,thickness_mm,material[,density_g_cm3]`` with ``#`` comments.
+    A catalog supplied by the user *replaces* the default one rather than extending it, so
+    the file must list every shifter the plan uses. See defaults/README.md for why, and for
+    the format: ``id,thickness_mm,material[,density_g_cm3]`` with ``#`` comments.
 
     The first three columns are required. The density column is optional and may be left
     empty, which means "the density the Monte Carlo code has tabulated for this material".
     Only a stated density belongs there; entries without one keep no "density" key at all,
-    so a catalog read from file compares equal to the equivalent literal in RS_CATALOG.
+    so an entry without a stated density never turns into an override.
 
     A file never needs to list the "no shifter" ID: that is the absence of a device and
     is handled without a catalog lookup.
@@ -124,7 +116,7 @@ def load_range_shifter_catalog(path: Path) -> dict:
     if not catalog:
         raise ValueError(f"{path}: no range shifters defined")
 
-    logger.info("Range shifter catalog %s replaces the built-in one: %s", path, ", ".join(catalog))
+    logger.debug("Range shifter catalog %s: %s", path, ", ".join(catalog))
     return catalog
 
 

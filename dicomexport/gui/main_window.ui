@@ -53,7 +53,7 @@
 
       <item row="2" column="0">
        <widget class="QLabel" name="label_spr_table">
-        <property name="text"><string>SPR-to-material table</string></property>
+        <property name="text"><string>CT-number-to-material table</string></property>
        </widget>
       </item>
       <item row="2" column="1">
