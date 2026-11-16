@@ -10,13 +10,22 @@ Layout, the same in the shipped set and in a site's copy:
     ct_to_material/*.txt    one is chosen per export
     range_shifters.csv      looked up by the plan's RangeShifterID
 
-Path(__file__) rather than importlib.resources, because these files are handed on as real
-paths (TOPAS includeFile), and it also resolves inside a PyInstaller bundle, as long as the
-build adds dicomexport/defaults as data.
+A real directory rather than importlib.resources, because these files are handed on as
+paths: a table chosen from here ends up in a TOPAS includeFile line, so it has to outlive
+the export.
+
+That rules out bundling the files into a PyInstaller --onefile executable. Such an
+executable unpacks its data into a temporary directory that is deleted when it exits, and
+an exported includeFile would then point at a file that no longer exists. Frozen builds
+therefore ship defaults/ beside the executable, as res/ was shipped before.
 """
+import sys
 from pathlib import Path
 
-DEFAULTS_DIR = Path(__file__).resolve().parent / "defaults"
+if getattr(sys, "frozen", False):
+    DEFAULTS_DIR = Path(sys.executable).resolve().parent / "defaults"
+else:
+    DEFAULTS_DIR = Path(__file__).resolve().parent / "defaults"
 
 BEAM_MODELS = "beam_models"
 CT_TO_MATERIAL = "ct_to_material"

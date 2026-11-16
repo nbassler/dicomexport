@@ -29,17 +29,22 @@ jobs:
 
     - name: Build CLI EXE
       run: |
-        pyinstaller --onefile --name dicomexport-cli --add-data "dicomexport/defaults;dicomexport/defaults" dicomexport/main.py
+        pyinstaller --onefile --name dicomexport-cli dicomexport/main.py
 
     - name: Build GUI EXE
       run: |
-        pyinstaller --onefile --windowed --name dicomexport --add-data "dicomexport/gui/main_window.ui;dicomexport/gui" --add-data "dicomexport/defaults;dicomexport/defaults" dicomexport/gui/qt_app.py
+        pyinstaller --onefile --windowed --name dicomexport --add-data "dicomexport/gui/main_window.ui;dicomexport/gui" dicomexport/gui/qt_app.py
 
-    - name: Package GUI zip
+    # defaults/ goes beside the executables, not inside them: a --onefile executable unpacks
+    # bundled data into a temporary directory that is deleted on exit, and an exported TOPAS
+    # includeFile would point there (issue #112).
+    - name: Package zip (executables + defaults/)
       shell: pwsh
       run: |
         New-Item -ItemType Directory -Path dicomexport-windows
         Copy-Item dist\dicomexport.exe dicomexport-windows\
+        Copy-Item dist\dicomexport-cli.exe dicomexport-windows\
+        Copy-Item -Recurse dicomexport\defaults dicomexport-windows\defaults
         Compress-Archive -Path dicomexport-windows -DestinationPath dist\dicomexport-windows.zip
 
     - name: Upload artifact for testing (non-release)
@@ -56,7 +61,6 @@ jobs:
       with:
         files: |
           dist/dicomexport-windows.zip
-          dist/dicomexport-cli.exe
 
   build-linux:
     runs-on: ubuntu-latest
@@ -81,11 +85,15 @@ jobs:
 
     - name: Build binary
       run: |
-        pyinstaller --onefile --name dicomexport --add-data "dicomexport/defaults:dicomexport/defaults" dicomexport/main.py
+        pyinstaller --onefile --name dicomexport dicomexport/main.py
 
-    - name: Archive Linux binary
+    # defaults/ beside the binary, for the same reason as in the Windows zip.
+    - name: Archive Linux binary with defaults/
       run: |
-        tar -C dist -czf dist/dicomexport-linux-x86_64.tar.gz dicomexport
+        mkdir -p package
+        cp dist/dicomexport package/
+        cp -r dicomexport/defaults package/defaults
+        tar -C package -czf dist/dicomexport-linux-x86_64.tar.gz dicomexport defaults
 
     - name: Upload binary to release
       if: github.event_name == 'release'

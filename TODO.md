@@ -60,7 +60,7 @@ materials.txt           TOPAS Ma/ definitions (#94, not shipped yet)
 #112 is done in three steps, one pull request each, so each can be reviewed and merged on
 its own.
 
-### 1. #112, step 1: ship the data (done on a branch, no pull request yet)
+### 1. #112, step 1: ship the data (PR #125, open)
 
 On branch `112-site-data-directory-built-in-defaults-for-beam-models-hu-tables-and-catalogs-extended-and-overridden-per-site`.
 `dicomexport/defaults/` with beam models v2 and v5, `HUtoMaterialSchneider.txt` and
@@ -68,8 +68,13 @@ On branch `112-site-data-directory-built-in-defaults-for-beam-models-hu-tables-a
 it; `res/` holds only test data. CLI unchanged. All tests pass; a wheel built from it was
 installed outside the repository and exported the head phantom.
 
-Still to do: commit, push, open the pull request. **The PyInstaller builds are untested** (each now
-has `--add-data` for `defaults/`, `;` on Windows, `:` on Linux): check the CI build jobs.
+Still to do: merge #125. **The PyInstaller builds are untested
+locally:** check the CI build jobs. Frozen builds read `defaults/` from beside the executable
+(`config.py`), not from inside it: a `--onefile` executable unpacks bundled data into a
+temporary directory deleted on exit, and an exported `includeFile` would point there
+(Copilot review). So the Windows zip holds both executables plus `defaults/`, the Linux
+archive holds the binary plus `defaults/`, and the bare `dicomexport-cli.exe` is no longer a
+release asset.
 
 ### 2. #112, step 2: the configuration directory
 
@@ -153,7 +158,7 @@ writes such overrides routinely, for example on couch structures.
 | Patient block that gains the override lines | `dicomexport/topas_text.py` (`geometry_patient_dicom`, `geometry_patient`) |
 | ROI names | `dicomexport/import_rtstruct.py`, `model_rtstruct.py` |
 | GUIs list data files | `dicomexport/gui/utils.py` |
-| PyInstaller builds | `.github/workflows/build-windows.yml`, `ci.yml` |
+| PyInstaller builds, `defaults/` packaged beside the executables | `.github/workflows/build-windows.yml`, `ci.yml`; frozen path in `dicomexport/config.py` |
 | Wheel contents | `pyproject.toml` `[tool.setuptools.package-data]`; `tests/test_defaults.py` fails if a file in `defaults/` is not covered |
 | Table index rules, reference implementation | `tests/test_spr_tables.py` (`index_problems`) |
 | Tests that pin present behaviour | `tests/test_plan.py` (`test_default_catalog_contents`), `tests/test_topas_text.py` (`test_relative_paths_pass_through_verbatim`) |

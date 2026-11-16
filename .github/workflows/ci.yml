@@ -52,17 +52,22 @@ jobs:
 
     - name: Build CLI EXE
       run: |
-        pyinstaller --onefile --name dicomexport-cli --add-data "dicomexport/defaults;dicomexport/defaults" dicomexport/main.py
+        pyinstaller --onefile --name dicomexport-cli dicomexport/main.py
 
     - name: Build GUI EXE
       run: |
-        pyinstaller --onefile --windowed --name dicomexport --add-data "dicomexport/gui/main_window.ui;dicomexport/gui" --add-data "dicomexport/defaults;dicomexport/defaults" dicomexport/gui/qt_app.py
+        pyinstaller --onefile --windowed --name dicomexport --add-data "dicomexport/gui/main_window.ui;dicomexport/gui" dicomexport/gui/qt_app.py
 
-    - name: Package GUI zip
+    # defaults/ goes beside the executables, not inside them: a --onefile executable unpacks
+    # bundled data into a temporary directory that is deleted on exit, and an exported TOPAS
+    # includeFile would point there (issue #112).
+    - name: Package zip (executables + defaults/)
       shell: pwsh
       run: |
         New-Item -ItemType Directory -Path dicomexport-windows
         Copy-Item dist\dicomexport.exe dicomexport-windows\
+        Copy-Item dist\dicomexport-cli.exe dicomexport-windows\
+        Copy-Item -Recurse dicomexport\defaults dicomexport-windows\defaults
         Compress-Archive -Path dicomexport-windows -DestinationPath dist\dicomexport-windows.zip
 
   build-linux:
@@ -86,4 +91,4 @@ jobs:
 
     - name: Build binary
       run: |
-        pyinstaller --onefile --name dicomexport --add-data "dicomexport/defaults:dicomexport/defaults" dicomexport/main.py
+        pyinstaller --onefile --name dicomexport dicomexport/main.py

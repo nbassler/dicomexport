@@ -136,8 +136,8 @@ def main():
             f"Could not find the shipped data folders:\n"
             f"  {BEAM_MODELS_DIR}\n"
             f"  {CT_TO_MATERIAL_DIR}\n\n"
-            "The installation is incomplete. A PyInstaller build must add "
-            "dicomexport/defaults as data.")
+            "The installation is incomplete. The 'defaults' folder must be in the "
+            "same folder as the executable.")
         sys.exit(1)
     window = MainWindow()
     window.show()

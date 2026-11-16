@@ -2,8 +2,8 @@ from pathlib import Path
 
 from dicomexport.config import BEAM_MODELS, CT_TO_MATERIAL, DEFAULTS_DIR
 
-# The shipped data (issue #112). config.DEFAULTS_DIR also resolves inside a PyInstaller
-# bundle, provided the build adds dicomexport/defaults as data.
+# The shipped data (issue #112). In a PyInstaller build this is the defaults/ folder beside
+# the executable, which persists: a table listed here is written into TOPAS includeFile.
 BEAM_MODELS_DIR = DEFAULTS_DIR / BEAM_MODELS
 CT_TO_MATERIAL_DIR = DEFAULTS_DIR / CT_TO_MATERIAL
 
