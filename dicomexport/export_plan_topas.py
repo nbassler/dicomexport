@@ -11,6 +11,10 @@ from dicomexport.topas_export_options import DEFAULTS, TopasExportOptions
 
 logger = logging.getLogger(__name__)
 
+# Warn when rounding the spot weights to whole histories changes them by more than this
+# fraction of all primaries, summed over the spots (issue #121).
+MAX_ROUNDING_CHANGE = 0.01
+
 
 @dataclass(frozen=True)
 class SpotTable:
@@ -75,7 +79,7 @@ class TopasPlan:
             lines.append(TopasText.geometry_range_shifter(myfield, beam_direction=opts.beam_direction))
             lines.append(TopasPlan.sources_string(
                 myfield, bm, opts.nstat, beam_direction=opts.beam_direction,
-                topas_version=opts.topas_version, table=table))
+                topas_version=opts.topas_version, table=table, batches=opts.n_batches))
         else:
             lines.append(TopasText.geometry_beam_position_timefeature(
                 bm.beam_model_position, beam_direction=opts.beam_direction))
@@ -92,7 +96,7 @@ class TopasPlan:
     def _setup_kwargs(table: Optional["SpotTable"], opts: TopasExportOptions) -> dict:
         """Setup-block overrides for the spot mode: sources mode reports progress per event."""
         if opts.spot_mode == "sources" and table is not None:
-            return {"show_history_interval": TopasPlan.history_interval(table)}
+            return {"show_history_interval": TopasPlan.history_interval(table, opts.n_batches)}
         return {}
 
     @staticmethod
@@ -229,15 +233,19 @@ class TopasPlan:
         return "".join(lines)
 
     @staticmethod
-    def spot_histories(t: "SpotTable") -> np.ndarray:
-        """Histories per spot, rounded exactly as the time feature writes spotWeight (".0f")."""
-        return np.array([int(f"{w:.0f}") for w in t.weight], dtype=np.int64)
+    def spot_histories(t: "SpotTable", batches: int = 1) -> np.ndarray:
+        """Histories per spot in each of ``batches`` identical runs (issue #121).
+
+        Rounded exactly as the time feature writes spotWeight (".0f"), so one batch gives the
+        time feature's histories. Each spot then runs ``batches`` times this many.
+        """
+        return np.array([int(f"{w / batches:.0f}") for w in t.weight], dtype=np.int64)
 
     @staticmethod
     def sources_string(myfield: Field, bm: BeamModel, nstat: int = DEFAULTS.nstat,
                        beam_direction: int = DEFAULTS.beam_direction,
                        topas_version=DEFAULTS.topas_version,
-                       table: Optional["SpotTable"] = None) -> str:
+                       table: Optional["SpotTable"] = None, batches: int = 1) -> str:
         """
         One Group plus one Emittance source per spot, instead of a time feature (issue #88).
 
@@ -249,22 +257,37 @@ class TopasPlan:
 
         The Groups have no solid: they only place and tilt each source, exactly as
         Ge/BeamPosition does per spot in time-feature mode.
+
+        With ``batches`` B > 1 the field runs B times (Tf/NumberOfSequentialTimes), each run
+        with 1/B of every spot's histories (issue #121). No time feature changes anything
+        between the runs, so they are identical replicates with independent random numbers,
+        and a scorer written after each run gives the uncertainty by batch means.
         """
         t = table if table is not None else TopasPlan.spot_table(myfield, bm, nstat, beam_direction)
-        histories = TopasPlan.spot_histories(t)
+        histories = TopasPlan.spot_histories(t, batches)
+        per_run = " per batch" if batches > 1 else ""
         keep = histories > 0
         if not keep.any():
             raise ValueError(
-                f"Field {myfield.number}: no spot gets a single history at -N {nstat}. "
-                f"Increase -N.")
+                f"Field {myfield.number}: no spot gets a single history{per_run} at -N {nstat}. "
+                f"Increase -N" + (" or lower --batches." if batches > 1 else "."))
         if not keep.all():
             # The time feature keeps these spots but runs them with 0 histories, so dropping
             # them delivers the same primaries.
             logger.warning(
-                "Field %d: %d of %d spots round to 0 histories at -N %d and are left out "
+                "Field %d: %d of %d spots round to 0 histories%s at -N %d and are left out "
                 "(%.3g of %.3g primaries). Increase -N to keep them.",
-                myfield.number, int((~keep).sum()), t.n_spots, nstat,
+                myfield.number, int((~keep).sum()), t.n_spots, per_run, nstat,
                 float(t.weight[~keep].sum()), float(t.weight.sum()))
+        # Rounding changes the spot weights: each spot is rounded to a multiple of B, which
+        # changes about B * spots / 4 primaries in all and grows with B at a given -N.
+        changed = float(np.abs(histories * batches - t.weight).sum() / t.weight.sum())
+        if changed > MAX_ROUNDING_CHANGE:
+            logger.warning(
+                "Field %d: rounding spot weights to whole histories%s changes them by %.1f%% of "
+                "all primaries; %d primaries are simulated for -N %d. Increase -N%s.",
+                myfield.number, per_run, 100.0 * changed, int(histories.sum()) * batches, nstat,
+                " or lower --batches" if batches > 1 else "")
 
         transz = TopasText.nozzle_transz(bm.beam_model_position, beam_direction)
         prefix = TopasText.source_parameter_prefix(topas_version)
@@ -278,12 +301,21 @@ class TopasPlan:
             "###   B E A M :   O N E   S O U R C E      ###",
             "###          P E R   S P O T               ###",
             "##############################################",
-            f"# {int(keep.sum())} spots. TOPAS runs {int(histories.max())} events in a single run;",
+        ]
+        if batches > 1:
+            lines.append(f"# {int(keep.sum())} spots. TOPAS runs the field {batches} times (batches), each "
+                         f"run {int(histories.max())} events")
+            lines.append(f"# with 1/{batches} of every spot's protons;")
+        else:
+            lines.append(f"# {int(keep.sum())} spots. TOPAS runs {int(histories.max())} events in a single run;")
+        lines += [
             "# each spot fires in the events below its NumberOfHistoriesInRun. TOPAS's log",
             "# calls these events \"History: N\": one event holds one proton from every spot",
             "# still active, so it is not one proton.",
             "",
         ]
+        if batches > 1:
+            lines += [row("i:Tf/NumberOfSequentialTimes", f"{batches}"), ""]
         layer = None
         for i in np.flatnonzero(keep):
             if t.layer[i] != layer:
@@ -319,18 +351,18 @@ class TopasPlan:
         return "\n".join(lines) + "\n"
 
     @staticmethod
-    def history_interval(t: "SpotTable") -> int:
+    def history_interval(t: "SpotTable", batches: int = 1) -> int:
         """Ts/ShowHistoryCountAtInterval for sources mode: about 100 progress lines per field.
 
-        In sources mode a history is an event, and a field has only as many events as its
+        In sources mode a history is an event, and a run has only as many events as its
         largest spot weight -- a few hundred, not the ~1e5 of the time feature.
         """
-        return max(1, TopasPlan.events_per_run(t) // 100)
+        return max(1, batches * TopasPlan.events_per_run(t, batches) // 100)
 
     @staticmethod
-    def events_per_run(t: "SpotTable") -> int:
-        """Events in the single run of sources mode: the largest spot's history count."""
-        return int(TopasPlan.spot_histories(t).max())
+    def events_per_run(t: "SpotTable", batches: int = 1) -> int:
+        """Events in each run of sources mode: the largest spot's history count per batch."""
+        return int(TopasPlan.spot_histories(t, batches).max())
 
     @staticmethod
     def header(myfield: Field, table: Optional["SpotTable"], opts: TopasExportOptions,
@@ -338,12 +370,13 @@ class TopasPlan:
         """TopasText.header with the spot layout filled in (issue #88)."""
         layout, simulated = {}, None
         if table is not None:
-            histories = TopasPlan.spot_histories(table)
+            batches = opts.n_batches
+            histories = TopasPlan.spot_histories(table, batches)
             # The rounded spot weights, which differ from REQUESTED_HISTORIES. Plan scaling
             # needs this in both modes.
-            simulated = int(histories.sum())
+            simulated = int(histories.sum()) * batches
             if opts.spot_mode == "sources":
-                layout = {"SPOTS": int((histories > 0).sum()), "RUNS": 1,
+                layout = {"SPOTS": int((histories > 0).sum()), "RUNS": batches,
                           "EVENTS_PER_RUN": int(histories.max())}
             else:
                 # The time feature runs every spot, even one with 0 histories.

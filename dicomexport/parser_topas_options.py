@@ -6,7 +6,7 @@ TopasExportOptions; options a parser does not offer keep their defaults.
 """
 import argparse
 
-from dicomexport.topas_export_options import DEFAULTS, NOZZLE_SIDES, SPOT_MODES, TopasExportOptions
+from dicomexport.topas_export_options import DEFAULT_BATCHES, DEFAULTS, NOZZLE_SIDES, SPOT_MODES, TopasExportOptions
 from dicomexport.topas_version import TOPAS_VERSION_HELP, parse_topas_version
 
 
@@ -56,6 +56,18 @@ def add_spot_mode(parser: argparse.ArgumentParser) -> None:
                              "stepping a single source through the spots.")
 
 
+def add_batches(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument('--batches', type=int, dest='batches', default=None, metavar='B',
+                        help=f"Sources mode only: split each field into B identical TOPAS runs (default: "
+                             f"{DEFAULT_BATCHES}). -N stays the total over all runs: each run simulates "
+                             "1/B of every spot's protons, about N/B in all, so B does not multiply the "
+                             "number of protons. A scorer with "
+                             "Sc/<name>/OutputAfterRun writes one result per run, from which the "
+                             "statistical uncertainty follows by batch means. The DICOM dose cube "
+                             "adds up over all runs. Spot weights are rounded per run, so a larger B "
+                             "needs a larger -N.")
+
+
 def options_from_args(args: argparse.Namespace) -> TopasExportOptions:
     """Build the export options from parsed flags. Flags the parser does not offer keep their default."""
     nozzle_side = getattr(args, 'nozzle_side', DEFAULTS.nozzle_side)
@@ -66,4 +78,13 @@ def options_from_args(args: argparse.Namespace) -> TopasExportOptions:
         topas_version=getattr(args, 'topas_version', DEFAULTS.topas_version),
         dose_cube_16bit=getattr(args, 'dose_cube_16bit', DEFAULTS.dose_cube_16bit),
         spot_mode=getattr(args, 'spot_mode', DEFAULTS.spot_mode),
+        batches=getattr(args, 'batches', DEFAULTS.batches),
     )
+
+
+def check_options(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    """Fail at the command line, before any data is loaded, on flags that do not combine."""
+    try:
+        options_from_args(args)
+    except ValueError as e:
+        parser.error(str(e).replace("spot_mode", "--spot-mode").replace("batches", "--batches"))

@@ -8,7 +8,7 @@ from dicomexport.model_plan import load_range_shifter_catalog
 from dicomexport.export_plan import export_plan
 from dicomexport.export_mcpl import generate_mcpl_file
 from dicomexport.export_spotlist import export_spotlist
-from dicomexport.parser_topas_options import options_from_args
+from dicomexport.parser_topas_options import check_options, options_from_args
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +20,7 @@ def main(args=None) -> int:
 
     parser = create_parser()
     parsed_args = parser.parse_args(args)
+    check_options(parser, parsed_args)
 
     if parsed_args.verbosity == 1:
         logging.basicConfig(level=logging.INFO)

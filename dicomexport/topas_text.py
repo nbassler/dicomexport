@@ -45,9 +45,10 @@ class TopasText:
                                weights. Plan scaling divides by this, not by REQUESTED.
         SPOT_MODE says how TOPAS steps through the spots (issue #88). ``layout`` adds:
           SPOTS                spots simulated
-          RUNS                 what TOPAS's "Run: N" counts (1 in sources mode, SPOTS otherwise)
-          EVENTS_PER_RUN       sources mode only: events in the single run, each holding one
-                               proton from every spot still active. TOPAS's log calls these
+          RUNS                 what TOPAS's "Run: N" counts: in sources mode the number of
+                               identical batches (issue #121), otherwise SPOTS
+          EVENTS_PER_RUN       sources mode only: events in each run, each holding one proton
+                               from every spot still active. TOPAS's log calls these
                                "History: N" and its Standard_Deviation is per event.
         """
         lines = [

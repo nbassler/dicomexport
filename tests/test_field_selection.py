@@ -65,7 +65,7 @@ class TestPlanExport:
     def test_f_selects_the_beam_number(self, tmp_path, sparse_plan, fmt, suffix):
         out = tmp_path / f"out{suffix}"
         assert plan_export.main([str(sparse_plan), str(out), "-b", BEAM_MODEL, "-f", "7",
-                                 "--export-fmt", fmt, "-N", "1000"]) == 0
+                                 "--export-fmt", fmt, "-N", "10000"]) == 0
         assert sorted(p.name for p in tmp_path.glob(f"out_field*{suffix}")) == [f"out_field07{suffix}"]
 
     @pytest.mark.parametrize("fmt, suffix", [("topas", ".txt"), ("spotlist", ".txt"), ("mcpl", ".mcpl")])
@@ -81,7 +81,7 @@ class TestPlanExport:
         ds.save_as(plan)
         out = tmp_path / f"out{suffix}"
         assert plan_export.main([str(plan), str(out), "-b", BEAM_MODEL, "--field=-3",
-                                 "--export-fmt", fmt, "-N", "1000"]) == 0
+                                 "--export-fmt", fmt, "-N", "10000"]) == 0
         assert sorted(p.name for p in tmp_path.glob(f"out_field*{suffix}")) == [f"out_field-3{suffix}"]
 
     def test_header_carries_beam_number_and_name(self, tmp_path, sparse_plan):
