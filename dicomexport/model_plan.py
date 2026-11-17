@@ -26,23 +26,44 @@ NO_RANGE_SHIFTER_ID = "None"
 DEFAULT_RANGE_SHIFTER_CATALOG = DEFAULTS_DIR / RANGE_SHIFTERS
 
 
-@functools.cache
-def default_range_shifter_catalog() -> dict:
-    """The shipped catalog, read once. Callers must not modify it.
+class RangeShifterCatalog(dict):
+    """``{id: {"thickness", "material"[, "density"]}}``, plus where it came from.
 
-    Cached, so it is always the same object: _build_range_shifter tells it apart from a
-    catalog the user supplied by identity, to name the right source in its error.
+    ``source`` names the file in error messages, so an unknown ID points at the file to fix.
+    It compares equal to a plain dict with the same entries.
     """
+
+    def __init__(self, entries=(), source: str = ""):
+        super().__init__(entries)
+        self.source = source
+
+
+@functools.cache
+def default_range_shifter_catalog() -> RangeShifterCatalog:
+    """The shipped catalog, read once. Callers must not modify it."""
     return load_range_shifter_catalog(DEFAULT_RANGE_SHIFTER_CATALOG)
 
 
-def load_range_shifter_catalog(path: Path) -> dict:
+def range_shifter_catalog_of(config_dir: Path) -> RangeShifterCatalog:
+    """The catalog of a configuration directory. Empty, not an error, if it has none.
+
+    A directory without range_shifters.csv can still export every plan that uses no range
+    shifter. A plan that does use one stops with a message naming the missing file.
+    """
+    path = Path(config_dir) / RANGE_SHIFTERS
+    if not path.is_file():
+        return RangeShifterCatalog(source=f"{path} (which does not exist)")
+    return load_range_shifter_catalog(path)
+
+
+def load_range_shifter_catalog(path: Path) -> RangeShifterCatalog:
     """
     Read a range shifter catalog CSV into ``{id: {"thickness", "material"[, "density"]}}``.
 
-    A catalog supplied by the user *replaces* the default one rather than extending it, so
-    the file must list every shifter the plan uses. See defaults/README.md for why, and for
-    the format: ``id,thickness_mm,material[,density_g_cm3]`` with ``#`` comments.
+    A catalog supplied with --range-shifter-catalog *replaces* the one in the configuration
+    directory rather than extending it, so the file must list every shifter the plan uses.
+    See defaults/README.md for why, and for the format:
+    ``id,thickness_mm,material[,density_g_cm3]`` with ``#`` comments.
 
     The first three columns are required. The density column is optional and may be left
     empty, which means "the density the Monte Carlo code has tabulated for this material".
@@ -52,7 +73,7 @@ def load_range_shifter_catalog(path: Path) -> dict:
     A file never needs to list the "no shifter" ID: that is the absence of a device and
     is handled without a catalog lookup.
     """
-    catalog: dict = {}
+    catalog = RangeShifterCatalog(source=str(path))
 
     with open(path, newline="", encoding="utf-8") as f:
         for lineno, raw in enumerate(f, start=1):

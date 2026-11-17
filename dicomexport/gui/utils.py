@@ -1,15 +1,18 @@
 from pathlib import Path
 
-from dicomexport.config import BEAM_MODELS, CT_TO_MATERIAL, DEFAULTS_DIR
-
-# The shipped data (issue #112). In a PyInstaller build this is the defaults/ folder beside
-# the executable, which persists: a table listed here is written into TOPAS includeFile.
-BEAM_MODELS_DIR = DEFAULTS_DIR / BEAM_MODELS
-CT_TO_MATERIAL_DIR = DEFAULTS_DIR / CT_TO_MATERIAL
+from dicomexport.config import ConfigDir, find_config_dir
 
 
-def list_files(folder: Path, suffixes: list) -> dict:
-    """Return {filename: full_path} for all matching files in folder."""
-    if not folder.is_dir():
-        return {}
-    return {f.name: f for f in sorted(folder.iterdir()) if f.suffix in suffixes}
+def gui_config() -> ConfigDir:
+    """The configuration directory in effect, found the same way as on the command line.
+
+    No --config-dir here, so $DICOMEXPORT_CONFIG_DIR, the user and the system directories,
+    then the shipped defaults (issue #112). Raises config.ConfigError if
+    $DICOMEXPORT_CONFIG_DIR names a directory that does not exist.
+    """
+    return find_config_dir()
+
+
+def by_name(files: list[Path]) -> dict:
+    """Return {filename: full_path}, in the order given."""
+    return {f.name: f for f in files}

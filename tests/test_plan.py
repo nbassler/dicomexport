@@ -1,5 +1,6 @@
 import logging
 import math
+import re
 import os
 import subprocess
 import sys
@@ -767,8 +768,8 @@ class TestRangeShifterCatalog:
         message = str(exc.value)
         assert "RS_NOT_KNOWN" in message
         assert "on beam 1" in message
-        assert "default catalog" in message
-        assert str(DEFAULT_RANGE_SHIFTER_CATALOG) in message
+        assert str(DEFAULT_RANGE_SHIFTER_CATALOG) in message   # the file to fix
+        assert "configuration directory" in message
         assert "--range-shifter-catalog" in message
 
     def test_supplied_catalog_replaces_the_builtin(self, tmp_path):
@@ -783,7 +784,7 @@ class TestRangeShifterCatalog:
         only_ccb_file = tmp_path / "rs_ccb.csv"
         only_ccb_file.write_text("RS_Block,36.5,Lexan\n")
         only_ccb = load_range_shifter_catalog(only_ccb_file)
-        with pytest.raises(ValueError, match="supplied with --range-shifter-catalog"):
+        with pytest.raises(ValueError, match=re.escape(str(only_ccb_file))):
             load_plan(plan_path, rs_catalog=only_ccb)
 
     def test_no_shifter_id_resolves_to_absence_not_a_zero_thickness_device(self, tmp_path):

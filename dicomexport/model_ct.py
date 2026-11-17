@@ -52,7 +52,7 @@ class CTModel:
 """
     images: List[Image] = field(default_factory=list)
     directory: Optional[Path] = None
-    spr_to_material_path: Optional[Path] = None  # in fact mandatory as long we depend on the dose cube
+    spr_to_material_path: Optional[Path | str] = None  # in fact mandatory as long we depend on the dose cube
 
     # In dicom format, the following data are per image, and could in princple be different
     # from image to image, but we assume they are the same for all images in this model

@@ -4,46 +4,52 @@ from pathlib import Path
 
 import streamlit as st
 
-from dicomexport.gui.utils import BEAM_MODELS_DIR, CT_TO_MATERIAL_DIR, list_files
+from dicomexport.config import ConfigError
+from dicomexport.gui.utils import by_name, gui_config
 
 
-@st.cache_resource
-def get_beam_models() -> dict:
-    return list_files(BEAM_MODELS_DIR, [".csv"])
+def pick_file(label: str, files: dict[str, Path], default: Path | None) -> Path | None:
+    options = [None, *files]
+    index = options.index(default.name) if default and default.name in files else 0
+    name = st.selectbox(label, options=options, index=index,
+                        format_func=lambda name: name if name is not None else f"Select {label.lower()}")
+    return files[name] if name is not None else None
 
-
-@st.cache_resource
-def get_spr_tables() -> dict:
-    return list_files(CT_TO_MATERIAL_DIR, [".txt"])
-
-
-beam_models = get_beam_models()
-spr_tables = get_spr_tables()
 
 st.title("DICOM Export")
+
+# The configuration directory in effect (issue #112), passed on as --config-dir so the export
+# also takes its range shifter catalog from it.
+try:
+    cfg = gui_config()
+except ConfigError as e:
+    st.error(str(e))
+    st.stop()
+st.caption(f"Configuration directory: {cfg}")
+
+beam_models = by_name(cfg.beam_models())
+spr_tables = by_name(cfg.ct_to_material_tables())
 st.info("Tip: in Windows Explorer, click the address bar to copy a folder path, then paste it here.")
 
 study_dir = st.text_input("Study directory", placeholder="C:\\path\\to\\study")
 
 if beam_models:
-    beam_model_name = st.selectbox("Beam model", options=list(beam_models))
-    beam_model_path: Path | None = beam_models[beam_model_name]
+    beam_model_path = pick_file("Beam model", beam_models, cfg.default_beam_model())
 else:
-    st.warning(f"No beam model CSVs found in {BEAM_MODELS_DIR}")
-    _bm_str = st.text_input("Beam model CSV", placeholder="C:\\path\\to\\beam_model.csv")
-    beam_model_path = Path(_bm_str).resolve(strict=False) if _bm_str else None
+    st.warning(f"No beam model CSVs found in {cfg.path / 'beam_models'}")
+    beam_model_path = st.text_input("Beam model CSV", placeholder="C:\\path\\to\\beam_model.csv")
 
 if spr_tables:
-    spr_table_name = st.selectbox("CT-number-to-material table", options=list(spr_tables))
-    spr_table_path: Path | None = spr_tables[spr_table_name]
+    spr_table_path = pick_file("CT-number-to-material table", spr_tables, cfg.default_ct_to_material_table())
 else:
-    st.warning(f"No CT-number-to-material tables found in {CT_TO_MATERIAL_DIR}")
-    _spr_str = st.text_input("CT-number-to-material table", placeholder="C:\\path\\to\\spr_table.txt")
-    spr_table_path = Path(_spr_str).resolve(strict=False) if _spr_str else None
+    st.warning(f"No CT-number-to-material tables found in {cfg.path / 'ct_to_material'}")
+    spr_table_path = st.text_input("CT-number-to-material table", placeholder="C:\\path\\to\\spr_table.txt")
 
 with st.expander("Advanced options"):
     output_base = st.text_input("Output filename", value="topas.txt")
-    bm_position = st.number_input("Beam model position (mm)", value=500.0)
+    bm_position = None
+    if st.checkbox("Override beam model position"):
+        bm_position = st.number_input("Beam model position (mm)", value=500.0)
     field_nr = st.number_input("Field BeamNumber (0 = all)", value=0, step=1)
     nstat = st.number_input("Target protons (nstat)", value=1_000_000, step=100_000)
 
@@ -53,10 +59,14 @@ if st.button("Run export", type="primary"):
     errors = []
     if not study_path or not study_path.is_dir():
         errors.append(f"Study directory not found: {study_dir!r}")
-    if not beam_model_path or not beam_model_path.is_file():
+    if not beam_model_path:
+        errors.append("Select a beam model or enter its path.")
+    elif not Path(beam_model_path).is_file():
         errors.append(f"Beam model file not found: {beam_model_path!r}")
-    if not spr_table_path or not spr_table_path.is_file():
-        errors.append(f"SPR table file not found: {spr_table_path!r}")
+    if not spr_table_path:
+        errors.append("Select a CT-number-to-material table or enter its path.")
+    elif isinstance(spr_table_path, Path) and not spr_table_path.is_file():
+        errors.append(f"CT-number-to-material table not found: {spr_table_path!r}")
 
     if errors:
         for e in errors:
@@ -69,10 +79,12 @@ if st.button("Run export", type="primary"):
             output_base,
             "-b", str(beam_model_path),
             "-s", str(spr_table_path),
-            "-p", str(bm_position),
+            "--config-dir", str(cfg.path),
             "-f", str(int(field_nr)),
             "-N", str(int(nstat)),
         ]
+        if bm_position is not None:
+            args.extend(["-p", str(bm_position)])
         with st.spinner("Running..."):
             result = subprocess.run(args, capture_output=True, text=True)
 

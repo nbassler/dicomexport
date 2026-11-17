@@ -28,6 +28,27 @@ pip install "dicomexport[gui]"
 streamlit run dicomexport/gui/app.py
 ```
 
+## Configuration: beam models, tables and range shifters
+
+Besides the DICOM study, an export needs a beam model (`-b`), a CT-number-to-material table
+for TOPAS (`-s`) and, for plans with a range shifter, the shifter's thickness and material.
+dicomexport ships examples of all three, so it runs straight after installation. They are
+DCPT's beam models, the OpenTOPAS example table and other centres' range shifters, **not
+your site's data**: dicomexport warns while it uses them.
+
+A site keeps its own data in a configuration directory:
+
+```bash
+dicomexport --init-config /etc/dicomexport   # copy the shipped examples, never overwriting
+dicomexport --list-config                    # which directory is in effect, and what it offers
+```
+
+dicomexport uses the first of `--config-dir DIR`, `$DICOMEXPORT_CONFIG_DIR`,
+`~/.config/dicomexport`, `/etc/dicomexport`, and the shipped defaults; only that one, never a
+mix. Upgrades never touch a site's directory. `-b` and `-s` then take a file name from it,
+e.g. `-b DCPT_beam_model__v5`, and may be omitted when the choice is unambiguous. The
+README in `dicomexport/defaults/` describes the layout, the formats and the rules.
+
 ## Developer notes
 ### Getting started:
 
@@ -86,34 +107,47 @@ By default the TOPAS input files are written for OpenTOPAS 4.3 and **need OpenTO
 
 ```
 $ PYTHONPATH=. python3 dicomexport/main.py --help
-usage: main.py [-h] [-b BM] [-s SPR_TO_MATERIAL_PATH] [-p BEAM_MODEL_POSITION]
-               [-f FIELD_NR] [-N NSTAT] [--threads NR_THREADS]
-               [--topas-version X.Y] [--dose-cube-16bit]
-               [--spot-mode {sources,timefeature}] [--batches B]
-               [--export-fmt {topas,mcpl,racehorse}]
+usage: main.py [-h] [-b BM] [-s TABLE] [-p BEAM_MODEL_POSITION] [--range-shifter-catalog RS_CATALOG_PATH] [--config-dir DIR]
+               [--init-config DIR] [--list-config [FORMAT]] [-f FIELD_NR] [-N NSTAT] [--threads NR_THREADS] [--topas-version X.Y]
+               [--dose-cube-16bit] [--spot-mode {sources,timefeature}] [--batches B] [--export-fmt {topas,mcpl,racehorse}]
                [--nozzle-side {pos-z,neg-z}] [-v] [-V]
-               study_dir [output_base_path]
+               [study_dir] [output_base_path]
 
 Convert DICOM CT and RTSTRUCT files to geometry needed for TOPAS.
 
 positional arguments:
-  study_dir             (required) Path to folder containing the study.The folder should contain a) DICOM CT series(CT*.dcm) and b) one
-                        DICOM RTSTRUCT file (RS*.dcm) and c) one DICOM RTPLAN file (RN*.dcm) and d) at least one DICOM RTDOSE file
-                        (RD*.dcm) where the resulting dose distribution will be stored.
+  study_dir             (required, except with --init-config or --list-config) Path to folder containing the study.The folder should
+                        contain a) DICOM CT series(CT*.dcm) and b) one DICOM RTSTRUCT file (RS*.dcm) and c) one DICOM RTPLAN file
+                        (RN*.dcm) and d) at least one DICOM RTDOSE file (RD*.dcm) where the resulting dose distribution will be stored.
   output_base_path      Export file (default: topas.txt). Field number will be appended automatically to the name before the extension.
 
 options:
   -h, --help            show this help message and exit
-  -b, --beam-model BM
-                        (required) Beam model CSV path
-  -s, --spr-to-material SPR_TO_MATERIAL_PATH
-                        (required) SPR to material mapping CSV path
+  -b, --beam-model BM   Beam model: a CSV file, or the name of one in beam_models/ of the configuration directory (with or without .csv).
+                        May be omitted when the choice is unambiguous: with the shipped defaults it is DCPT_beam_model__v5.csv, in a
+                        site's directory the only beam model there. --list-config shows the choices.
+  -s, --spr-to-material TABLE
+                        CT-number-to-material table for TOPAS: a file, or the name of one in ct_to_material/ of the configuration
+                        directory (with or without .txt). It must expect what the CT holds, usually Hounsfield units. May be omitted when
+                        the directory has exactly one. The includeFile line uses an explicit path as given or an absolute path for a
+                        table picked from the directory. Use ./TABLE to pass a relative path explicitly.
   -p, --beam-model-position BEAM_MODEL_POSITION
-                        Beam model position in mm, relative to isocenter, positive upstream. If not given, the value is read from the BMODPOS key in the beam model file header, or defaults to 500.0 mm if absent.
-  -f, --field FIELD_NR
-                        DICOM BeamNumber of the field to export. If not specified, all fields will be exported.
-  -N, --nstat NSTAT
-                        Target protons for simulation
+                        Beam model position in mm, relative to isocenter, positive upstream. If not given, the value is read from the
+                        BMODPOS key in the beam model file header, or defaults to 500.0 mm if absent.
+  --range-shifter-catalog RS_CATALOG_PATH
+                        Range shifter catalog CSV. REPLACES range_shifters.csv of the configuration directory, so it must list every range
+                        shifter the plan uses. The README.md of the shipped defaults describes the format.
+  --config-dir DIR      Configuration directory holding beam_models/, ct_to_material/ and range_shifters.csv. If not given:
+                        $DICOMEXPORT_CONFIG_DIR, then ~/.config/dicomexport (%APPDATA%\dicomexport on Windows), then /etc/dicomexport,
+                        then the defaults shipped with dicomexport; the first that exists is used, and only that one. Create one with
+                        --init-config DIR.
+  --init-config DIR     Copy the shipped defaults into DIR, e.g. /etc/dicomexport, as a site's starting configuration, and exit. Never
+                        overwrites a file that is already there, so it is safe to re-run after an upgrade to add new shipped files.
+  --list-config [FORMAT]
+                        Show the configuration directory in effect and what it offers, and exit. FORMAT is text (default) or json, for
+                        front ends.
+  -f, --field FIELD_NR  DICOM BeamNumber of the field to export. If not specified, all fields will be exported.
+  -N, --nstat NSTAT     Target protons for simulation
   --threads NR_THREADS  TOPAS Ts/NumberOfThreads (default: 0). 0 uses all cores on the machine that RUNS the file, -1 all but one, N
                         exactly N. Resolved at run time, not at export time, so it is safe to export on one node and run on another.
   --topas-version X.Y   TOPAS version the input file is written for, as MAJOR.MINOR (default: 4.3). Versions below 4.2 get the emittance
@@ -133,25 +167,21 @@ options:
   --export-fmt {topas,mcpl,racehorse}
                         Export format (default: topas). Formats: topas (*.txt), mcpl (*.mcpl), racehorse (*.csv).
   --nozzle-side {pos-z,neg-z}
-                        Which side of the gantry-local Z axis the nozzle sits on (default: neg-z). neg-z reproduces IEC 61217: at
-                        gantry 0 the beam enters an HFS patient from the anterior side (verified against OpenTOPAS 4.2.3 and 4.3.0,
-                        issue #66). pos-z mirrors the source to gantry+180 deg and is only meant for non-patient research setups.
+                        Which side of the gantry-local Z axis the nozzle sits on (default: neg-z). neg-z reproduces IEC 61217: at gantry 0
+                        the beam enters an HFS patient from the anterior side (verified against OpenTOPAS 4.2.3 and 4.3.0, issue #66).
+                        pos-z mirrors the source to gantry+180 deg and is only meant for non-patient research setups.
   -v, --verbosity       Increase verbosity (can use -v, -vv, etc.).
   -V, --version         Show version and exit.
-  ```
+```
 
 ### Plan-only export options
 
 ```
 $ PYTHONPATH=. python3 dicomexport/main_plan_export.py --help
-usage: main_plan_export.py [-h] [-b FBM] [-p BEAM_MODEL_POSITION]
-                           [-f FIELD_NR] [-d] [-s SCALE] [-N NSTAT]
-                           [--threads NR_THREADS] [--topas-version X.Y]
-                           [--spot-mode {sources,timefeature}] [--batches B]
-                           [-nc {5,6,7,9,11}]
-                           [--export-fmt {topas,mcpl,racehorse,spotlist}]
-                           [--spot-pos-iso] [--test-mode]
-                           [--mcpl-frame {iec,rotx180}]
+usage: main_plan_export.py [-h] [-b BM] [-p BEAM_MODEL_POSITION] [--range-shifter-catalog RS_CATALOG_PATH] [--config-dir DIR]
+                           [-f FIELD_NR] [-d] [-s SCALE] [-N NSTAT] [--threads NR_THREADS] [--topas-version X.Y]
+                           [--spot-mode {sources,timefeature}] [--batches B] [-nc {5,6,7,9,11}]
+                           [--export-fmt {topas,mcpl,racehorse,spotlist}] [--spot-pos-iso] [--test-mode] [--mcpl-frame {iec,rotx180}]
                            [--nozzle-side {pos-z,neg-z}] [-v] [-V]
                            fin [fout]
 
@@ -163,16 +193,26 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -b, --beam-model FBM  Beam model CSV path
+  -b, --beam-model BM   Beam model: a CSV file, or the name of one in beam_models/ of the configuration directory (with or without .csv).
+                        May be omitted when the choice is unambiguous: with the shipped defaults it is DCPT_beam_model__v5.csv, in a
+                        site's directory the only beam model there. --list-config shows the choices.
   -p, --beam-model-position BEAM_MODEL_POSITION
-                        Beam model position in mm, relative to isocenter, positive upstream. If not given, the value is read from the BMODPOS key in the beam model file header, or defaults to 500.0 mm if absent.
+                        Beam model position in mm, relative to isocenter, positive upstream. If not given, the value is read from the
+                        BMODPOS key in the beam model file header, or defaults to 500.0 mm if absent.
+  --range-shifter-catalog RS_CATALOG_PATH
+                        Range shifter catalog CSV. REPLACES range_shifters.csv of the configuration directory, so it must list every range
+                        shifter the plan uses. The README.md of the shipped defaults describes the format.
+  --config-dir DIR      Configuration directory holding beam_models/, ct_to_material/ and range_shifters.csv. If not given:
+                        $DICOMEXPORT_CONFIG_DIR, then ~/.config/dicomexport (%APPDATA%\dicomexport on Windows), then /etc/dicomexport,
+                        then the defaults shipped with dicomexport; the first that exists is used, and only that one. Create one with
+                        --init-config DIR.
   -f, --field FIELD_NR  DICOM BeamNumber of the field to export. If not specified, all fields will be exported.
   -d, --diag            Print plan diagnostics and exit
   -s, --scale SCALE     additional scaling multiplier for MC plan
   -N, --nstat NSTAT     Target protons for simulation
   --threads NR_THREADS  TOPAS Ts/NumberOfThreads (default: 0). 0 uses all cores on the machine that RUNS the file, -1 all but one, N
-                        exactly N. Resolved at run time, not at export time, so it is safe to export on one node and run on another.
-                        Only the --test-mode Topas export writes a setup block for it to land in.
+                        exactly N. Resolved at run time, not at export time, so it is safe to export on one node and run on another. Only
+                        the --test-mode Topas export writes a setup block for it to land in.
   --topas-version X.Y   TOPAS version the input file is written for, as MAJOR.MINOR (default: 4.3). Versions below 4.2 get the emittance
                         source as BeamParticle/BeamEnergy/BeamEnergySpread instead of the Emittance* names, which they do not recognise.
                         Only applies to Topas export.
@@ -190,17 +230,20 @@ options:
                         Number of columns in the spotlist export. Valid values: 5, 6, 7, 9, or 11 (default: 11).
   --export-fmt {topas,mcpl,racehorse,spotlist}
                         Export format (default: topas). Formats: topas (*.txt), mcpl (*.mcpl), racehorse (*.csv), spotlist (*.txt).
-  --spot-pos-iso        Export spot X/Y positions at isocenter (z=0) instead of the beam model plane.
-  --test-mode           Generate a self-contained Topas file (no DICOM patient) with a water box and isocenter dose scorer.
+  --spot-pos-iso        Export spot X/Y positions at isocenter (z=0) instead of the beam model plane. Spot sizes, divergences, and
+                        correlations are still taken from the beam model.
+  --test-mode           Generate a self-contained Topas file (no DICOM patient) with a water box and isocenter dose scorer. Useful for CI
+                        beam-direction checks.
   --mcpl-frame {iec,rotx180}
-                        Coordinate frame for MCPL phase-space output (default: iec). iec is the canonical IEC 61217
-                        gantry/nozzle frame (source plane at +D, beam travels toward -Z, isocenter at origin). rotx180
-                        rigidly rotates the beam 180 deg about X so it travels toward +Z (source at -D), which flips the
-                        sign of Y; use it for downstream codes that expect a +Z-forward beam. Only applies to MCPL export.
+                        Coordinate frame for MCPL phase-space output (default: iec). iec: canonical IEC 61217 gantry/nozzle frame --
+                        source plane at +D, beam travels toward -Z, isocenter at origin, pre-gantry (the receiving MC applies the gantry
+                        rotation). rotx180: the same beam rigidly rotated 180 deg about X, i.e. beam travels toward +Z with the source at
+                        -D; this flips the sign of Y (a proper rotation cannot reverse Z alone). Use rotx180 for downstream codes that
+                        expect a +Z-forward beam. Only applies to MCPL export.
   --nozzle-side {pos-z,neg-z}
-                        Which side of the gantry-local Z axis the nozzle sits on (default: neg-z). neg-z reproduces IEC 61217: at
-                        gantry 0 the beam enters an HFS patient from the anterior side (verified against OpenTOPAS 4.2.3 and 4.3.0,
-                        issue #66). pos-z mirrors the source to gantry+180 deg and is only meant for non-patient research setups.
+                        Which side of the gantry-local Z axis the nozzle sits on (default: neg-z). neg-z reproduces IEC 61217: at gantry 0
+                        the beam enters an HFS patient from the anterior side (verified against OpenTOPAS 4.2.3 and 4.3.0, issue #66).
+                        pos-z mirrors the source to gantry+180 deg and is only meant for non-patient research setups.
   -v, --verbosity       Increase verbosity
   -V, --version         show program's version number and exit
 ```

@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 from dicomexport.__version__ import __version__
+from dicomexport.parser_config import add_beam_model, add_config_dir, add_range_shifter_catalog
 from dicomexport.parser_topas_options import (add_batches, add_nozzle_side, add_nstat, add_spot_mode, add_threads,
                                               add_topas_version)
 
@@ -15,17 +16,14 @@ def create_parser():
     parser.add_argument('fout', nargs='?', type=Path, default="plan.txt",
                         help="Output file, default: plan.txt. Field number will be "
                         "appended automatically to the name before the extension.")
-    parser.add_argument('-b', '--beam-model', type=Path, dest='fbm', help="Beam model CSV path", default=None)
+    add_beam_model(parser, dest='fbm')
     parser.add_argument('-p', '--beam-model-position', type=float, dest='beam_model_position',
                         help="Beam model position in mm, relative to isocenter, positive upstream. "
                         "If not given, the value is read from the BMODPOS key in the beam model file "
                         "header, or defaults to 500.0 mm if absent.",
                         default=None)
-    parser.add_argument('--range-shifter-catalog', type=Path, dest='rs_catalog_path', default=None,
-                        help="Range shifter catalog CSV. REPLACES the default catalog "
-                             "(range_shifters.csv in dicomexport's defaults directory), so it "
-                             "must list every range shifter the plan uses. "
-                             "The README.md next to the default catalog describes the format.")
+    add_range_shifter_catalog(parser)
+    add_config_dir(parser)
     parser.add_argument('-f', '--field', type=int, dest='field_nr', default=0,
                         help="DICOM BeamNumber of the field to export. If not specified, all fields will be exported.")
     parser.add_argument('-d', '--diag', action='store_true', dest="diag",

@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 from dicomexport.__version__ import __version__
+from dicomexport.parser_config import add_beam_model, add_config_dir, add_range_shifter_catalog
 from dicomexport.parser_topas_options import (add_batches, add_dose_cube_16bit, add_nozzle_side, add_nstat,
                                               add_spot_mode, add_threads, add_topas_version)
 
@@ -10,8 +11,9 @@ def create_parser():
     parser = argparse.ArgumentParser(
         description="Convert DICOM CT and RTSTRUCT files to geometry needed for TOPAS.")
 
-    parser.add_argument('study_dir', type=Path,
-                        help="(required) Path to folder containing the study."
+    parser.add_argument('study_dir', type=Path, nargs='?', default=None,
+                        help="(required, except with --init-config or --list-config) "
+                        "Path to folder containing the study."
                         "The folder should contain"
                         " a) DICOM CT series(CT*.dcm) and"
                         " b) one DICOM RTSTRUCT file (RS*.dcm) and"
@@ -22,11 +24,16 @@ def create_parser():
                         help="Export file (default: topas.txt). \
                             Field number will be appended automatically to the name before the extension.")
 
-    parser.add_argument('-b', '--beam-model', type=Path, dest='bm',
-                        help="(required) Beam model CSV path", default=None)
+    add_beam_model(parser, dest='bm')
 
-    parser.add_argument('-s', '--spr-to-material', type=Path, dest='spr_to_material_path',
-                        help="(required) SPR to material mapping CSV path", default=None)
+    parser.add_argument('-s', '--spr-to-material', dest='spr_to_material_path', default=None,
+                        metavar='TABLE',
+                        help="CT-number-to-material table for TOPAS: a file, or the name of one in "
+                             "ct_to_material/ of the configuration directory (with or without .txt). "
+                             "It must expect what the CT holds, usually Hounsfield units. May be "
+                             "omitted when the directory has exactly one. The includeFile line uses "
+                             "an explicit path as given or an absolute path for a table picked from "
+                             "the directory. Use ./TABLE to pass a relative path explicitly.")
 
     parser.add_argument('-p', '--beam-model-position', type=float, dest='beam_model_position',
                         help="Beam model position in mm, relative to isocenter, positive upstream. "
@@ -34,11 +41,17 @@ def create_parser():
                         "header, or defaults to 500.0 mm if absent.",
                         default=None)
 
-    parser.add_argument('--range-shifter-catalog', type=Path, dest='rs_catalog_path', default=None,
-                        help="Range shifter catalog CSV. REPLACES the default catalog "
-                             "(range_shifters.csv in dicomexport's defaults directory), so it "
-                             "must list every range shifter the plan uses. "
-                             "The README.md next to the default catalog describes the format.")
+    add_range_shifter_catalog(parser)
+    add_config_dir(parser)
+    parser.add_argument('--init-config', type=Path, dest='init_config', default=None, metavar='DIR',
+                        help="Copy the shipped defaults into DIR, e.g. /etc/dicomexport, as a site's "
+                             "starting configuration, and exit. Never overwrites a file that is "
+                             "already there, so it is safe to re-run after an upgrade to add new "
+                             "shipped files.")
+    parser.add_argument('--list-config', nargs='?', const='text', choices=['text', 'json'], default=None,
+                        dest='list_config', metavar='FORMAT',
+                        help="Show the configuration directory in effect and what it offers, and "
+                             "exit. FORMAT is text (default) or json, for front ends.")
     parser.add_argument('-f', '--field', type=int, dest='field_nr', default=0,
                         help="DICOM BeamNumber of the field to export. If not specified, all fields will be exported.")
 

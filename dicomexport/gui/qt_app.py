@@ -7,7 +7,8 @@ from PyQt6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
 
 from dicomexport.__version__ import __version__
 from dicomexport.beam_model import read_bmodpos
-from dicomexport.gui.utils import BEAM_MODELS_DIR, CT_TO_MATERIAL_DIR, list_files
+from dicomexport.config import ConfigError
+from dicomexport.gui.utils import by_name, gui_config
 from dicomexport.main import main as dicomexport_main
 from dicomexport.parser_main import create_parser
 
@@ -57,16 +58,26 @@ class ExportWorker(QThread):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, cfg=None):
         super().__init__()
         uic.loadUi(UI_FILE, self)
         self.setWindowTitle(f"DICOM Export {__version__}")
 
-        self._beam_models = list_files(BEAM_MODELS_DIR, [".csv"])
-        self._spr_tables = list_files(CT_TO_MATERIAL_DIR, [".txt"])
+        # The configuration directory in effect (issue #112). It is passed on as --config-dir,
+        # so the export also takes its range shifter catalog from the directory listed here.
+        self._cfg = cfg if cfg is not None else gui_config()
+        self._beam_models = by_name(self._cfg.beam_models())
+        self._spr_tables = by_name(self._cfg.ct_to_material_tables())
 
         self.beam_model.addItems(self._beam_models.keys())
         self.spr_table.addItems(self._spr_tables.keys())
+        default_bm = self._cfg.default_beam_model()
+        default_table = self._cfg.default_ct_to_material_table()
+        self.beam_model.setPlaceholderText("Select a beam model")
+        self.spr_table.setPlaceholderText("Select a CT-number-to-material table")
+        self.beam_model.setCurrentIndex(self.beam_model.findText(default_bm.name) if default_bm else -1)
+        self.spr_table.setCurrentIndex(self.spr_table.findText(default_table.name) if default_table else -1)
+        self.log_output.append(f"Configuration directory: {self._cfg}")
 
         # Populate defaults from the parser (single source of truth)
         _p = create_parser()
@@ -99,14 +110,18 @@ class MainWindow(QMainWindow):
             self.log_output.append("ERROR: Please select a study directory.")
             return
 
-        beam_model = str(self._beam_models[self.beam_model.currentText()])
-        spr_table = str(self._spr_tables[self.spr_table.currentText()])
+        beam_model = self._beam_models.get(self.beam_model.currentText())
+        spr_table = self._spr_tables.get(self.spr_table.currentText())
+        if beam_model is None or spr_table is None:
+            self.log_output.append("ERROR: Please select a beam model and a CT-number-to-material table.")
+            return
 
         args = [
             study_dir,
             self.output_base.text(),
-            "-b", beam_model,
-            "-s", spr_table,
+            "-b", str(beam_model),
+            "-s", str(spr_table),
+            "--config-dir", str(self._cfg.path),
             "-p", str(self.bm_position.value()),
             "-f", str(self.field_nr.value()),
             "-N", str(self.nstat.value()),
@@ -130,16 +145,20 @@ class MainWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
-    if not BEAM_MODELS_DIR.exists() or not CT_TO_MATERIAL_DIR.exists():
-        QMessageBox.critical(
-            None, "Missing resources",
-            f"Could not find the shipped data folders:\n"
-            f"  {BEAM_MODELS_DIR}\n"
-            f"  {CT_TO_MATERIAL_DIR}\n\n"
-            "The installation is incomplete. The 'defaults' folder must be in the "
-            "same folder as the executable.")
+    try:
+        cfg = gui_config()
+    except ConfigError as e:
+        QMessageBox.critical(None, "Configuration directory", str(e))
         sys.exit(1)
-    window = MainWindow()
+    if not cfg.beam_models() or not cfg.ct_to_material_tables():
+        QMessageBox.critical(
+            None, "Missing data",
+            f"The configuration directory {cfg} has no beam models or no "
+            f"CT-number-to-material tables.\n\n"
+            "With the shipped defaults, the installation is incomplete: in a standalone "
+            "build, the 'defaults' folder must be in the same folder as the executable.")
+        sys.exit(1)
+    window = MainWindow(cfg)
     window.show()
     sys.exit(app.exec())
 

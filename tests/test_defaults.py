@@ -1,11 +1,9 @@
 """The shipped defaults directory (issue #112): its layout, and that the wheel carries all of it."""
-import importlib
 import sys
 import tomllib
 from pathlib import Path
 
-import dicomexport.config
-from dicomexport.config import BEAM_MODELS, CT_TO_MATERIAL, DEFAULTS_DIR, RANGE_SHIFTERS
+from dicomexport.config import BEAM_MODELS, CT_TO_MATERIAL, DEFAULTS_DIR, RANGE_SHIFTERS, shipped_defaults_dir
 
 REPO = Path(__file__).parent.parent
 PACKAGE = REPO / "dicomexport"
@@ -38,9 +36,4 @@ def test_frozen_build_reads_defaults_beside_the_executable(monkeypatch, tmp_path
     """
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "executable", str(tmp_path / "dicomexport.exe"))
-    try:
-        assert importlib.reload(dicomexport.config).DEFAULTS_DIR == tmp_path.resolve() / "defaults"
-    finally:
-        monkeypatch.undo()
-        importlib.reload(dicomexport.config)
-    assert dicomexport.config.DEFAULTS_DIR == DEFAULTS_DIR
+    assert shipped_defaults_dir() == tmp_path.resolve() / "defaults"
