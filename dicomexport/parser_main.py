@@ -26,13 +26,14 @@ def create_parser():
 
     add_beam_model(parser, dest='bm')
 
-    parser.add_argument('-s', '--spr-to-material', type=Path, dest='spr_to_material_path', default=None,
+    parser.add_argument('-s', '--spr-to-material', dest='spr_to_material_path', default=None,
                         metavar='TABLE',
                         help="CT-number-to-material table for TOPAS: a file, or the name of one in "
                              "ct_to_material/ of the configuration directory (with or without .txt). "
                              "It must expect what the CT holds, usually Hounsfield units. May be "
-                             "omitted when the directory has exactly one. Written as an includeFile "
-                             "line with the path as given.")
+                             "omitted when the directory has exactly one. The includeFile line uses "
+                             "an explicit path as given or an absolute path for a table picked from "
+                             "the directory. Use ./TABLE to pass a relative path explicitly.")
 
     parser.add_argument('-p', '--beam-model-position', type=float, dest='beam_model_position',
                         help="Beam model position in mm, relative to isocenter, positive upstream. "

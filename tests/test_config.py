@@ -210,6 +210,24 @@ class TestStudyExport:
         assert f"includeFile                          = {SHIPPED_TABLE}" in text
         assert "Using the defaults shipped with dicomexport" in caplog.text
 
+    @pytest.mark.parametrize("table", ["../node-only/table.txt", "./HUtoMaterialSchneider.txt", "./nested//table.txt"])
+    def test_explicit_table_path_is_written_verbatim(self, tmp_path, monkeypatch, table):
+        monkeypatch.chdir(tmp_path)
+        assert study_main([str(STUDY), "topas.txt", "-s", table, "-f", "1", "-N", "1000", "--batches", "1"]) == 0
+        text = (tmp_path / "topas_field01.txt").read_text()
+        assert f"includeFile                          = {table}" in text.splitlines()
+
+    @pytest.mark.parametrize("selection", [[], ["-s", "HUtoMaterialSite"]])
+    def test_table_picked_from_relative_config_is_absolute(self, tmp_path, monkeypatch, selection):
+        site = site_dir(tmp_path / "site", range_shifters=(DEFAULTS_DIR / "range_shifters.csv").read_text())
+        (tmp_path / "run").mkdir()
+        monkeypatch.chdir(tmp_path)
+        args = [str(STUDY), "run/topas.txt", "--config-dir", "site", "-f", "1", "-N", "1000", "--batches", "1"]
+        assert study_main([*args, *selection]) == 0
+        text = (tmp_path / "run/topas_field01.txt").read_text()
+        assert f"includeFile                          = {site / 'ct_to_material' / 'HUtoMaterialSite.txt'}" in text
+        assert f"# BEAM_MODEL: {site / 'beam_models' / 'SITE_bm.csv'}" in text
+
     def test_an_ambiguous_site_directory_is_reported_not_raised(self, tmp_path, caplog):
         """The Qt GUI calls main() in a thread: errors must come back as a code and a log line."""
         site = site_dir(tmp_path / "site", beam_models=("A.csv", "B.csv"))
@@ -230,4 +248,13 @@ class TestPlanExport:
         out = tmp_path / "plan.txt"
         assert plan_main([str(PLAN), str(out), "--test-mode", "-N", "100000", "--batches", "1", "-f", "1"]) == 0
         assert f"Beam model: {SHIPPED_V5}" in caplog.text
+        assert any(record.levelname == "WARNING" and "Using the defaults shipped with dicomexport" in record.message
+                   for record in caplog.records)
         assert list(tmp_path.glob("plan_field*.txt"))
+
+    def test_explicit_missing_beam_model_does_not_fall_back_to_a_config_name(self, tmp_path, monkeypatch, caplog):
+        site = site_dir(tmp_path / "site")
+        monkeypatch.chdir(tmp_path)
+        assert plan_main([str(PLAN), "--config-dir", str(site), "-b", "./SITE_bm.csv"]) == 2
+        assert "./SITE_bm.csv" in caplog.text
+        assert not list(tmp_path.glob("plan_field*.txt"))

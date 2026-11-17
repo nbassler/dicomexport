@@ -115,8 +115,7 @@ class ConfigDir:
         """The beam model used when -b is omitted, or None when the choice is not unambiguous."""
         models = self.beam_models()
         if self.is_shipped:
-            shipped = self.path / BEAM_MODELS / DEFAULT_BEAM_MODEL
-            return shipped if shipped in models else None
+            return next((p for p in models if p.name == DEFAULT_BEAM_MODEL), None)
         return models[0] if len(models) == 1 else None
 
     def default_ct_to_material_table(self) -> Optional[Path]:
@@ -127,16 +126,24 @@ class ConfigDir:
     # ----- choosing a file -----------------------------------------------------------
 
     def beam_model(self, arg: Optional[os.PathLike | str]) -> Path:
-        """The beam model to use for -b ARG: a file path, a name in beam_models/, or None."""
+        """Choose a beam model from a local file path, a name in beam_models/, or the default."""
+        if arg is not None and Path(arg).is_file():
+            return Path(arg)
         return self._select(arg, self.beam_models(), self.default_beam_model(),
                             what="beam model", flag="-b", subdir=BEAM_MODELS)
 
-    def ct_to_material_table(self, arg: Optional[os.PathLike | str]) -> Path:
-        """The table to use for -s ARG: a file path, a name in ct_to_material/, or None."""
+    def ct_to_material_table(self, arg: Optional[os.PathLike | str]) -> Path | str:
+        """Preserve an explicit TOPAS include path or pick an absolute table path from config."""
+        if arg is not None:
+            raw = os.fspath(arg)
+            given = Path(raw)
+            # TOPAS may resolve the include in a different working directory or on another node.
+            if raw != given.name or given.is_file():
+                return raw
         return self._select(arg, self.ct_to_material_tables(), self.default_ct_to_material_table(),
                             what="CT-number-to-material table", flag="-s", subdir=CT_TO_MATERIAL)
 
-    def _select(self, arg, candidates: list[Path], default: Optional[Path],
+    def _select(self, arg: Optional[os.PathLike | str], candidates: list[Path], default: Optional[Path],
                 what: str, flag: str, subdir: str) -> Path:
         names = ", ".join(p.name for p in candidates) or "(none)"
         if arg is None:
@@ -148,16 +155,11 @@ class ConfigDir:
             raise ConfigError(f"No {what} given, and {self.path / subdir} has {len(candidates)}: "
                               f"{names}. Choose one with {flag} NAME.")
 
-        # A path that exists is used as given, so a relative path stays relative in the TOPAS
-        # file (issue #63). Only a bare name is looked up in the directory.
-        given = Path(arg)
-        if given.is_file():
-            return given
-        if str(arg) == given.name:
-            for p in candidates:
-                if given.name in (p.name, p.stem):
-                    return p
-        raise ConfigError(f"{what.capitalize()} {str(arg)!r} is neither a file nor a name in "
+        name = os.fspath(arg)
+        for p in candidates:
+            if name in (p.name, p.stem):
+                return p
+        raise ConfigError(f"{what.capitalize()} {name!r} is neither a file nor a name in "
                           f"{self.path / subdir}, which has: {names}.")
 
     # ----- for front ends --------------------------------------------------------------
@@ -180,6 +182,7 @@ class ConfigDir:
 
 
 def _files(folder: Path, suffixes: tuple[str, ...]) -> list[Path]:
+    folder = folder.absolute()
     if not folder.is_dir():
         return []
     return sorted(p for p in folder.iterdir() if p.is_file() and p.suffix in suffixes)

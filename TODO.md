@@ -68,16 +68,20 @@ Windows zip holds `dicomexport.exe`, `dicomexport-cli.exe` and `defaults/`; the 
 lists beam models and tables; an exported `includeFile` still exists after the GUI is
 closed; the Linux archive holds the binary and `defaults/`.
 
-### 2. #112, step 2: the configuration directory (done on branch `112-step2-config-dir`, not committed)
+### 2. #112, step 2: the configuration directory (PR #126)
 
 Built as decided:
 
 - The search order, in `config.find_config_dir()`. `--config-dir` and
   `$DICOMEXPORT_CONFIG_DIR` must exist when given; the user and system directories are used
   only if they exist. `tests/conftest.py` keeps tests away from the real ones.
-- `-b` and `-s` take a path (used as given, #63) or a name in the directory in effect, with
-  or without suffix. Either may be omitted when unambiguous. `DCPT_beam_model__v5.csv` is the
-  `-b` default only in the shipped defaults; a site's directory needs exactly one beam model
+- `-b` and `-s` take a path or a name in the directory in effect, with or without suffix.
+  Typed `-s` paths are written as given in the TOPAS `includeFile` line (#63). Use
+  `./TABLE` to pass a relative path explicitly, including for a table that is only
+  available at simulation time. Files picked from the configuration directory are made
+  absolute, including defaults and GUI selections.
+- Either option may be omitted when unambiguous. `DCPT_beam_model__v5.csv` is the
+  `-b` default only in the shipped defaults. A site's directory needs exactly one beam model
   to omit `-b`. A fresh `--init-config` copies both DCPT models, so it needs `-b`.
 - `--init-config DIR` copies the shipped defaults, **never overwriting** (DECIDED), and
   lists what it copied and skipped.
@@ -93,8 +97,9 @@ Built as decided:
 - A warning whenever the shipped defaults are in effect: they are other sites' data.
 - `plan-export` shares `--config-dir`, `-b` and the catalog rules. Not `-s`, which it has
   for something else (`--scale`), nor `--init-config`/`--list-config`.
-- Both GUIs list the directory in effect, preselect the default beam model, and pass
-  `--config-dir` on.
+- Both GUIs list the directory in effect, preselect defaults, and pass `--config-dir` on.
+  They require a choice when there is no default among the listed files. Streamlit leaves
+  the beam model position to the exporter unless the user enables an override.
 - `main()` returns 2 with a logged message on a configuration error instead of raising,
   because the Qt GUI runs it in a thread.
 

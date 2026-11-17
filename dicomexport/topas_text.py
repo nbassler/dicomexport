@@ -93,7 +93,7 @@ class TopasText:
         return "\n".join(lines)
 
     @staticmethod
-    def spr_to_material(spr_path: Path) -> str:
+    def spr_to_material(spr_path: Path | str) -> str:
         lines = [
             "##############################################",
             "###        SPR TO MATERIAL PATH            ###",

@@ -72,8 +72,11 @@ class MainWindow(QMainWindow):
         self.beam_model.addItems(self._beam_models.keys())
         self.spr_table.addItems(self._spr_tables.keys())
         default_bm = self._cfg.default_beam_model()
-        if default_bm is not None:
-            self.beam_model.setCurrentText(default_bm.name)
+        default_table = self._cfg.default_ct_to_material_table()
+        self.beam_model.setPlaceholderText("Select a beam model")
+        self.spr_table.setPlaceholderText("Select a CT-number-to-material table")
+        self.beam_model.setCurrentIndex(self.beam_model.findText(default_bm.name) if default_bm else -1)
+        self.spr_table.setCurrentIndex(self.spr_table.findText(default_table.name) if default_table else -1)
         self.log_output.append(f"Configuration directory: {self._cfg}")
 
         # Populate defaults from the parser (single source of truth)
@@ -107,14 +110,17 @@ class MainWindow(QMainWindow):
             self.log_output.append("ERROR: Please select a study directory.")
             return
 
-        beam_model = str(self._beam_models[self.beam_model.currentText()])
-        spr_table = str(self._spr_tables[self.spr_table.currentText()])
+        beam_model = self._beam_models.get(self.beam_model.currentText())
+        spr_table = self._spr_tables.get(self.spr_table.currentText())
+        if beam_model is None or spr_table is None:
+            self.log_output.append("ERROR: Please select a beam model and a CT-number-to-material table.")
+            return
 
         args = [
             study_dir,
             self.output_base.text(),
-            "-b", beam_model,
-            "-s", spr_table,
+            "-b", str(beam_model),
+            "-s", str(spr_table),
             "--config-dir", str(self._cfg.path),
             "-p", str(self.bm_position.value()),
             "-f", str(self.field_nr.value()),

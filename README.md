@@ -129,7 +129,8 @@ options:
   -s, --spr-to-material TABLE
                         CT-number-to-material table for TOPAS: a file, or the name of one in ct_to_material/ of the configuration
                         directory (with or without .txt). It must expect what the CT holds, usually Hounsfield units. May be omitted when
-                        the directory has exactly one. Written as an includeFile line with the path as given.
+                        the directory has exactly one. The includeFile line uses an explicit path as given or an absolute path for a
+                        table picked from the directory. Use ./TABLE to pass a relative path explicitly.
   -p, --beam-model-position BEAM_MODEL_POSITION
                         Beam model position in mm, relative to isocenter, positive upstream. If not given, the value is read from the
                         BMODPOS key in the beam model file header, or defaults to 500.0 mm if absent.

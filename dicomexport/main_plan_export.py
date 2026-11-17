@@ -63,6 +63,11 @@ def main(args=None) -> int:
     except ConfigError as e:
         logger.error("%s", e)
         return 2
+    if cfg.is_shipped:
+        logger.warning(
+            "Using the defaults shipped with dicomexport (%s). The shipped beam models and "
+            "range shifters are examples. Set up a site configuration directory with --init-config.",
+            cfg.path)
     logger.info("Beam model: %s", bm_path)
 
     pln.beam_model = BeamModel(bm_path,

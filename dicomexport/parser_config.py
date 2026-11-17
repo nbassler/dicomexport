@@ -25,7 +25,7 @@ def add_config_dir(parser: argparse.ArgumentParser) -> None:
 
 
 def add_beam_model(parser: argparse.ArgumentParser, dest: str) -> None:
-    parser.add_argument('-b', '--beam-model', type=Path, dest=dest, default=None, metavar='BM',
+    parser.add_argument('-b', '--beam-model', dest=dest, default=None, metavar='BM',
                         help="Beam model: a CSV file, or the name of one in beam_models/ of the "
                              "configuration directory (with or without .csv). May be omitted when "
                              "the choice is unambiguous: with the shipped defaults it is "
