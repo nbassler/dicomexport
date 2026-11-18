@@ -43,9 +43,15 @@ Still to do: review, commit, PR (closes #94). Then answer pregdos#126.
 
 ### 2. Before releasing 2.0.0
 
-- **#129** (branch `129-…`, not committed): an unknown `RangeShifterID`, or an invalid plan,
-  is now a one-line error with exit code 2 in both commands, no longer a traceback (and a
-  silent failure in the Qt GUI). `dicomexport` reads the plan before the CT, so it fails fast.
+- **#129 and #130** (branch `129-…`, not committed): a `ValueError` from `load_plan()`, such
+  as an unknown `RangeShifterID`, is now a one-line error with exit code 2 in both commands,
+  not a traceback (the Qt GUI already logged it; now the exit code matches). `dicomexport`
+  reads the plan before the CT, so it fails fast. Still a traceback: an unreadable DICOM
+  file; an unsupported SOP class logs two error lines. Paths and names written as TOPAS
+  values (`-s` paths and the default table, `DicomDirectory`, `CloneRTDoseGridFrom`, the
+  output name, the RTSTRUCT path) are checked in the shared export path
+  (`export_study_topas.check_topas_values`, also called early by the CLI for exit code 2);
+  `-s` paths may not contain whitespace, since TOPAS splits `includeFile` there.
 
 - **Run the standalone builds from the pre-release.** They have never been run. The Windows
   zip holds `dicomexport.exe`, `dicomexport-cli.exe` and `defaults/`; the GUI lists beam
@@ -67,14 +73,6 @@ Still to do: review, commit, PR (closes #94). Then answer pregdos#126.
   whose `ROIContourSequence` lists another ROI first loses that ROI and TOPAS stops.
   dicomexport refuses such an RTSTRUCT for overrides; drop that check once fixed upstream.
 
-### 4. After 2.0.0, not blocking
-
-- **#130: check every path written into a TOPAS file at export.** `DicomDirectory`,
-  `CloneRTDoseGridFrom` and `includeFile` are written unchecked; a path containing
-  `= ' ` ? # "` makes TOPAS stop at startup (checked with 4.3.0: a clear message for `=`,
-  a confusing "extra tokens" one for `#`). Only the RTSTRUCT path of an override is checked
-  now (`material_override._unsafe`); reuse it for all of them, exit code 2 at export.
-
 ## Code pointers
 
 | What | Where |
@@ -92,7 +90,8 @@ Still to do: review, commit, PR (closes #94). Then answer pregdos#126.
 
 ## For pregdos: migrating to dicomexport 2.0.0
 
-For whoever, human or AI, adapts pregdos (pregdos#128, #126, #131). Everything below is on
+For whoever, human or AI, adapts pregdos. Tracked in **Eurados/pregdos#132** as a checklist;
+keep that issue in step with this section until 2.0.0 is released (also pregdos#126-#131). Everything below is on
 dicomexport `main` but unreleased; material overrides (#94) are on a branch. Check
 `--help` and the release notes before coding against an option name.
 
@@ -163,12 +162,9 @@ dicomexport `main` but unreleased; material overrides (#94) are on a branch. Che
     but an event holds one proton from every spot still active, so early events carry more
     work than late ones. Say "batch" in the UI in this mode, not "spot". Timefeature mode
     keeps today's spot-weighted bar.
-12. **OPEN, check before trusting uncertainties in sources mode.** pregdos computes the
-    relative uncertainty as sqrt(N)·SD/Sum with N = simulated protons, which assumes one
-    proton per TOPAS history. In sources mode a TOPAS history is an event with one proton
-    from every active spot, so TOPAS's SD is per event and N would be the number of events
-    (`RUNS` × `EVENTS_PER_RUN`), and the events within a run are not identical. Decide with
-    Niels how uncertainties are formed in this mode (the identical batches exist for this).
+12. **Uncertainty in sources mode: N is events, not protons** (pregdos#130). TOPAS's SD is
+    per event, and an event holds one proton from every active spot. With batches the scorer
+    accumulates over all runs, so N = `RUNS` × `EVENTS_PER_RUN`. Confirm against a run.
 
 ### Good to know
 

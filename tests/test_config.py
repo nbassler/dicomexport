@@ -203,10 +203,7 @@ class TestRangeShifters:
 
 
 class TestUnknownRangeShifter:
-    """An unknown RangeShifterID is a one-line error with exit code 2, not a traceback (#129).
-
-    The Qt GUI runs main() in a thread, where a raised exception would end it without a word.
-    """
+    """An unknown RangeShifterID is a one-line error with exit code 2, not a traceback (#129)."""
 
     MESSAGE = "Unknown RangeShifterID 'RS_NOPE' on beam 1"
 
