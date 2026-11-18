@@ -52,10 +52,12 @@ def add_includes(parser: argparse.ArgumentParser) -> None:
                              "and written as an absolute path; any other path is written exactly as "
                              "given, so it may name a file that exists only where TOPAS runs. "
                              "Repeatable, with -S, in the order given. Without any -s or -S, the "
-                             "configuration directory's only table is included. TOPAS checks "
-                             "conflicts between include chains. When chains resolve a parameter "
-                             "to different definitions, TOPAS requires an absolute definition "
-                             "in the file that joins those chains.")
+                             "configuration directory's only table is included. If an included "
+                             "file sets a parameter dicomexport already writes, TOPAS silently "
+                             "keeps dicomexport's value. With more than one included file, TOPAS "
+                             "stops if two of them set the same parameter, or one sets a parameter "
+                             "that has a TOPAS default, unless the TOPAS file itself sets it. "
+                             "Use -S for such code.")
     parser.add_argument('-S', '--include-inline', dest='includes', action=_AppendInclude, const=True,
                         default=None, metavar='FILE',
                         help="Like -s, but paste the file into each TOPAS file, between "
@@ -63,8 +65,7 @@ def add_includes(parser: argparse.ArgumentParser) -> None:
                              "'# END INCLUDE_INLINE: FILE' lines. The file must be UTF-8 and exist "
                              "when exporting. Any nested includes and other referenced files "
                              "must be accessible to TOPAS at runtime. TOPAS normally rejects "
-                             "duplicate definitions in the same file. OpenTOPAS 4.3.0 keeps "
-                             "the last definition for Ma/PatientTissue* parameters.")
+                             "duplicate definitions in the same file.")
 
 
 def add_range_shifter_catalog(parser: argparse.ArgumentParser) -> None:

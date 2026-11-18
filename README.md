@@ -115,8 +115,8 @@ older version, pass `--topas-version X.Y`.
 ### Including TOPAS files
 
 `-s FILE` includes a TOPAS parameter file by path, as an `includeFile` line. `-S FILE`
-pastes the UTF-8 file into each TOPAS field file. TOPAS interprets the parameters. Both
-options may be repeated and mixed, and the files keep their command-line order.
+pastes the UTF-8 file into each TOPAS field file. dicomexport does not read what it
+includes. Both options may be repeated and mixed, and the files keep their command-line order.
 
 The usual file is the CT-number-to-material table, and without any `-s` or `-S` the
 configuration directory's only table is included. Any other TOPAS code can be added the same
@@ -138,12 +138,11 @@ table too.
 
   To recover or verify the original bytes, read the block as bytes and remove exactly one
   LF immediately before the end marker. The SHA-256 covers the original file bytes.
-- **How TOPAS handles conflicts.** For compatible parameter definitions, the including
-  file's value takes precedence. When two include chains resolve a parameter to different
-  definitions, TOPAS requires an absolute definition in the file that joins them.
-  An explicit value in one chain can conflict with a built-in default inherited by
-  another. TOPAS normally rejects duplicate definitions in the same file. OpenTOPAS
-  4.3.0 keeps the last definition for names beginning with `Ma/PatientTissue`.
+- **How TOPAS handles conflicts.** If an included file sets a parameter dicomexport already
+  writes, TOPAS silently keeps dicomexport's value. With more than one `-s` file, TOPAS
+  stops if two of them set the same parameter, or one sets a parameter that has a TOPAS
+  default, unless the generated TOPAS file itself sets it. Use `-S` for such code. A pasted
+  file that sets a parameter dicomexport writes makes TOPAS stop at startup, naming it.
 
 ## Plan-only export
 
