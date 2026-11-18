@@ -87,13 +87,22 @@ jobs:
       run: |
         pyinstaller --onefile --name dicomexport dicomexport/main.py
 
-    # defaults/ beside the binary, for the same reason as in the Windows zip.
+    # defaults/ beside the binary, for the same reason as in the Windows zip. One top-level
+    # folder, like the zip, so unpacking does not spill files into the current directory.
     - name: Archive Linux binary with defaults/
       run: |
-        mkdir -p package
-        cp dist/dicomexport package/
-        cp -r dicomexport/defaults package/defaults
-        tar -C package -czf dist/dicomexport-linux-x86_64.tar.gz dicomexport defaults
+        mkdir -p dicomexport-linux-x86_64
+        cp dist/dicomexport dicomexport-linux-x86_64/
+        cp -r dicomexport/defaults dicomexport-linux-x86_64/defaults
+        tar -czf dist/dicomexport-linux-x86_64.tar.gz dicomexport-linux-x86_64
+
+    - name: Upload artifact for testing (non-release)
+      if: github.event_name != 'release'
+      uses: actions/upload-artifact@v7
+      with:
+        name: dicomexport-linux-x86_64
+        path: dicomexport-linux-x86_64/
+        retention-days: 3
 
     - name: Upload binary to release
       if: github.event_name == 'release'

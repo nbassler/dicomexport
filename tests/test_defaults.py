@@ -38,3 +38,10 @@ def test_frozen_build_reads_defaults_beside_the_executable(monkeypatch, tmp_path
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "executable", str(tmp_path / "dicomexport.exe"))
     assert shipped_defaults_dir() == tmp_path.resolve() / "defaults"
+
+
+def test_shipped_files_have_lf_line_endings():
+    """.gitattributes keeps them LF on every checkout, also on Windows (CI runs there), so a
+    table pasted with -S has the same SHA-256 whichever build or installation it comes from."""
+    crlf = [p.relative_to(DEFAULTS_DIR) for p in DEFAULTS_DIR.rglob("*") if p.is_file() and b"\r\n" in p.read_bytes()]
+    assert crlf == []

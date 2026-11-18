@@ -1,0 +1,3 @@
+# The shipped data files keep LF line endings on every checkout, also on Windows, so a table
+# pasted with -S has the same SHA-256 whichever build or installation it comes from.
+dicomexport/defaults/** text eol=lf
