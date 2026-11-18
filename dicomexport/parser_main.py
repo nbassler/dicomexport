@@ -33,7 +33,9 @@ def create_parser():
                              "the CT conversion, e.g. \"Hip implant=ImplantSteel\". Repeatable. Where "
                              "structures overlap, TOPAS uses the first one given. ROI is the name in "
                              "the RTSTRUCT, and must be there; TOPAS's spelling, with underscores for "
-                             "spaces, also works. MATERIAL is not checked: it is a TOPAS or Geant4 "
+                             "spaces, also works. The export stops if TOPAS would build the structure differently "
+                             "from the RTSTRUCT: a hole, an open contour, no closed contour, a contour off "
+                             "the CT slices, or a name TOPAS cannot match. MATERIAL is not checked: it is a TOPAS or Geant4 "
                              "material, or one defined in a file pasted with -S, such as materials.txt "
                              "of the configuration directory.")
 

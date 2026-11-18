@@ -164,6 +164,14 @@ dicomexport study/ -S HUtoMaterialSchneider -S materials.txt \
 - **Structures** must be in the RTSTRUCT, or the export stops and lists the ones there.
   TOPAS's spelling, with underscores for spaces, also works. Where structures overlap, the
   first one given wins: name the implant before the body that contains it.
+- **The export stops if TOPAS would build the structure differently** from the RTSTRUCT.
+  TOPAS fills every contour, so a structure with a hole (a contour inside another, or an XOR
+  contour) or an open contour would get the material in the wrong voxels; one with no
+  closed contour, or a contour off the CT slices, would get none there. TOPAS also cannot
+  match a name stored in another encoding than UTF-8, or one containing `= ' ` ? # "` or
+  typographic quotes and dashes; the same characters are refused in the RTSTRUCT's path.
+  OpenTOPAS 4.3.0 also cannot read an RTSTRUCT whose two ROI sequences are in different
+  orders, which dicomexport then refuses.
 - **Materials** are not checked by dicomexport; TOPAS stops at startup on an unknown one.
   Use a Geant4 or TOPAS material such as `G4_WATER`, or define your own in `materials.txt` of
   the configuration directory and paste it with `-S materials.txt`. The shipped example

@@ -11,7 +11,7 @@ from dicomexport.dicom_scan import RTDOSE, scan_study
 from dicomexport.import_ct import load_ct
 from dicomexport.import_rtstruct import load_rs
 from dicomexport.import_plan import load_plan
-from dicomexport.material_override import resolve_overrides, warn_declared_overrides
+from dicomexport.material_override import check_contours, resolve_overrides, warn_declared_overrides
 from dicomexport.model_plan import range_shifter_catalog_of
 from dicomexport.export_study_topas import export_study_topas
 from dicomexport.parser_config import config_from_args, includes_from_args, range_shifter_catalog_from_args
@@ -82,7 +82,7 @@ def main(args=None) -> int:
         logger.info("Including %s: %s", "inline" if inc.inline else "by path", inc.path)
 
     study_dir = parsed_args.study_dir
-    # The RTSTRUCT first: checking the overrides against it is quick, loading the CT is not.
+    # The RTSTRUCT first: checking the override names against it is quick, loading the CT is not.
     rs = load_rs(study_dir)
     try:
         material_overrides = resolve_overrides(parsed_args.material_overrides, rs)
@@ -94,6 +94,11 @@ def main(args=None) -> int:
         logger.info("Material override: structure %r is %s", o.roi_name, o.material)
 
     ct = load_ct(study_dir)
+    try:
+        check_contours(material_overrides, rs.file_path, [img.image_position_patient[2] for img in ct.images])
+    except ValueError as e:
+        logger.error("%s", e)
+        return 2
     bm = BeamModel(bm_path,
                    beam_model_position=parsed_args.beam_model_position)
 

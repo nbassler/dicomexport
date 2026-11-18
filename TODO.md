@@ -30,7 +30,13 @@ lines. `materials.txt` has no special handling: it is pasted with `-S materials.
 names are now also looked up at the top of the configuration directory). The shipped
 `materials.txt` defines `ImplantSteel` (DCPT's steel at 7.8 g/cm3, pregdos#126). The RTSTRUCT's
 own overrides (`MaterialID`, `ROIPhysicalPropertiesSequence`) are read and warned about when
-not covered. Code: `material_override.py`, `import_rtstruct._declared_overrides`,
+not covered. An overridden structure is refused when TOPAS would build it differently
+(TOPAS fills every contour of 3+ points and never clears a voxel): a hole (nested or XOR),
+an open contour, no closed contour, a name not stored as UTF-8 (TOPAS compares raw bytes),
+a contour off the CT slices (TOPAS matches z exactly and skips the rest), a character a
+TOPAS file cannot carry (`= ' ` ? # "`, typographic quotes and dashes, also in the RTSTRUCT
+path), or an RTSTRUCT whose ROI sequences OpenTOPAS 4.3.0 cannot read (see Open questions).
+The test study's `CTV` has a real hole at z = 9.5 mm. Code: `material_override.py` (`check_contours`), `import_rtstruct._declared_overrides`,
 `TopasText.material_overrides`.
 
 Still to do: review, commit, PR (closes #94). Then answer pregdos#126.
@@ -51,8 +57,11 @@ Still to do: review, commit, PR (closes #94). Then answer pregdos#126.
 
 - **#102**: declined with reasons, still open. Close it, or wait for the requester.
 - **#98 (HLUT composition)**: not part of 2.0.0. If it comes: one subdirectory, one option.
-- **Report to OpenTOPAS** that `DensityCorrection` is read without a bounds check
-  (`TsImagingToMaterialSchneider.cc:222`).
+- **Report to OpenTOPAS** two bugs: `DensityCorrection` is read without a bounds check
+  (`TsImagingToMaterialSchneider.cc:222`); and `TsDicomPatient.cc:652` assigns through a
+  reference to the first `StructureSetROISequence` item while searching, so an RTSTRUCT
+  whose `ROIContourSequence` lists another ROI first loses that ROI and TOPAS stops.
+  dicomexport refuses such an RTSTRUCT for overrides; drop that check once fixed upstream.
 
 ## Code pointers
 
@@ -169,5 +178,7 @@ dicomexport `main` but unreleased; material overrides (#94) are on a branch. Che
   the RTSTRUCT, and materials from `materials.txt` (the `Ma/<name>/` prefixes; dicomexport
   does not list them) plus any Geant4/TOPAS names pregdos allows: an unknown material is
   caught only by TOPAS. Record the `# MATERIAL_OVERRIDE: ROI=MATERIAL` header lines in
-  `run.json`. Override structures need not be scored. dicomexport warns (stderr) when the
+  `run.json`. Override structures need not be scored. dicomexport refuses a structure TOPAS
+  would build wrongly (a hole, an open contour, no closed contour, a name TOPAS cannot
+  match), with exit code 2 and a message naming it: show it. dicomexport warns (stderr) when the
   RTSTRUCT declares an override that no option covers; worth showing.
