@@ -3,7 +3,7 @@
 Two kinds of directory share one layout (issue #112):
 
     beam_models/*.csv       one is chosen per export (-b)
-    ct_to_material/*.txt    one is chosen per export (-s)
+    ct_to_material/*.txt    CT-number-to-material tables, included with -s or -S
     range_shifters.csv      looked up by the plan's RangeShifterID
 
 DEFAULTS_DIR is the set shipped with the package, so dicomexport runs straight after
@@ -30,6 +30,7 @@ to outlive the export. That rules out bundling the files into a PyInstaller --on
 executable, which unpacks its data into a temporary directory deleted on exit. Frozen
 builds therefore ship defaults/ beside the executable.
 """
+import hashlib
 import os
 import shutil
 import sys
@@ -67,6 +68,20 @@ class ConfigError(Exception):
     """A configuration directory, or a file asked of it, cannot be used. The message says why."""
 
 
+@dataclass(frozen=True)
+class Include:
+    """A TOPAS parameter file for the export: included by path (-s) or pasted (-S).
+
+    ``path`` is what is written: into the includeFile line, or into the lines that mark the
+    pasted block. ``text`` and ``sha256`` are set only for a pasted file.
+    """
+
+    path: str
+    inline: bool = False
+    text: Optional[str] = None
+    sha256: Optional[str] = None
+
+
 def user_config_dir() -> Path:
     """The per-user configuration directory, whether or not it exists."""
     if os.name == "nt":
@@ -87,6 +102,10 @@ class ConfigDir:
 
     path: Path
     found_by: str
+
+    def __post_init__(self):
+        # Absolute, so files picked from it are written as absolute paths, wherever TOPAS runs.
+        object.__setattr__(self, "path", Path(self.path).absolute())
 
     @property
     def is_shipped(self) -> bool:
@@ -119,7 +138,7 @@ class ConfigDir:
         return models[0] if len(models) == 1 else None
 
     def default_ct_to_material_table(self) -> Optional[Path]:
-        """The table used when -s is omitted: the only one, or None."""
+        """The table included when neither -s nor -S is given: the only one, or None."""
         tables = self.ct_to_material_tables()
         return tables[0] if len(tables) == 1 else None
 
@@ -132,16 +151,35 @@ class ConfigDir:
         return self._select(arg, self.beam_models(), self.default_beam_model(),
                             what="beam model", flag="-b", subdir=BEAM_MODELS)
 
-    def ct_to_material_table(self, arg: Optional[os.PathLike | str]) -> Path | str:
-        """Preserve an explicit TOPAS include path or pick an absolute table path from config."""
-        if arg is not None:
-            raw = os.fspath(arg)
-            given = Path(raw)
-            # TOPAS may resolve the include in a different working directory or on another node.
-            if raw != given.name or given.is_file():
-                return raw
-        return self._select(arg, self.ct_to_material_tables(), self.default_ct_to_material_table(),
-                            what="CT-number-to-material table", flag="-s", subdir=CT_TO_MATERIAL)
+    def default_include(self) -> Include:
+        """What is included when neither -s nor -S is given: the directory's only table."""
+        table = self._select(None, self.ct_to_material_tables(), self.default_ct_to_material_table(),
+                             what="CT-number-to-material table", flag="-s or -S", subdir=CT_TO_MATERIAL)
+        return Include(str(table))
+
+    def include(self, arg: os.PathLike | str, inline: bool = False) -> Include:
+        """A file for -s (inline False) or -S (inline True).
+
+        A bare name that is not a file here is looked up in ct_to_material/ and written as an
+        absolute path. Anything else is written exactly as given (issue #63): for -s it may
+        name a file that exists only where TOPAS runs. -S reads the file, so it must exist.
+        """
+        raw = os.fspath(arg)
+        given = Path(raw)
+        path = raw
+        if raw == given.name and not given.is_file():
+            path = str(self._select(raw, self.ct_to_material_tables(), None,
+                                    what="file to include", flag="-s", subdir=CT_TO_MATERIAL))
+        if not inline:
+            return Include(path)
+        try:
+            data = Path(path).read_bytes()
+            text = data.decode("utf-8")
+        except OSError as e:
+            raise ConfigError(f"-S {raw}: cannot read {path}: {e.strerror}.") from None
+        except UnicodeDecodeError:
+            raise ConfigError(f"-S {raw}: {path} is not a UTF-8 text file.") from None
+        return Include(path, inline=True, text=text, sha256=hashlib.sha256(data).hexdigest())
 
     def _select(self, arg: Optional[os.PathLike | str], candidates: list[Path], default: Optional[Path],
                 what: str, flag: str, subdir: str) -> Path:
@@ -182,7 +220,6 @@ class ConfigDir:
 
 
 def _files(folder: Path, suffixes: tuple[str, ...]) -> list[Path]:
-    folder = folder.absolute()
     if not folder.is_dir():
         return []
     return sorted(p for p in folder.iterdir() if p.is_file() and p.suffix in suffixes)

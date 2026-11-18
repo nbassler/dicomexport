@@ -3,6 +3,7 @@
 tests/conftest.py keeps every test away from the real ~/.config/dicomexport, /etc/dicomexport
 and $DICOMEXPORT_CONFIG_DIR of the machine running it.
 """
+import hashlib
 import json
 import re
 import shutil
@@ -11,7 +12,7 @@ from pathlib import Path
 import pytest
 
 import dicomexport.config as config
-from dicomexport.config import DEFAULTS_DIR, ENV_VAR, ConfigError, find_config_dir, init_config_dir
+from dicomexport.config import DEFAULTS_DIR, ENV_VAR, ConfigError, Include, find_config_dir, init_config_dir
 from dicomexport.import_plan import load_plan
 from dicomexport.main import main as study_main
 from dicomexport.main_plan_export import main as plan_main
@@ -122,16 +123,33 @@ class TestChoosingABeamModel:
             cfg.beam_model(None)
 
 
-class TestChoosingATable:
+class TestIncludes:
+    """-s includes a file by path, -S pastes it. The table is just the usual thing to include."""
 
-    def test_shipped_defaults_have_exactly_one(self):
-        assert find_config_dir().ct_to_material_table(None) == SHIPPED_TABLE
+    def test_without_s_or_S_the_only_table_is_included(self):
+        assert find_config_dir().default_include() == Include(str(SHIPPED_TABLE))
 
-    def test_two_tables_need_s(self, tmp_path):
+    def test_two_tables_need_a_choice(self, tmp_path):
         cfg = find_config_dir(site_dir(tmp_path, tables=("HUtoMaterialA.txt", "HUtoMaterialB.txt")))
-        with pytest.raises(ConfigError, match="has 2.*-s NAME"):
-            cfg.ct_to_material_table(None)
-        assert cfg.ct_to_material_table("HUtoMaterialB").name == "HUtoMaterialB.txt"
+        with pytest.raises(ConfigError, match="has 2.*-s or -S NAME"):
+            cfg.default_include()
+        assert cfg.include("HUtoMaterialB") == Include(str(tmp_path / "ct_to_material" / "HUtoMaterialB.txt"))
+
+    def test_a_bare_name_that_is_nowhere_is_an_error(self):
+        with pytest.raises(ConfigError, match="'nonexistent'.*HUtoMaterialSchneider.txt"):
+            find_config_dir().include("nonexistent")
+
+    def test_S_reads_the_file(self, tmp_path):
+        extra = tmp_path / "extra.txt"
+        extra.write_text("i:Ts/Seed = 5\n")
+        inc = find_config_dir().include(str(extra), inline=True)
+        assert inc.inline and inc.text == "i:Ts/Seed = 5\n"
+        assert inc.sha256 == hashlib.sha256(b"i:Ts/Seed = 5\n").hexdigest()
+
+    def test_S_needs_the_file_now(self, tmp_path):
+        """-s may name a file that exists only where TOPAS runs; -S has to read it."""
+        with pytest.raises(ConfigError, match="-S ./node-only/extra.txt: cannot read"):
+            find_config_dir().include("./node-only/extra.txt", inline=True)
 
 
 class TestInitConfig:
@@ -206,7 +224,7 @@ class TestStudyExport:
         text = (tmp_path / "topas_field01.txt").read_text()
         assert f"# CONFIG_DIR: {DEFAULTS_DIR} (shipped defaults)" in text
         assert f"# BEAM_MODEL: {SHIPPED_V5}" in text
-        assert f"# CT_TO_MATERIAL: {SHIPPED_TABLE}" in text
+        assert f"# INCLUDE: {SHIPPED_TABLE}" in text
         assert f"includeFile                          = {SHIPPED_TABLE}" in text
         assert "Using the defaults shipped with dicomexport" in caplog.text
 
@@ -258,3 +276,63 @@ class TestPlanExport:
         assert plan_main([str(PLAN), "--config-dir", str(site), "-b", "./SITE_bm.csv"]) == 2
         assert "./SITE_bm.csv" in caplog.text
         assert not list(tmp_path.glob("plan_field*.txt"))
+
+
+class TestIncludeInline:
+    """-S pastes a file between marker lines; -s and -S keep their command-line order."""
+
+    @pytest.fixture
+    def extra(self, tmp_path):
+        f = tmp_path / "extra.txt"
+        f.write_text("i:Ts/Seed = 5\n")
+        return f
+
+    def export(self, tmp_path, *args) -> Path:
+        assert study_main([str(STUDY), str(tmp_path / "topas.txt"), "-f", "1", "-N", "1000", "--batches", "1",
+                           *args]) == 0
+        return tmp_path / "topas_field01.txt"
+
+    def test_the_table_pasted(self, tmp_path):
+        output = self.export(tmp_path, "-S", "HUtoMaterialSchneider").read_bytes()
+        payload = SHIPPED_TABLE.read_bytes()
+        digest = hashlib.sha256(payload).hexdigest()
+        begin = f"# BEGIN INCLUDE_INLINE: {SHIPPED_TABLE} sha256={digest}\n".encode()
+        end = f"\n# END INCLUDE_INLINE: {SHIPPED_TABLE}\n".encode()
+        assert begin + payload + end in output
+        assert b"includeFile" not in output
+        assert f"# INCLUDE_INLINE: {SHIPPED_TABLE} sha256={digest}".encode() in output.splitlines()
+
+    @pytest.mark.parametrize("payload", [
+        b"# M\xc3\xb8ller\r\niv:Review/Vector = 3 1\r\n2 3\r\n",
+        b"i:Ts/Seed = 5\n\n\n",
+        b"includeFile = runtime-only.txt",
+        b"",
+    ], ids=["utf8-crlf", "trailing-lfs", "nested-include-without-final-lf", "empty"])
+    def test_inline_block_preserves_the_bytes_covered_by_the_hash(self, tmp_path, payload):
+        source = tmp_path / "fragment.txt"
+        source.write_bytes(payload)
+        output = self.export(tmp_path, "-S", str(source)).read_bytes()
+        begin = f"# BEGIN INCLUDE_INLINE: {source} sha256=".encode()
+        end = f"# END INCLUDE_INLINE: {source}\n".encode()
+        digest, framed_body = output.split(begin, 1)[1].split(b"\n", 1)
+        block = framed_body.split(end, 1)[0]
+        assert block == payload + b"\n"
+        assert hashlib.sha256(block[:-1]).hexdigest().encode() == digest
+
+    def test_order_is_kept_and_nothing_is_added(self, tmp_path, extra):
+        text = self.export(tmp_path, "-S", str(extra), "-s", "HUtoMaterialSchneider").read_text(encoding="utf-8")
+        include_line = f"includeFile                          = {SHIPPED_TABLE}"
+        assert text.index(f"# BEGIN INCLUDE_INLINE: {extra}") < text.index(include_line)
+        assert text.count("includeFile") == 1
+        assert [line.split(":")[0] for line in text.splitlines() if line.startswith("# INCLUDE")] == [
+            "# INCLUDE_INLINE", "# INCLUDE"]
+
+    def test_any_s_or_S_replaces_the_default_table(self, tmp_path, extra):
+        """Naming the table is the caller's job once anything is included; TOPAS reports a missing one."""
+        text = self.export(tmp_path, "-S", str(extra)).read_text(encoding="utf-8")
+        assert "includeFile" not in text
+        assert str(SHIPPED_TABLE) not in text.split("# BEGIN INCLUDE_INLINE")[1]
+
+    def test_an_unreadable_S_file_is_reported_not_raised(self, tmp_path, caplog):
+        assert study_main([str(STUDY), str(tmp_path / "topas.txt"), "-S", str(tmp_path / "missing.txt")]) == 2
+        assert "cannot read" in caplog.text

@@ -1,244 +1,173 @@
-# TODO: dicomexport 2.0.0, site configuration and material overrides
+# TODO: dicomexport 2.0.0
 
-Design agreed with Niels on 2026-11-16. The issues carry comments stating it: #112, #94, #98,
-#102, and on the pregdos side Eurados/pregdos#128, #126, #131. Where an issue's original text
-disagrees with its later comments or with this file, this file wins.
+What is left before 2.0.0, and what pregdos must change for it. Design agreed with Niels on
+2026-11-16; the issues (#94, #98, #102; pregdos#126, #128, #131) carry comments stating it.
+Where an issue disagrees with this file, this file wins. **PROPOSED** means suggested but
+not confirmed: ask before building on it. **OPEN** means not decided yet.
 
-Items are marked **DECIDED** (agreed with Niels), **PROPOSED** (suggested, not confirmed:
-ask before building on it) or **OPEN** (needs a decision).
-
-## Principles (DECIDED)
+## Principles
 
 - **dicomexport is a Unix-style tool.** It translates DICOM to TOPAS input and rejects
   arguments that refer to something absent. It holds no policy and does not protect users.
-- **dicomexport does not interpret TOPAS parameter files.** It reads DICOM and its own CSV
-  files, and writes TOPAS. A TOPAS file it is given (the CT-number-to-material table,
-  `materials.txt`) is passed on or pasted in as text, unread. Table validation is pregdos's
-  job (pregdos#131).
-- **pregdos does the protecting.** It offers choices from lists, decides who may do what,
-  and shows dicomexport's errors as messages.
-- **No new configuration language.** TOPAS syntax where TOPAS has one, simple CSV for the
-  range shifters. No JSON or TOML for humans to edit.
-- **Few files, few options.** One file per kind of data. No per-value overrides. No layers,
-  no merging, no per-user level.
+- **dicomexport does not interpret TOPAS files.** Files given with `-s`/`-S` are passed on or
+  pasted in unread. Checking them is pregdos's job.
+- **No new configuration language.** TOPAS syntax for TOPAS things, CSV for range shifters.
+- **Few files, few options.** One configuration directory in effect, never merged. No
+  layers, no per-user level, no per-value overrides.
 
-## Data layout (DECIDED)
+The configuration directory (#112) is done; `dicomexport/defaults/README.md` and the main
+README describe it.
 
-The shipped defaults and a site's configuration directory have the same layout:
+## Remaining work
 
-```text
-beam_models/*.csv       one is chosen per export (-b)
-ct_to_material/*.txt    one is chosen per export (-s / -S)
-range_shifters.csv      id, thickness_mm, material[, density_g_cm3]
-materials.txt           TOPAS Ma/ definitions (#94, not shipped yet)
-```
+### 1. #94: material overrides
 
-- **`dicomexport/defaults/`** is shipped as package data, so dicomexport runs straight after
-  `pip install`. An upgrade replaces it; nobody edits it. `dicomexport/config.py` holds
-  `DEFAULTS_DIR`.
-- **A site's configuration directory** is a copy of `defaults/` outside the package, edited
-  there. An upgrade never touches it, so site data is safe; new shipped entries do not
-  reach it by themselves.
-- **One directory is in effect, never merged.** dicomexport takes the first that exists:
-  1. `--config-dir DIR`
-  2. `$DICOMEXPORT_CONFIG_DIR`
-  3. `~/.config/dicomexport/` (`%APPDATA%\dicomexport\` on Windows)
-  4. `/etc/dicomexport/` (Linux)
-  5. the shipped `defaults/`
+- `materials.txt` in the configuration directory holds `Ma/…` definitions in TOPAS syntax.
+- **OPEN:** pass `materials.txt` with `-S` like any other file, so #94 adds only
+  `--material-override`? A bare name is looked up in `ct_to_material/` only, so it would
+  need a full path, or the lookup would have to extend to it. Alternatively paste it whenever
+  it exists, since a range-shifter row may name a site material (PROPOSED earlier).
+- Binding per export, by structure name. PROPOSED form: `--material-override "ROI=Material"`,
+  repeatable.
+- A structure missing from the RTSTRUCT is an error (ROI names are in `RTStruct.rois`). The
+  material name is not checked: TOPAS reports an unknown one.
+- Write `MaterialByRTStructNames` / `MaterialByRTStructMaterials` with TOPAS's name rule
+  (trim, then spaces to underscores; see #94). TOPAS takes the first match for overlapping
+  structures: keep command-line order, and say so in the help.
+- PROPOSED: warn when the RTSTRUCT declares an override (`RTROIObservationsSequence`,
+  `MaterialID`, `REL_ELEC_DENSITY`) that no option covers. A warning, not an error: Eclipse
+  writes such overrides routinely, e.g. on couch structures.
 
-  The directory in effect is logged and named in the header of each TOPAS file.
-- **Range shifters:** the plan's `RangeShifterID` selects the row; an unknown ID stops the
-  export. A row is thickness, material, optional density; the position comes from the plan.
-  A site changes a shifter by rewriting its whole row. `--range-shifter-catalog FILE`
-  replaces the catalog of the directory in effect (replace, not extend).
-- **CT-number-to-material table:** `-s TABLE` writes an `includeFile` line with the path as
-  given (unchanged, #63). `-S TABLE` pastes the table into each TOPAS field file as text, so
-  the run directory needs no include file. Mutually exclusive. pregdos will use `-S`.
+### 2. Before releasing 2.0.0
 
-## Remaining work, in order
+- **Run the standalone builds from the pre-release.** They have never been run. The Windows
+  zip holds `dicomexport.exe`, `dicomexport-cli.exe` and `defaults/`; the GUI lists beam
+  models and tables; an exported `includeFile` still exists after the GUI is closed. The
+  Linux archive holds the binary and `defaults/`.
+- **Release notes, what breaks:** `--spr-to-material` is gone (`-s` is now `--include`,
+  repeatable, with `-S`); the beam models and range-shifter data moved from `res/` to
+  `dicomexport/defaults/`; `RS_CATALOG` is gone from `dicomexport.model_plan` (use
+  `default_range_shifter_catalog()`); `dicomexport-cli.exe` is no longer a separate release
+  asset; `plan-export` no longer requires `-b`.
 
-#112 is done in three steps, one pull request each, so each can be reviewed and merged on
-its own.
+### 3. Open questions
 
-### 1. #112, step 1: ship the data (done, PR #125 merged)
-
-`dicomexport/defaults/` is package data; frozen builds ship it beside the executable.
-**Not yet verified: the PyInstaller packaging.** Check it on the 2.0.0 pre-release: the
-Windows zip holds `dicomexport.exe`, `dicomexport-cli.exe` and `defaults/`; the GUI opens and
-lists beam models and tables; an exported `includeFile` still exists after the GUI is
-closed; the Linux archive holds the binary and `defaults/`.
-
-### 2. #112, step 2: the configuration directory (PR #126)
-
-Built as decided:
-
-- The search order, in `config.find_config_dir()`. `--config-dir` and
-  `$DICOMEXPORT_CONFIG_DIR` must exist when given; the user and system directories are used
-  only if they exist. `tests/conftest.py` keeps tests away from the real ones.
-- `-b` and `-s` take a path or a name in the directory in effect, with or without suffix.
-  Typed `-s` paths are written as given in the TOPAS `includeFile` line (#63). Use
-  `./TABLE` to pass a relative path explicitly, including for a table that is only
-  available at simulation time. Files picked from the configuration directory are made
-  absolute, including defaults and GUI selections.
-- Either option may be omitted when unambiguous. `DCPT_beam_model__v5.csv` is the
-  `-b` default only in the shipped defaults. A site's directory needs exactly one beam model
-  to omit `-b`. A fresh `--init-config` copies both DCPT models, so it needs `-b`.
-- `--init-config DIR` copies the shipped defaults, **never overwriting** (DECIDED), and
-  lists what it copied and skipped.
-- `--list-config [text|json]` (DECIDED). JSON keys: `dicomexport_version`, `config_dir`,
-  `found_by`, `is_shipped_defaults`, `beam_models` and `ct_to_material` (lists of
-  `{name, path, default}`), `range_shifters` (`{path, exists, ids}`), `materials`
-  (`{path, exists}`).
-- The range-shifter catalog is `range_shifters.csv` of the directory in effect; a missing
-  file is an empty catalog. `--range-shifter-catalog` replaces it. An unknown ID names the
-  catalog's file.
-- Every study TOPAS file names its data in the header: `# CONFIG_DIR:`, `# BEAM_MODEL:`,
-  `# CT_TO_MATERIAL:`, `# RANGE_SHIFTER_CATALOG:`.
-- A warning whenever the shipped defaults are in effect: they are other sites' data.
-- `plan-export` shares `--config-dir`, `-b` and the catalog rules. Not `-s`, which it has
-  for something else (`--scale`), nor `--init-config`/`--list-config`.
-- Both GUIs list the directory in effect, preselect defaults, and pass `--config-dir` on.
-  They require a choice when there is no default among the listed files. Streamlit leaves
-  the beam model position to the exporter unless the user enables an override.
-- `main()` returns 2 with a logged message on a configuration error instead of raising,
-  because the Qt GUI runs it in a thread.
-
-### 3. #112, step 3: `-S`
-
-- Paste the table as text, unread. No parsing, no clash detection.
-- **Check in TOPAS first:** TOPAS is believed to reject a parameter defined twice in one file
-  (an include is overridden silently instead). The names in `HUtoMaterialSchneider.txt` and
-  those written by `topas_text.py` were compared by eye and do not overlap. Neither point has
-  been run. OpenTOPAS 4.3.0 is installed locally: `/opt/Topas/OpenTOPAS-install/bin/topas`,
-  source in `/opt/Topas/OpenTOPAS-4.3.0/`.
-- PROPOSED: precede the block with a comment giving the original file name and its SHA-256,
-  in a fixed form that pregdos can read back. Mark the end of the block too, so pregdos can
-  cut it out (see the pregdos section).
-
-### 4. #94: material overrides
-
-- **DECIDED:** `materials.txt` in the directory in effect holds `Ma/…` definitions in TOPAS
-  syntax. It is pasted into the TOPAS file as text, unread.
-- **DECIDED:** the binding is per export, by structure name. PROPOSED form:
-  `--material-override "ROI name=Material"`, repeatable.
-- **DECIDED:** a structure that is not in the RTSTRUCT is an error. The ROI names are already
-  loaded (`load_rs()`, `RTStruct.rois`); no new DICOM parsing.
-- **DECIDED:** the material name is not checked. TOPAS reports an unknown material.
-- dicomexport writes `MaterialByRTStructNames` and `MaterialByRTStructMaterials`, applying
-  TOPAS's name rule (trim, then spaces to underscores; details in #94).
-- TOPAS takes the first match when structures overlap: emit the pairs in command-line order
-  and say so in the help text.
-- PROPOSED: paste `materials.txt` whenever it exists, not only with an override, since a
-  range-shifter row may name a site material.
-
-### 5. #94, last part: warn about declared overrides
-
-PROPOSED: warn when the RTSTRUCT declares an override (`RTROIObservationsSequence`,
-`MaterialID`, `REL_ELEC_DENSITY`) that no option covers. A warning, not an error: Eclipse
-writes such overrides routinely, for example on couch structures.
-
-## Open questions
-
-1. **Version number.** 2.0.0 is planned. Breaking so far: `RS_CATALOG` is gone from
-   `dicomexport.model_plan` (now `default_range_shifter_catalog()`), and the beam models and
-   range-shifter files moved out of `res/`.
-2. **Long option names.** `-s` is `--spr-to-material`, which is wrong for an HU table. #98
-   suggested `--ct-to-material` with the old name kept as an alias. `-S` needs a long name.
-3. **#102** was answered with the reasons for declining and is still open. Close it, or wait
-   for the requester.
-4. **#98 (HLUT composition)** is not part of this work. If it comes, it is one more
-   subdirectory (`hluts/`) and one option.
-5. **Report to OpenTOPAS** that `DensityCorrection` is read without a bounds check
-   (`TsImagingToMaterialSchneider.cc:222`). Nobody has reported it yet.
+- **#102**: declined with reasons, still open. Close it, or wait for the requester.
+- **#98 (HLUT composition)**: not part of 2.0.0. If it comes: one subdirectory, one option.
+- **Report to OpenTOPAS** that `DensityCorrection` is read without a bounds check
+  (`TsImagingToMaterialSchneider.cc:222`).
 
 ## Code pointers
 
 | What | Where |
 | --- | --- |
-| Options of the study exporter | `dicomexport/parser_main.py` |
-| `-b` and the range-shifter catalog are shared with | `dicomexport/parser_plan_export.py`, `main_plan_export.py` |
-| Shipped data and where it is | `dicomexport/defaults/`, `dicomexport/config.py` |
-| Default catalog and the CSV loader | `dicomexport/model_plan.py` (`default_range_shifter_catalog`, `load_range_shifter_catalog`) |
-| Catalog lookup and the unknown-ID error | `dicomexport/import_plan_dicom.py` (`_build_range_shifter`) |
-| `includeFile` line for the table | `dicomexport/topas_text.py` (`TopasText.spr_to_material`), called from `export_study_topas.py` |
-| Patient block that gains the override lines | `dicomexport/topas_text.py` (`geometry_patient_dicom`, `geometry_patient`) |
-| ROI names | `dicomexport/import_rtstruct.py`, `model_rtstruct.py` |
-| GUIs list data files | `dicomexport/gui/utils.py` |
-| PyInstaller builds, `defaults/` packaged beside the executables | `.github/workflows/build-windows.yml`, `ci.yml`; frozen path in `dicomexport/config.py` |
-| Wheel contents | `pyproject.toml` `[tool.setuptools.package-data]`; `tests/test_defaults.py` fails if a file in `defaults/` is not covered |
+| Configuration directory, file selection, `--init-config` | `dicomexport/config.py` |
+| `-b`, `-s`/`-S`, `--config-dir`, range-shifter flags (shared by both exporters) | `dicomexport/parser_config.py` |
+| `--init-config`, `--list-config` | `dicomexport/parser_main.py`, `main.py` |
+| Range-shifter catalog; unknown-ID error | `model_plan.py` (`RangeShifterCatalog`); `import_plan_dicom.py` (`_build_range_shifter`) |
+| Included and pasted files; header lines | `topas_text.py` (`includes`, `include_sources`, `header2`), called from `export_study_topas.py` |
+| Patient block that gains the override lines (#94) | `topas_text.py` (`geometry_patient_dicom`, `geometry_patient`) |
+| ROI names | `import_rtstruct.py`, `model_rtstruct.py` |
+| GUIs | `gui/qt_app.py`, `gui/app.py`, `gui/utils.py` |
+| Standalone builds; wheel contents | `.github/workflows/build-windows.yml`, `ci.yml`; `pyproject.toml`, checked by `tests/test_defaults.py` |
 | Table index rules, reference implementation | `tests/test_spr_tables.py` (`index_problems`) |
-| Tests that pin present behaviour | `tests/test_plan.py` (`test_default_catalog_contents`), `tests/test_topas_text.py` (`test_relative_paths_pass_through_verbatim`) |
 
 ## For pregdos: migrating to dicomexport 2.0.0
 
-Written for whoever, human or AI, adapts pregdos (Eurados/pregdos#128, #126, #131).
-Items marked PROPOSED or OPEN above may have changed by the time 2.0.0 is released: check
-dicomexport's `--help` and release notes before coding against an option name or format.
+For whoever, human or AI, adapts pregdos (pregdos#128, #126, #131). Everything below is on
+dicomexport `main` but unreleased, except material overrides (#94). Check `--help` and the
+release notes before coding against an option name.
 
 ### What pregdos must change
 
-- **Raise `MINIMUM_DICOMEXPORT`** in `pregdos/versions.py` to 2.0.0.
-- **Configuration directory.** Add one key to pregdos's `config.toml` (`[paths]`) for the
-  site's dicomexport configuration directory, document it in `config.toml.example` and the
-  installation docs, and make it a mountable volume in the container.
-  - **Always pass it explicitly as `--config-dir` when set.** Do not rely on dicomexport's
-    search order from a service: it would look in the service account's `~/.config` and in
-    `/etc/dicomexport/`, which another installation on the same host may own.
-  - When the key is empty, dicomexport uses its shipped defaults (or whatever the search
-    order finds) and logs a warning. Either way, **record the data a run used** in
-    `run.json`: every field file's header has `# CONFIG_DIR:`, `# BEAM_MODEL:`,
-    `# CT_TO_MATERIAL:` and `# RANGE_SHIFTER_CATALOG:` lines.
-  - A site sets its directory up with `dicomexport --init-config DIR`, which never
-    overwrites. That copies both DCPT beam models, so `-b` is required there until the site
-    removes one.
-  - If pregdos's RPM/DEB packages (pregdos#86) ever install such a directory, mark its files
-    as configuration (`%config(noreplace)`), so a package upgrade never replaces site data.
-- **Delete pregdos's own copies:** `pregdos/data/beam_models/`, `pregdos/data/ct_to_material/`,
-  and `_builtin_beam_models()` / `_builtin_material_tables()` in `webserver.py`. dicomexport
-  ships the same data: the beam models are numerically identical (dicomexport's are the
-  cleaned-up copies), the HU table is identical to the OpenTOPAS 4.3.0 example.
-- **Build the setup page's choices from `dicomexport --list-config json --config-dir DIR`**,
-  not from pregdos's package data. Each beam model and table comes with `name`, `path` and
-  `default`; preselect the one with `default: true`. pregdos still offers both beam models; it should keep passing
-  `-b` explicitly, since a site's directory with more than one beam model requires it.
-- **Configuration errors exit with code 2 and a one-line message** on stderr: a missing
-  `--config-dir`, an ambiguous or unknown `-b`/`-s`, a malformed `range_shifters.csv`.
-  Show the message.
-- **Range shifters need no UI.** pregdos never passed `--range-shifter-catalog`, so every run
-  used the shipped catalog. With `--config-dir`, the site's `range_shifters.csv` is used
-  automatically. An unknown ID makes dicomexport exit non-zero with a message naming it:
-  show that message.
-- **Switch from `-s` to `-S`** (step 3). The study directory then needs no copy of the table or
-  the beam model, and becomes `dicom/` plus `run_*/`. Update `docs/study_layout.md`.
-- **Uploads of a one-off beam model or table stay possible:** pass the uploaded file's path.
+1. **Raise `MINIMUM_DICOMEXPORT`** in `pregdos/versions.py` to 2.0.0.
+2. **Configuration directory.** Add a `[paths]` key to `config.toml` for the site's
+   dicomexport configuration directory; document it in `config.toml.example` and the
+   installation docs; make it a mountable volume in the container.
+   - **Always pass it as `--config-dir` when set.** A service must not rely on the search
+     order: it would look in the service account's `~/.config` and in `/etc/dicomexport`,
+     which another installation on the host may own.
+   - A site creates the directory with `dicomexport --init-config DIR` (never overwrites).
+     It then holds both DCPT beam models, so `-b` is required until the site removes one.
+   - If pregdos's packages (pregdos#86) ever install such a directory, mark the files
+     `%config(noreplace)`.
+3. **Delete pregdos's own data:** `pregdos/data/beam_models/`, `pregdos/data/ct_to_material/`,
+   `_builtin_beam_models()` and `_builtin_material_tables()` in `webserver.py`. dicomexport
+   ships the same beam models (numerically identical) and HU table.
+4. **Build the setup page from `dicomexport --list-config json --config-dir DIR`.** Keys:
+   `dicomexport_version`, `config_dir`, `found_by`, `is_shipped_defaults`, `beam_models` and
+   `ct_to_material` (lists of `{name, path, default}`), `range_shifters`
+   (`{path, exists, ids}`), `materials` (`{path, exists}`). Preselect `default: true`, but
+   always pass `-b` explicitly.
+5. **Name the table with `-S`** instead of `-s ../table.txt`: `-S` pastes it into each field
+   file, so the study directory needs no copy (update `docs/study_layout.md`). Files the
+   table itself references must still exist at runtime. **Once any `-s`/`-S` is given,
+   dicomexport adds no table by itself:** always name it, also when adding other files.
+6. **Find the pasted table again.** Three places read the table through the `includeFile`
+   line, which `-S` removes:
+   - `executor._material_table_identity` (checksum for `run.json`): take path and SHA-256
+     from the `# INCLUDE_INLINE: <path> sha256=<hex>` header line.
+   - `structure_metrics._density_from_hu` (structure mass): parse the block between
+     `# BEGIN INCLUDE_INLINE: <path> sha256=<hex>` and `# END INCLUDE_INLINE: <path>`.
+   - **The mask pre-pass** (`structure_metrics.py`, around line 97) copies `includeFile` into
+     its own TOPAS file. It must copy the whole pasted block instead, **exactly once**, and
+     not redefine any of its parameters: TOPAS stops on a parameter defined twice in a file.
 
-### Pitfalls
+   `<path>` is the path pregdos passed, or the absolute path a bare name resolved to. The
+   block holds the file's bytes plus one LF before the end marker; the SHA-256 covers the
+   file's bytes, i.e. the block without that LF.
+7. **Record what a run used** in `run.json`, from each field file's header: `# CONFIG_DIR:`,
+   `# BEAM_MODEL:`, one `# INCLUDE:` or `# INCLUDE_INLINE:` per file, and
+   `# RANGE_SHIFTER_CATALOG:`. Files picked from the configuration directory have absolute
+   paths; paths pregdos typed appear as typed.
+8. **Show dicomexport's errors.** Configuration errors (missing `--config-dir`, ambiguous or
+   unknown `-b`/`-s`/`-S`, malformed `range_shifters.csv`) exit with code 2 and a one-line
+   message on stderr. A plan with an unknown range-shifter ID exits non-zero, with a message
+   naming the ID and the catalog file.
+9. **Spot mode: add a setting.** dicomexport now defaults to `--spot-mode sources`: one
+   TOPAS source per spot, the field run as `--batches` identical Geant4 runs (default 10),
+   each with 1/10 of every spot's protons. pregdos's present behaviour, one run per spot, is
+   `--spot-mode timefeature`. Offer the choice, and always pass `--spot-mode` and `--batches`
+   explicitly.
+10. **Read the run layout from the header, not from `Tf/spotWeight`.** In sources mode there
+    is no `uv:Tf/spotWeight/Values` line. The header has, in both modes, `# SPOT_MODE:`,
+    `# SPOTS:`, `# RUNS:` (batches, or spots in timefeature mode) and
+    `# SIMULATED_HISTORIES:` (protons actually simulated); in sources mode also
+    `# EVENTS_PER_RUN:`. Two readers break:
+    - `results.parse_plan_scaling` sums `spotWeight` for the simulated histories, and would
+      get 0. Take `# SIMULATED_HISTORIES:` instead.
+    - `executor._spot_weights` / `field_progress` / `run_progress` (the progress bars) count
+      one run per spot, weighted by `spotWeight`.
+11. **Progress bars in sources mode.** The runs are identical, so progress is runs started
+    (`Begin processing for Run: N`, as now) out of `RUNS`, each worth 1/`RUNS` of the field:
+    10 steps of 10 % with the default. For finer steps within a run, TOPAS logs
+    `History: N` per event (`Ts/ShowHistoryCountAtInterval = 1`), `EVENTS_PER_RUN` per run;
+    but an event holds one proton from every spot still active, so early events carry more
+    work than late ones. Say "batch" in the UI in this mode, not "spot". Timefeature mode
+    keeps today's spot-weighted bar.
+12. **OPEN, check before trusting uncertainties in sources mode.** pregdos computes the
+    relative uncertainty as sqrt(N)·SD/Sum with N = simulated protons, which assumes one
+    proton per TOPAS history. In sources mode a TOPAS history is an event with one proton
+    from every active spot, so TOPAS's SD is per event and N would be the number of events
+    (`RUNS` × `EVENTS_PER_RUN`), and the events within a run are not identical. Decide with
+    Niels how uncertainties are formed in this mode (the identical batches exist for this).
 
-- **Three places read the table through the `includeFile` line**, which `-S` removes:
-  - `executor._material_table_identity`: the checksum for `run.json`. Read the name and
-    SHA-256 from the comment dicomexport writes above the pasted block (PROPOSED, step 3).
-  - `structure_metrics._density_from_hu`: structure mass. Parse the pasted block from the
-    field file instead of the included file.
-  - **The mask pre-pass** (`structure_metrics.py`, the parameter list around line 97) copies
-    `includeFile` from a field file into its own TOPAS file. With `-S` there is no such line:
-    it must copy the whole pasted block, or the pre-pass runs without a material table.
-- **Table validation is pregdos's job** (pregdos#131), and the rule is stricter than first
-  stated: TOPAS aborts unless `len(DensityCorrection) == sections[-1] - sections[0]`, and
-  reads out of bounds unless `MinImagingValue == sections[0]` (`MinImagingValue` defaults
-  to -1000). `index_problems()` in dicomexport's `tests/test_spr_tables.py` is a tested
-  reference implementation; it handles vectors over several lines and a trailing unit.
-  Validate when a table is uploaded or chosen, not when a run is submitted.
-- **Relative paths (#63) still pass through verbatim.** `DicomDirectory` stays relative when
-  pregdos passes it relative. With `-S`, the only path left in a field file is the DICOM
-  directory. A table chosen from the configuration directory with `-s` would be an absolute
-  path into it, which is one more reason to use `-S`.
-- **Material overrides (pregdos#126)**, after #94:
-  - pregdos reads the material names from `materials.txt` itself (the `Ma/<name>/` prefixes);
-    dicomexport does not list them.
-  - Pass one `--material-override "ROI name=Material"` per choice (PROPOSED form), in the
-    order of precedence: TOPAS takes the first match for overlapping structures.
-  - A structure missing from the RTSTRUCT is a dicomexport error. An unknown material is
-    **not** caught by dicomexport: TOPAS aborts at run time, on the compute node. Offer only
-    names from `materials.txt` (or known Geant4 names) so this cannot happen.
-  - The override structures do not need to be among the scored structures.
-- **No SPR table ships any more.** pregdos takes HU tables only, as before.
+### Good to know
+
+- **Range shifters need no UI.** With `--config-dir`, the site's `range_shifters.csv` is used.
+- **Uploads of a one-off beam model or table** stay possible: pass the uploaded file's path.
+- **Free TOPAS code (pregdos#126)** is possible with `-S`. Included code cannot change a
+  parameter dicomexport writes: pasted, TOPAS stops and names it; with `-s`, TOPAS silently
+  keeps dicomexport's value. Use `-S`.
+- **Table validation is pregdos's job** (pregdos#131), when a table is uploaded or chosen.
+  TOPAS aborts unless `len(DensityCorrection) == sections[-1] - sections[0]`, and reads out
+  of bounds unless `MinImagingValue == sections[0]` (default -1000). `index_problems()` in
+  dicomexport's `tests/test_spr_tables.py` is a tested reference implementation.
+- **Relative paths pass through verbatim.** With `-S`, the only path left in a field file
+  is the DICOM directory, relative if pregdos passes it relative.
+- **No SPR table ships.** pregdos takes HU tables only, as before.
+- **Material overrides, after #94:** pregdos reads the material names from `materials.txt`
+  itself (the `Ma/<name>/` prefixes) and offers only those, since an unknown material is
+  caught only by TOPAS on the compute node. Pass the overrides in order of precedence:
+  TOPAS takes the first match for overlapping structures. Override structures need not be
+  scored.

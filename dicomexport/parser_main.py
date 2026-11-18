@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 
 from dicomexport.__version__ import __version__
-from dicomexport.parser_config import add_beam_model, add_config_dir, add_range_shifter_catalog
+from dicomexport.parser_config import add_beam_model, add_config_dir, add_includes, add_range_shifter_catalog
 from dicomexport.parser_topas_options import (add_batches, add_dose_cube_16bit, add_nozzle_side, add_nstat,
                                               add_spot_mode, add_threads, add_topas_version)
 
@@ -26,14 +26,7 @@ def create_parser():
 
     add_beam_model(parser, dest='bm')
 
-    parser.add_argument('-s', '--spr-to-material', dest='spr_to_material_path', default=None,
-                        metavar='TABLE',
-                        help="CT-number-to-material table for TOPAS: a file, or the name of one in "
-                             "ct_to_material/ of the configuration directory (with or without .txt). "
-                             "It must expect what the CT holds, usually Hounsfield units. May be "
-                             "omitted when the directory has exactly one. The includeFile line uses "
-                             "an explicit path as given or an absolute path for a table picked from "
-                             "the directory. Use ./TABLE to pass a relative path explicitly.")
+    add_includes(parser)
 
     parser.add_argument('-p', '--beam-model-position', type=float, dest='beam_model_position',
                         help="Beam model position in mm, relative to isocenter, positive upstream. "

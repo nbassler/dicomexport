@@ -1,7 +1,8 @@
 # CT-number-to-material tables
 
 A TOPAS Schneider table assigns material composition and density to the CT voxels.
-dicomexport hands the chosen table to TOPAS (`-s`) without reading it. Supply a finished
+dicomexport hands the chosen table to TOPAS without reading it: by path (`-s`) or pasted into
+the TOPAS file (`-S`). Supply a finished
 table prepared for your site's imaging protocol and calibration; producing one from site
 calibration curves and material data is an external step.
 

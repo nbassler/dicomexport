@@ -52,12 +52,12 @@
       </item>
 
       <item row="2" column="0">
-       <widget class="QLabel" name="label_spr_table">
+       <widget class="QLabel" name="label_ct_table">
         <property name="text"><string>CT-number-to-material table</string></property>
        </widget>
       </item>
       <item row="2" column="1">
-       <widget class="QComboBox" name="spr_table">
+       <widget class="QComboBox" name="ct_table">
         <property name="maximumWidth"><number>300</number></property>
        </widget>
       </item>

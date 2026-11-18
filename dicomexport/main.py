@@ -13,7 +13,7 @@ from dicomexport.import_rtstruct import load_rs
 from dicomexport.import_plan import load_plan
 from dicomexport.model_plan import range_shifter_catalog_of
 from dicomexport.export_study_topas import export_study_topas
-from dicomexport.parser_config import config_from_args, range_shifter_catalog_from_args
+from dicomexport.parser_config import config_from_args, includes_from_args, range_shifter_catalog_from_args
 from dicomexport.parser_topas_options import check_options, options_from_args
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ def main(args=None) -> int:
         if parsed_args.study_dir is None:
             parser.error("the following arguments are required: study_dir")
         bm_path = cfg.beam_model(parsed_args.bm)
-        table_path = cfg.ct_to_material_table(parsed_args.spr_to_material_path)
+        includes = includes_from_args(parsed_args, cfg)
         rs_catalog = range_shifter_catalog_from_args(parsed_args, cfg)
     except (ConfigError, ValueError) as e:
         logger.error("%s", e)
@@ -77,12 +77,12 @@ def main(args=None) -> int:
             "example table and other centres' range shifters. They are examples, not your "
             "site's data. Set up a configuration directory with --init-config.", cfg.path)
     logger.info("Beam model: %s", bm_path)
-    logger.info("CT-number-to-material table: %s", table_path)
+    for inc in includes:
+        logger.info("Including %s: %s", "inline" if inc.inline else "by path", inc.path)
 
     # load the CT files
     study_dir = parsed_args.study_dir
     ct = load_ct(study_dir)
-    ct.spr_to_material_path = table_path
 
     rs = load_rs(study_dir)
     bm = BeamModel(bm_path,
@@ -112,18 +112,18 @@ def main(args=None) -> int:
                 "every field (issue #66). Do not use it for patient plans; the IEC-correct "
                 "setting is neg-z (the default).")
         # Named in the header of every TOPAS file, so a run says which data it used.
-        sources = {
-            "CONFIG_DIR": str(cfg),
-            "BEAM_MODEL": str(bm_path),
-            "CT_TO_MATERIAL": str(table_path),
-            "RANGE_SHIFTER_CATALOG": rs_catalog.source,
-        }
+        sources = [
+            ("CONFIG_DIR", str(cfg)),
+            ("BEAM_MODEL", str(bm_path)),
+            ("RANGE_SHIFTER_CATALOG", rs_catalog.source),
+        ]
         export_study_topas(ct, rs, pn,
                            parsed_args.output_base_path,
                            field_nr=parsed_args.field_nr,
                            dose_path=rd_path,
                            opts=opts,
-                           sources=sources)
+                           sources=sources,
+                           includes=includes)
     elif parsed_args.export_fmt == 'mcpl':
         logger.error(
             "MCPL export is not implemented in the study CLI. Use the plan export "
@@ -168,7 +168,7 @@ def list_config(cfg: ConfigDir, fmt: str) -> int:
 
     print(f"Configuration directory: {cfg}")
     show("Beam models (-b)", listing["beam_models"])
-    show("CT-number-to-material tables (-s)", listing["ct_to_material"])
+    show("CT-number-to-material tables (-s/-S)", listing["ct_to_material"])
     rs = listing["range_shifters"]
     print(f"Range shifters ({rs['path']}{'' if rs['exists'] else ', missing'}):")
     print(f"  {', '.join(rs['ids']) or '(none)'}")

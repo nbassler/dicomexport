@@ -67,16 +67,16 @@ class MainWindow(QMainWindow):
         # so the export also takes its range shifter catalog from the directory listed here.
         self._cfg = cfg if cfg is not None else gui_config()
         self._beam_models = by_name(self._cfg.beam_models())
-        self._spr_tables = by_name(self._cfg.ct_to_material_tables())
+        self._ct_tables = by_name(self._cfg.ct_to_material_tables())
 
         self.beam_model.addItems(self._beam_models.keys())
-        self.spr_table.addItems(self._spr_tables.keys())
+        self.ct_table.addItems(self._ct_tables.keys())
         default_bm = self._cfg.default_beam_model()
         default_table = self._cfg.default_ct_to_material_table()
         self.beam_model.setPlaceholderText("Select a beam model")
-        self.spr_table.setPlaceholderText("Select a CT-number-to-material table")
+        self.ct_table.setPlaceholderText("Select a CT-number-to-material table")
         self.beam_model.setCurrentIndex(self.beam_model.findText(default_bm.name) if default_bm else -1)
-        self.spr_table.setCurrentIndex(self.spr_table.findText(default_table.name) if default_table else -1)
+        self.ct_table.setCurrentIndex(self.ct_table.findText(default_table.name) if default_table else -1)
         self.log_output.append(f"Configuration directory: {self._cfg}")
 
         # Populate defaults from the parser (single source of truth)
@@ -111,8 +111,8 @@ class MainWindow(QMainWindow):
             return
 
         beam_model = self._beam_models.get(self.beam_model.currentText())
-        spr_table = self._spr_tables.get(self.spr_table.currentText())
-        if beam_model is None or spr_table is None:
+        ct_table = self._ct_tables.get(self.ct_table.currentText())
+        if beam_model is None or ct_table is None:
             self.log_output.append("ERROR: Please select a beam model and a CT-number-to-material table.")
             return
 
@@ -120,7 +120,7 @@ class MainWindow(QMainWindow):
             study_dir,
             self.output_base.text(),
             "-b", str(beam_model),
-            "-s", str(spr_table),
+            "-s", str(ct_table),
             "--config-dir", str(self._cfg.path),
             "-p", str(self.bm_position.value()),
             "-f", str(self.field_nr.value()),

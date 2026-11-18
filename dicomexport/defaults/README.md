@@ -4,7 +4,7 @@ The data dicomexport needs besides the DICOM study:
 
 ```text
 beam_models/*.csv       beam models, one is chosen per export (-b)
-ct_to_material/*.txt    CT-number-to-material tables for TOPAS, one is chosen per export (-s)
+ct_to_material/*.txt    CT-number-to-material tables for TOPAS, included with -s or -S
 range_shifters.csv      range shifter catalog, looked up by the plan's RangeShifterID
 ```
 
@@ -39,9 +39,11 @@ dicomexport uses exactly one configuration directory, never a mix. It takes the 
 `dicomexport --list-config` shows which one is in effect and what it offers. Every TOPAS file
 names the directory and the files it used in its header.
 
-**Choosing files.** `-b` and `-s` take a file path, or the name of a file in the directory in
-effect, with or without its suffix: `-b DCPT_beam_model__v5`. Either may be omitted when the
-choice is unambiguous: a directory with exactly one beam model or one table. Only in the
+**Choosing files.** `-b`, `-s` and `-S` take a file path, or the name of a file in the
+directory in effect, with or without its suffix: `-b DCPT_beam_model__v5`. The beam model
+and the table may be omitted when the choice is unambiguous: a directory with exactly one
+beam model or one table. `-s` includes the table by path, `-S` pastes it into the TOPAS
+file; see dicomexport's README for including other TOPAS files. Only in the
 shipped defaults is `DCPT_beam_model__v5.csv` the beam model used without `-b`; a site's
 directory with both DCPT models needs `-b`, so dicomexport never picks a calibration on a
 site's behalf.
