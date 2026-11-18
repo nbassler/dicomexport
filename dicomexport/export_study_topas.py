@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 from dicomexport.config import Include
+from dicomexport.material_override import MaterialOverride
 from dicomexport.model_ct import CTModel
 from dicomexport.model_rtstruct import RTStruct
 from dicomexport.beam_model import BeamModel
@@ -20,13 +21,15 @@ def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: 
                        field_nr: int = 0, dose_path: Optional[Path] = None,
                        opts: TopasExportOptions = DEFAULTS,
                        sources: Optional[Sequence[tuple[str, str]]] = None,
-                       includes: Optional[Sequence[Include]] = None) -> None:
+                       includes: Optional[Sequence[Include]] = None,
+                       material_overrides: Optional[Sequence[MaterialOverride]] = None) -> None:
     """
     Export the CT and RTStruct models to a Topas-compatible geometry file.
 
     ``sources`` are (key, value) pairs naming the data files the export used, written into the
     header of every field file (issue #112). The exporter also records the files in
-    ``includes``, usually the CT-number-to-material table, as it writes them.
+    ``includes``, usually the CT-number-to-material table, and the ``material_overrides``
+    (checked against ``rs``, issue #94), as it writes them.
     """
 
     # field_nr is a DICOM BeamNumber; 0 exports every field (issue #96).
@@ -36,7 +39,7 @@ def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: 
         logger.info("=" * 50)
         _export_study_field_topas(
             ct, rs, field, plan.beam_model, output_base_path, dose_path, opts=opts, sources=sources,
-            includes=includes)
+            includes=includes, material_overrides=material_overrides)
         logger.info("-" * 50 + "\n")
 
 
@@ -45,7 +48,8 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
                               dose_path: Optional[Path] = None,
                               opts: TopasExportOptions = DEFAULTS,
                               sources: Optional[Sequence[tuple[str, str]]] = None,
-                              includes: Optional[Sequence[Include]] = None) -> None:
+                              includes: Optional[Sequence[Include]] = None,
+                              material_overrides: Optional[Sequence[MaterialOverride]] = None) -> None:
     """
     Export a single field to a Topas-compatible geometry file.
     """
@@ -68,7 +72,8 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     table = TopasPlan.spot_table(fld, bm, opts.nstat, opts.beam_direction) if bm else None
 
     lines.append(TopasPlan.header(fld, table, opts, nstat_scale))
-    source_lines = [*(sources or ()), *TopasText.include_sources(includes or ())]
+    source_lines = [*(sources or ()), *TopasText.include_sources(includes or ()),
+                    *(("MATERIAL_OVERRIDE", f"{o.roi_name}={o.material}") for o in material_overrides or ())]
     lines.append(TopasText.header2(source_lines))
     if includes:
         lines.append(TopasText.includes(includes))
@@ -77,6 +82,10 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     lines.append(TopasText.world_setup(world_hl))
     if dose_path:
         lines.append(TopasText.geometry_patient_dicom(dose_path, ct.directory))
+        if material_overrides:
+            if rs.file_path is None:
+                raise ValueError("Material overrides need the RTSTRUCT file they were checked against.")
+            lines.append(TopasText.material_overrides(material_overrides, rs.file_path))
     lines.append(TopasText.geometry_gantry())
     lines.append(TopasText.geometry_couch())
     lines.append(TopasText.geometry_dcm_to_iec())

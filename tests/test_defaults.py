@@ -3,7 +3,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-from dicomexport.config import BEAM_MODELS, CT_TO_MATERIAL, DEFAULTS_DIR, RANGE_SHIFTERS, shipped_defaults_dir
+from dicomexport.config import BEAM_MODELS, CT_TO_MATERIAL, DEFAULTS_DIR, MATERIALS, RANGE_SHIFTERS, shipped_defaults_dir
 
 REPO = Path(__file__).parent.parent
 PACKAGE = REPO / "dicomexport"
@@ -18,6 +18,7 @@ def test_layout():
         "DCPT_beam_model__v2.csv", "DCPT_beam_model__v5.csv"]
     assert sorted(p.name for p in (DEFAULTS_DIR / CT_TO_MATERIAL).glob("*.txt")) == ["HUtoMaterialSchneider.txt"]
     assert (DEFAULTS_DIR / RANGE_SHIFTERS).is_file()
+    assert (DEFAULTS_DIR / MATERIALS).is_file()
 
 
 def test_every_shipped_file_is_package_data():

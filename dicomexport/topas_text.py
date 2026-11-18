@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from dicomexport.config import Include
+from dicomexport.material_override import MaterialOverride
 from dicomexport.model_plan import Field
 from dicomexport.model_ct import CTModel
 from dicomexport.model_rtstruct import RTStruct
@@ -277,6 +278,29 @@ class TopasText:
         return "\n".join(lines)
 
     @staticmethod
+    def material_overrides(overrides: Sequence[MaterialOverride], rtstruct_path: Path) -> str:
+        """The structures whose material replaces the CT conversion (--material-override, #94).
+
+        TOPAS gives the first listed structure precedence where structures overlap. It is
+        told which RTSTRUCT to use, the one whose names dicomexport checked; otherwise it
+        takes the first RTSTRUCT it finds in DicomDirectory. The path is written verbatim
+        with POSIX separators, like DicomDirectory (#63).
+        """
+        def vector(values: list) -> str:
+            return f"{len(values)} " + " ".join(f'"{v}"' for v in values)
+
+        lines = [
+            "##############################################",
+            "###   M A T E R I A L   O V E R R I D E S  ###",
+            "##############################################",
+            f's:Ge/Patient/DicomRTStructFile              = "{rtstruct_path.as_posix()}"',
+            f"sv:Ge/Patient/MaterialByRTStructNames       = {vector([o.topas_name for o in overrides])}",
+            f"sv:Ge/Patient/MaterialByRTStructMaterials   = {vector([o.material for o in overrides])}",
+            "\n"
+        ]
+        return "\n".join(lines)
+
+    @staticmethod
     def geometry_patient(ct: CTModel, rs: RTStruct) -> str:
         """
         Generate the geometry section for the patient.
@@ -290,33 +314,6 @@ class TopasText:
             f'd:Ge/Patient/DicomOriginX             = {ct.dicom_origin[0]:.2f} mm',
             f'd:Ge/Patient/DicomOriginY             = {ct.dicom_origin[1]:.2f} mm',
             f'd:Ge/Patient/DicomOriginZ             = {ct.dicom_origin[2]:.2f} mm',
-            "\n"
-        ]
-        return "\n".join(lines)
-
-    @staticmethod
-    def geometry_water_phantom(size: float = 300.0) -> str:
-        """
-        Generate the geometry section for the water phantom.
-        """
-        lines = [
-            "##############################################",
-            "###      G E O M E T R Y   WATERPHANTOM    ###",
-            "##############################################",
-            's:Ge/WaterPhantom/Parent                     = "Patient"',
-            's:Ge/WaterPhantom/Type                       = "TsBox"',
-            's:Ge/WaterPhantom/Material                   = "G4_Water"',
-            f"d:Ge/WaterPhantom/HLX                        = {size:.2f} mm",
-            f"d:Ge/WaterPhantom/HLY                        = {size:.2f} mm",
-            f"d:Ge/WaterPhantom/HLZ                        = {size:.2f} mm",
-            f'd:Ge/WaterPhantom/TransX                     = {0.0:.2f} mm',
-            f'd:Ge/WaterPhantom/TransY                     = {0.0:.2f} mm',
-            f'd:Ge/WaterPhantom/TransZ                     = {0.0:.2f} mm',
-            f'd:Ge/WaterPhantom/RotX                       = {0.0:.2f} deg',
-            f'd:Ge/WaterPhantom/RotY                       = {0.0:.2f} deg',
-            f'd:Ge/WaterPhantom/RotZ                       = {0.0:.2f} deg',
-            f'd:Ge/WaterPhantom/MaxStepSize                = {0.5:.2f} mm',
-            'c:Ge/WaterPhantom/Color                     = "Blue"',
             "\n"
         ]
         return "\n".join(lines)
@@ -703,26 +700,6 @@ class TopasText:
             's:Ge/ScoringYZBox/TransX     = 0.0 mm',
             's:Ge/ScoringYZBox/TransY     = 0.0 mm',
             's:Ge/ScoringYZBox/TransZ     = 0.0 mm',
-            "\n"
-        ]
-        return "\n".join(lines)
-
-    @staticmethod
-    def scoring_water_phantom(component: str, outpath: Path) -> str:
-        """ Generate the scoring section for the water phantom.
-        Args:
-            component (str): The component to score, e.g., "ScoringYBox".
-            outpath (Path): The output file path for the scoring data.
-        """
-        lines = [
-            "##############################################",
-            "###       S C O R E R    W A T E R         ###",
-            "##############################################",
-            's:Sc/Scoring_WaterPhantom/Quantity                   = "DoseToWater"',
-            f's:Sc/Scoring_WaterPhantom/Component                  = "{component}"',
-            's:Sc/Scoring_WaterPhantom/IfOutputFileAlreadyExists  = "Overwrite"',
-            's:Sc/Scoring_WaterPhantom/PropagateToChildren        = "True"',
-            f's:Sc/Scoring_WaterPhantom/OutputFile                 = "{outpath}"',
             "\n"
         ]
         return "\n".join(lines)

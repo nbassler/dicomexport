@@ -20,23 +20,20 @@ README describe it.
 
 ## Remaining work
 
-### 1. #94: material overrides
+### 1. #94: material overrides (branch `94-rtstruct-…`, not committed)
 
-- `materials.txt` in the configuration directory holds `Ma/…` definitions in TOPAS syntax.
-- **OPEN:** pass `materials.txt` with `-S` like any other file, so #94 adds only
-  `--material-override`? A bare name is looked up in `ct_to_material/` only, so it would
-  need a full path, or the lookup would have to extend to it. Alternatively paste it whenever
-  it exists, since a range-shifter row may name a site material (PROPOSED earlier).
-- Binding per export, by structure name. PROPOSED form: `--material-override "ROI=Material"`,
-  repeatable.
-- A structure missing from the RTSTRUCT is an error (ROI names are in `RTStruct.rois`). The
-  material name is not checked: TOPAS reports an unknown one.
-- Write `MaterialByRTStructNames` / `MaterialByRTStructMaterials` with TOPAS's name rule
-  (trim, then spaces to underscores; see #94). TOPAS takes the first match for overlapping
-  structures: keep command-line order, and say so in the help.
-- PROPOSED: warn when the RTSTRUCT declares an override (`RTROIObservationsSequence`,
-  `MaterialID`, `REL_ELEC_DENSITY`) that no option covers. A warning, not an error: Eclipse
-  writes such overrides routinely, e.g. on couch structures.
+Built: `--material-override "ROI=MATERIAL"` (repeatable, order kept, split at the last `=`),
+checked against the RTSTRUCT by TOPAS's name rule (trim, spaces to underscores); a missing,
+repeated or ambiguous structure exits with code 2. The material is not checked. Writes
+`DicomRTStructFile`, `MaterialByRTStructNames`/`Materials` and `# MATERIAL_OVERRIDE:` header
+lines. `materials.txt` has no special handling: it is pasted with `-S materials.txt` (bare
+names are now also looked up at the top of the configuration directory). The shipped
+`materials.txt` defines `ImplantSteel` (DCPT's steel at 7.8 g/cm3, pregdos#126). The RTSTRUCT's
+own overrides (`MaterialID`, `ROIPhysicalPropertiesSequence`) are read and warned about when
+not covered. Code: `material_override.py`, `import_rtstruct._declared_overrides`,
+`TopasText.material_overrides`.
+
+Still to do: review, commit, PR (closes #94). Then answer pregdos#126.
 
 ### 2. Before releasing 2.0.0
 
@@ -66,7 +63,7 @@ README describe it.
 | `--init-config`, `--list-config` | `dicomexport/parser_main.py`, `main.py` |
 | Range-shifter catalog; unknown-ID error | `model_plan.py` (`RangeShifterCatalog`); `import_plan_dicom.py` (`_build_range_shifter`) |
 | Included and pasted files; header lines | `topas_text.py` (`includes`, `include_sources`, `header2`), called from `export_study_topas.py` |
-| Patient block that gains the override lines (#94) | `topas_text.py` (`geometry_patient_dicom`, `geometry_patient`) |
+| Material overrides: checks, declared-override warning, TOPAS lines | `material_override.py`, `import_rtstruct.py` (`_declared_overrides`), `topas_text.py` (`material_overrides`) |
 | ROI names | `import_rtstruct.py`, `model_rtstruct.py` |
 | GUIs | `gui/qt_app.py`, `gui/app.py`, `gui/utils.py` |
 | Standalone builds; wheel contents | `.github/workflows/build-windows.yml`, `ci.yml`; `pyproject.toml`, checked by `tests/test_defaults.py` |
@@ -75,8 +72,8 @@ README describe it.
 ## For pregdos: migrating to dicomexport 2.0.0
 
 For whoever, human or AI, adapts pregdos (pregdos#128, #126, #131). Everything below is on
-dicomexport `main` but unreleased, except material overrides (#94). Check `--help` and the
-release notes before coding against an option name.
+dicomexport `main` but unreleased; material overrides (#94) are on a branch. Check
+`--help` and the release notes before coding against an option name.
 
 ### What pregdos must change
 
@@ -166,8 +163,11 @@ release notes before coding against an option name.
 - **Relative paths pass through verbatim.** With `-S`, the only path left in a field file
   is the DICOM directory, relative if pregdos passes it relative.
 - **No SPR table ships.** pregdos takes HU tables only, as before.
-- **Material overrides, after #94:** pregdos reads the material names from `materials.txt`
-  itself (the `Ma/<name>/` prefixes) and offers only those, since an unknown material is
-  caught only by TOPAS on the compute node. Pass the overrides in order of precedence:
-  TOPAS takes the first match for overlapping structures. Override structures need not be
-  scored.
+- **Material overrides (#94):** pass `-S materials.txt` (with the table) and one
+  `--material-override "ROI=MATERIAL"` per choice, in order of precedence: TOPAS takes the
+  first match for overlapping structures, so implants before the body. Offer ROI names from
+  the RTSTRUCT, and materials from `materials.txt` (the `Ma/<name>/` prefixes; dicomexport
+  does not list them) plus any Geant4/TOPAS names pregdos allows: an unknown material is
+  caught only by TOPAS. Record the `# MATERIAL_OVERRIDE: ROI=MATERIAL` header lines in
+  `run.json`. Override structures need not be scored. dicomexport warns (stderr) when the
+  RTSTRUCT declares an override that no option covers; worth showing.

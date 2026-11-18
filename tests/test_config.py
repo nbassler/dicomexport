@@ -139,6 +139,13 @@ class TestIncludes:
         with pytest.raises(ConfigError, match="'nonexistent'.*HUtoMaterialSchneider.txt"):
             find_config_dir().include("nonexistent")
 
+    def test_materials_txt_is_found_by_name(self, tmp_path):
+        """materials.txt sits at the top of the directory, not in ct_to_material/ (#94)."""
+        assert find_config_dir().include("materials.txt", inline=True).path == str(DEFAULTS_DIR / "materials.txt")
+        site = site_dir(tmp_path)
+        (site / "materials.txt").write_text("d:Ma/X/Density = 1 g/cm3\n")
+        assert find_config_dir(site).include("materials") == Include(str(site / "materials.txt"))
+
     def test_S_reads_the_file(self, tmp_path):
         extra = tmp_path / "extra.txt"
         extra.write_text("i:Ts/Seed = 5\n")
@@ -206,7 +213,7 @@ class TestListConfig:
             ("DCPT_beam_model__v2.csv", False), ("DCPT_beam_model__v5.csv", True)]
         assert [t["name"] for t in listing["ct_to_material"]] == ["HUtoMaterialSchneider.txt"]
         assert "RS51" in listing["range_shifters"]["ids"]
-        assert listing["materials"]["exists"] is False
+        assert listing["materials"]["exists"] is True
 
     def test_text_names_the_directory(self, tmp_path, capsys):
         assert study_main(["--list-config", "--config-dir", str(site_dir(tmp_path))]) == 0

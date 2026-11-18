@@ -1,0 +1,18 @@
+# Material definitions in TOPAS syntax, for structure overrides (--material-override).
+#
+# Paste this file into the TOPAS files with -S materials.txt, and name each material in a
+# --material-override "ROI=MATERIAL":
+#
+#   dicomexport STUDY -S HUtoMaterialSchneider -S materials.txt \
+#       --material-override "HU_Cerclage=ImplantSteel"
+#
+# dicomexport does not read this file. Keep it to Ma/ definitions; TOPAS reports any error.
+# Materials TOPAS already knows need no definition here: the Geant4 NIST materials
+# (G4_WATER, G4_AIR, ...) and TOPAS's own, such as Vacuum, Lexan and Steel.
+
+# Stainless steel at 7.8 g/cm3, used for implants at DCPT (Eurados/pregdos#126). The same
+# composition as TOPAS's Steel, which has 8.027 g/cm3. A new name, rather than redefining
+# Steel, keeps TOPAS's own definition available.
+sv:Ma/ImplantSteel/Components = 8 "Carbon" "Silicon" "Phosphorus" "Sulfur" "Chromium" "Manganese" "Iron" "Nickel"
+uv:Ma/ImplantSteel/Fractions  = 8 0.0015 0.01 0.00045 0.0003 0.19 0.02 0.67775 0.1
+d:Ma/ImplantSteel/Density     = 7.8 g/cm3

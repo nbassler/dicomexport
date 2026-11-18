@@ -27,6 +27,15 @@ def create_parser():
     add_beam_model(parser, dest='bm')
 
     add_includes(parser)
+    parser.add_argument('--material-override', action='append', dest='material_overrides', default=[],
+                        metavar='ROI=MATERIAL',
+                        help="Give the structure ROI of the RTSTRUCT the material MATERIAL in place of "
+                             "the CT conversion, e.g. \"Hip implant=ImplantSteel\". Repeatable. Where "
+                             "structures overlap, TOPAS uses the first one given. ROI is the name in "
+                             "the RTSTRUCT, and must be there; TOPAS's spelling, with underscores for "
+                             "spaces, also works. MATERIAL is not checked: it is a TOPAS or Geant4 "
+                             "material, or one defined in a file pasted with -S, such as materials.txt "
+                             "of the configuration directory.")
 
     parser.add_argument('-p', '--beam-model-position', type=float, dest='beam_model_position',
                         help="Beam model position in mm, relative to isocenter, positive upstream. "

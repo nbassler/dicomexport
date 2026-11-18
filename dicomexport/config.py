@@ -5,6 +5,7 @@ Two kinds of directory share one layout (issue #112):
     beam_models/*.csv       one is chosen per export (-b)
     ct_to_material/*.txt    CT-number-to-material tables, included with -s or -S
     range_shifters.csv      looked up by the plan's RangeShifterID
+    materials.txt           TOPAS material definitions, pasted with -S (issue #94)
 
 DEFAULTS_DIR is the set shipped with the package, so dicomexport runs straight after
 installation. It is read-only reference material: an upgrade replaces it.
@@ -157,10 +158,15 @@ class ConfigDir:
                              what="CT-number-to-material table", flag="-s or -S", subdir=CT_TO_MATERIAL)
         return Include(str(table))
 
+    def includable(self) -> list[Path]:
+        """The files -s and -S find by name: the tables in ct_to_material/, then the .txt files
+        at the top of the directory, such as materials.txt."""
+        return self.ct_to_material_tables() + _files(self.path, _CT_TO_MATERIAL_SUFFIXES)
+
     def include(self, arg: os.PathLike | str, inline: bool = False) -> Include:
         """A file for -s (inline False) or -S (inline True).
 
-        A bare name that is not a file here is looked up in ct_to_material/ and written as an
+        A bare name that is not a file here is looked up with includable() and written as an
         absolute path. Anything else is written exactly as given (issue #63): for -s it may
         name a file that exists only where TOPAS runs. -S reads the file, so it must exist.
         """
@@ -168,8 +174,8 @@ class ConfigDir:
         given = Path(raw)
         path = raw
         if raw == given.name and not given.is_file():
-            path = str(self._select(raw, self.ct_to_material_tables(), None,
-                                    what="file to include", flag="-s", subdir=CT_TO_MATERIAL))
+            path = str(self._select(raw, self.includable(), None,
+                                    what="file to include", flag="-s", subdir=""))
         if not inline:
             return Include(path)
         try:
@@ -197,8 +203,9 @@ class ConfigDir:
         for p in candidates:
             if name in (p.name, p.stem):
                 return p
+        where = self.path / subdir if subdir else self.path
         raise ConfigError(f"{what.capitalize()} {name!r} is neither a file nor a name in "
-                          f"{self.path / subdir}, which has: {names}.")
+                          f"{where}, which has: {names}.")
 
     # ----- for front ends --------------------------------------------------------------
 

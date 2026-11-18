@@ -56,6 +56,7 @@ include = ["dicomexport*"]
 dicomexport = [
     "defaults/*.csv",
     "defaults/*.md",
+    "defaults/*.txt",
     "defaults/beam_models/*.csv",
     "defaults/beam_models/*.md",
     "defaults/ct_to_material/*.txt",
