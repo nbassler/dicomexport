@@ -16,6 +16,22 @@ pytest
 
 ---
 
+## Design principles
+
+These guide what goes into dicomexport and what stays out (agreed for 2.0.0, #112 and #94):
+
+- **dicomexport is a Unix-style tool.** It translates DICOM to TOPAS input and rejects
+  arguments that refer to something absent, with a one-line message and exit code 2. It
+  holds no policy and does not protect users; front ends such as pregdos do that.
+- **dicomexport does not interpret TOPAS files.** Files given with `-s`/`-S` are passed on or
+  pasted in unread. It does check what it writes itself, and what it reads from DICOM, so
+  that TOPAS builds what the DICOM data says.
+- **No new configuration language.** TOPAS syntax for TOPAS things, CSV for range shifters.
+- **Few files, few options.** One configuration directory in effect, never merged. No
+  layers, no per-user level, no per-value overrides.
+
+---
+
 ## Beam-direction integration test
 
 ### Background

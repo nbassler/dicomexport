@@ -1,9 +1,9 @@
 """Shipped CT-number-to-material tables must not make TOPAS index DensityCorrection out of bounds.
 
 This checks the tables in res/spr_tables/ and dicomexport/defaults/ct_to_material/ as data.
-dicomexport itself never parses these files: it passes them to TOPAS (see TODO.md, "dicomexport
-does not interpret TOPAS parameter files"). Validation for tables supplied by users belongs to
-the front end (Eurados/pregdos#131).
+dicomexport itself never parses these files: it passes them to TOPAS (see CONTRIBUTING.md,
+"Design principles"). Validation for tables supplied by users belongs to the front end
+(Eurados/pregdos#131).
 
 What TOPAS does, from OpenTOPAS 4.3.0 geometry/TsImagingToMaterialSchneider.cc:
 
