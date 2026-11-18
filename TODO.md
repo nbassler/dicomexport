@@ -124,6 +124,33 @@ release notes before coding against an option name.
    unknown `-b`/`-s`/`-S`, malformed `range_shifters.csv`) exit with code 2 and a one-line
    message on stderr. A plan with an unknown range-shifter ID exits non-zero, with a message
    naming the ID and the catalog file.
+9. **Spot mode: add a setting.** dicomexport now defaults to `--spot-mode sources`: one
+   TOPAS source per spot, the field run as `--batches` identical Geant4 runs (default 10),
+   each with 1/10 of every spot's protons. pregdos's present behaviour, one run per spot, is
+   `--spot-mode timefeature`. Offer the choice, and always pass `--spot-mode` and `--batches`
+   explicitly.
+10. **Read the run layout from the header, not from `Tf/spotWeight`.** In sources mode there
+    is no `uv:Tf/spotWeight/Values` line. The header has, in both modes, `# SPOT_MODE:`,
+    `# SPOTS:`, `# RUNS:` (batches, or spots in timefeature mode) and
+    `# SIMULATED_HISTORIES:` (protons actually simulated); in sources mode also
+    `# EVENTS_PER_RUN:`. Two readers break:
+    - `results.parse_plan_scaling` sums `spotWeight` for the simulated histories, and would
+      get 0. Take `# SIMULATED_HISTORIES:` instead.
+    - `executor._spot_weights` / `field_progress` / `run_progress` (the progress bars) count
+      one run per spot, weighted by `spotWeight`.
+11. **Progress bars in sources mode.** The runs are identical, so progress is runs started
+    (`Begin processing for Run: N`, as now) out of `RUNS`, each worth 1/`RUNS` of the field:
+    10 steps of 10 % with the default. For finer steps within a run, TOPAS logs
+    `History: N` per event (`Ts/ShowHistoryCountAtInterval = 1`), `EVENTS_PER_RUN` per run;
+    but an event holds one proton from every spot still active, so early events carry more
+    work than late ones. Say "batch" in the UI in this mode, not "spot". Timefeature mode
+    keeps today's spot-weighted bar.
+12. **OPEN, check before trusting uncertainties in sources mode.** pregdos computes the
+    relative uncertainty as sqrt(N)·SD/Sum with N = simulated protons, which assumes one
+    proton per TOPAS history. In sources mode a TOPAS history is an event with one proton
+    from every active spot, so TOPAS's SD is per event and N would be the number of events
+    (`RUNS` × `EVENTS_PER_RUN`), and the events within a run are not identical. Decide with
+    Niels how uncertainties are formed in this mode (the identical batches exist for this).
 
 ### Good to know
 
