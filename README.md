@@ -15,11 +15,16 @@ DicomExport turns DICOM proton therapy data into input for Monte Carlo codes:
 
 ## Installation
 
+dicomexport is installed from a release tag on GitHub; it is not on PyPI:
+
 ```bash
-pip install dicomexport            # command-line tools
-pip install "dicomexport[gui]"     # plus the desktop GUI (Qt)
-pip install "dicomexport[web]"     # plus the web UI (Streamlit)
+pip install "dicomexport @ git+https://github.com/nbassler/dicomexport@v2.0.0"        # command-line tools
+pip install "dicomexport[gui] @ git+https://github.com/nbassler/dicomexport@v2.0.0"   # plus the desktop GUI (Qt)
+pip install "dicomexport[web] @ git+https://github.com/nbassler/dicomexport@v2.0.0"   # plus the web UI (Streamlit)
 ```
+
+Replace `v2.0.0` with the [release](https://github.com/nbassler/dicomexport/releases) you
+want.
 
 Each [release](https://github.com/nbassler/dicomexport/releases) also has standalone
 builds: a Windows zip with the GUI and the command-line tool, and a Linux archive with the
