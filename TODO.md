@@ -43,6 +43,16 @@ Still to do: review, commit, PR (closes #94). Then answer pregdos#126.
 
 ### 2. Before releasing 2.0.0
 
+- **#129 and #130** (branch `129-…`, not committed): a `ValueError` from `load_plan()`, such
+  as an unknown `RangeShifterID`, is now a one-line error with exit code 2 in both commands,
+  not a traceback (the Qt GUI already logged it; now the exit code matches). `dicomexport`
+  reads the plan before the CT, so it fails fast. Still a traceback: an unreadable DICOM
+  file; an unsupported SOP class logs two error lines. Paths and names written as TOPAS
+  values (`-s` paths and the default table, `DicomDirectory`, `CloneRTDoseGridFrom`, the
+  output name, the RTSTRUCT path) are checked in the shared export path
+  (`export_study_topas.check_topas_values`, also called early by the CLI for exit code 2);
+  `-s` paths may not contain whitespace, since TOPAS splits `includeFile` there.
+
 - **Run the standalone builds from the pre-release.** They have never been run. The Windows
   zip holds `dicomexport.exe`, `dicomexport-cli.exe` and `defaults/`; the GUI lists beam
   models and tables; an exported `includeFile` still exists after the GUI is closed. The
@@ -80,7 +90,8 @@ Still to do: review, commit, PR (closes #94). Then answer pregdos#126.
 
 ## For pregdos: migrating to dicomexport 2.0.0
 
-For whoever, human or AI, adapts pregdos (pregdos#128, #126, #131). Everything below is on
+For whoever, human or AI, adapts pregdos. Tracked in **Eurados/pregdos#132** as a checklist;
+keep that issue in step with this section until 2.0.0 is released (also pregdos#126-#131). Everything below is on
 dicomexport `main` but unreleased; material overrides (#94) are on a branch. Check
 `--help` and the release notes before coding against an option name.
 
@@ -127,9 +138,9 @@ dicomexport `main` but unreleased; material overrides (#94) are on a branch. Che
    `# RANGE_SHIFTER_CATALOG:`. Files picked from the configuration directory have absolute
    paths; paths pregdos typed appear as typed.
 8. **Show dicomexport's errors.** Configuration errors (missing `--config-dir`, ambiguous or
-   unknown `-b`/`-s`/`-S`, malformed `range_shifters.csv`) exit with code 2 and a one-line
-   message on stderr. A plan with an unknown range-shifter ID exits non-zero, with a message
-   naming the ID and the catalog file.
+   unknown `-b`/`-s`/`-S`, malformed `range_shifters.csv`, a plan with an unknown
+   range-shifter ID) exit with code 2 and a one-line message on stderr. The range-shifter
+   message names the ID and the catalog file.
 9. **Spot mode: add a setting.** dicomexport now defaults to `--spot-mode sources`: one
    TOPAS source per spot, the field run as `--batches` identical Geant4 runs (default 10),
    each with 1/10 of every spot's protons. pregdos's present behaviour, one run per spot, is
@@ -151,12 +162,9 @@ dicomexport `main` but unreleased; material overrides (#94) are on a branch. Che
     but an event holds one proton from every spot still active, so early events carry more
     work than late ones. Say "batch" in the UI in this mode, not "spot". Timefeature mode
     keeps today's spot-weighted bar.
-12. **OPEN, check before trusting uncertainties in sources mode.** pregdos computes the
-    relative uncertainty as sqrt(N)·SD/Sum with N = simulated protons, which assumes one
-    proton per TOPAS history. In sources mode a TOPAS history is an event with one proton
-    from every active spot, so TOPAS's SD is per event and N would be the number of events
-    (`RUNS` × `EVENTS_PER_RUN`), and the events within a run are not identical. Decide with
-    Niels how uncertainties are formed in this mode (the identical batches exist for this).
+12. **Uncertainty in sources mode: N is events, not protons** (pregdos#130). TOPAS's SD is
+    per event, and an event holds one proton from every active spot. With batches the scorer
+    accumulates over all runs, so N = `RUNS` × `EVENTS_PER_RUN`. Confirm against a run.
 
 ### Good to know
 

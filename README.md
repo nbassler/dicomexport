@@ -133,7 +133,10 @@ table too.
   then at its top (`materials.txt`), and written as an absolute path. Any other path given to `-s` is written exactly as given,
   so it may name a file that exists only where TOPAS runs. With `-S`, the named file must
   exist at export time. Any nested `includeFile` directives and other file references
-  still resolve when TOPAS runs.
+  still resolve when TOPAS runs. TOPAS cannot read a path containing ``= ' ` ? # "``, so
+  dicomexport refuses one in any path it writes, also the study's and the output name. A
+  `-s` path also cannot contain a space, since TOPAS splits `includeFile` at whitespace;
+  paste such a file with `-S`.
 - **Pasted files** are marked, so other tools can find them:
 
   ```text

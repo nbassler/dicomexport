@@ -8,6 +8,7 @@ from dicomexport.material_override import MaterialOverride
 from dicomexport.model_ct import CTModel
 from dicomexport.model_rtstruct import RTStruct
 from dicomexport.beam_model import BeamModel
+from dicomexport.topas_chars import check_include_path, check_topas_value
 from dicomexport.topas_text import TopasText
 from dicomexport.model_plan import Plan, Field
 from dicomexport.export_plan_topas import TopasPlan
@@ -32,6 +33,8 @@ def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: 
     (checked against ``rs``, issue #94), as it writes them.
     """
 
+    check_topas_values(ct, rs, output_base_path, dose_path, includes, material_overrides)
+
     # field_nr is a DICOM BeamNumber; 0 exports every field (issue #96).
     for field in plan.select_fields([field_nr] if field_nr else None):
         logger.info("=" * 50)
@@ -41,6 +44,27 @@ def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: 
             ct, rs, field, plan.beam_model, output_base_path, dose_path, opts=opts, sources=sources,
             includes=includes, material_overrides=material_overrides)
         logger.info("-" * 50 + "\n")
+
+
+def check_topas_values(ct: CTModel, rs: RTStruct, output_base_path: Optional[Path],
+                       dose_path: Optional[Path] = None,
+                       includes: Optional[Sequence[Include]] = None,
+                       material_overrides: Optional[Sequence[MaterialOverride]] = None) -> None:
+    """Raise ValueError if a path or name this export writes cannot be read by TOPAS (#130).
+
+    Called by export_study_topas() before anything is written, and by the CLI before that, so it
+    can exit with code 2. Pasted (-S) paths appear only in comment lines and are not checked.
+    """
+    if dose_path:
+        check_topas_value((ct.directory if ct.directory else dose_path.parent).as_posix(),
+                          "CT directory (DicomDirectory)")
+        check_topas_value(dose_path.as_posix(), "RTDOSE file (CloneRTDoseGridFrom)")
+    check_topas_value((output_base_path or Path("topas.txt")).stem, "output name (Sc/Dose/OutputFile)")
+    for inc in includes or ():
+        if not inc.inline:
+            check_include_path(Path(inc.path).as_posix())
+    if material_overrides and rs.file_path is not None:
+        check_topas_value(rs.file_path.as_posix(), "RTSTRUCT path (DicomRTStructFile)")
 
 
 def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optional[BeamModel] = None,

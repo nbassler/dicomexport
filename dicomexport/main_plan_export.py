@@ -41,8 +41,13 @@ def main(args=None) -> int:
         logger.error("%s", e)
         return 2
 
-    # load the plan
-    pln = load_plan(parsed_args.fin, rs_catalog=rs_catalog)
+    # An unknown RangeShifterID, or an invalid plan, is reported like a configuration error
+    # (issue #129).
+    try:
+        pln = load_plan(parsed_args.fin, rs_catalog=rs_catalog)
+    except ValueError as e:
+        logger.error("%s", e)
+        return 2
 
     # -f is a DICOM BeamNumber (issue #96). Check it before exporting anything.
     if parsed_args.field_nr:

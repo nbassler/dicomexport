@@ -1,7 +1,6 @@
 """Structure material overrides: --material-override "ROI=MATERIAL" (issue #94)."""
 import functools
 import logging
-import shutil
 from pathlib import Path
 
 import numpy as np
@@ -205,12 +204,6 @@ class TestContours:
             contours_of("Beekley").ReferencedROINumber = 999
         with pytest.raises(ValueError, match=r"ROI numbers \[999\]"):
             check(modified_rs(tmp_path, edit), "BODY")
-
-    def test_a_path_topas_cannot_carry_is_refused(self, tmp_path):
-        path = tmp_path / "RS=1.dcm"
-        shutil.copy(RS_FILE, path)
-        with pytest.raises(ValueError, match="cannot read the RTSTRUCT path.*'='"):
-            check(path, "BODY")
 
     def rename_beekley(self, tmp_path, charset):
         def edit(ds, contours_of):

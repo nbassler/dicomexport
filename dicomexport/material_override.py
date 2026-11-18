@@ -16,16 +16,12 @@ import numpy as np
 import pydicom
 
 from dicomexport.model_rtstruct import RTStruct
+from dicomexport.topas_chars import unsafe_char
 
 logger = logging.getLogger(__name__)
 
 # TOPAS trims these from both ends of an RTSTRUCT structure name (TsDicomPatient.cc:699).
 _TOPAS_WHITESPACE = " \n\t\v\r\f"
-
-# Characters a name cannot contain in a TOPAS file (TsParameterManager.cc:1884-1922): TOPAS
-# rejects = ' ` ? in a value, ends the line at #, ends the string at ", and rewrites
-# typographic quotes and dashes in the file but not in the RTSTRUCT.
-_TOPAS_UNSAFE = set("='`?#\"") | set("\u2018\u2019\u201c\u201d") | {chr(c) for c in range(0x2010, 0x2016)}
 
 
 def topas_structure_name(name: str) -> str:
@@ -54,16 +50,11 @@ def parse_override(text: str) -> tuple[str, str]:
     material = material.strip()
     if not sep or not roi.strip() or not material:
         raise ValueError(f"--material-override {text!r}: expected ROI=MATERIAL.")
-    bad = _unsafe(material) or next((c for c in material if c.isspace()), None)
+    bad = unsafe_char(material) or next((c for c in material if c.isspace()), None)
     if bad:
         raise ValueError(f"--material-override {text!r}: a material name cannot contain {bad!r} "
                          f"in a TOPAS file.")
     return roi, material
-
-
-def _unsafe(name: str):
-    """The first character of name that a TOPAS file cannot carry, or None."""
-    return next((c for c in name if c in _TOPAS_UNSAFE or ord(c) < 32), None)
 
 
 def resolve_overrides(given: list[str], rs: RTStruct) -> list[MaterialOverride]:
@@ -91,7 +82,7 @@ def resolve_overrides(given: list[str], rs: RTStruct) -> list[MaterialOverride]:
             raise ValueError(f"--material-override {text!r}: TOPAS cannot tell apart the "
                              f"structures {', '.join(map(repr, names))} in {_rtstruct(rs)}, "
                              f"which it all names {key!r}.")
-        bad = _unsafe(key)
+        bad = unsafe_char(key)
         if bad:
             raise ValueError(f"--material-override {text!r}: TOPAS cannot match structure "
                              f"{names[0]!r}, because a TOPAS file cannot carry {bad!r}. Rename "
@@ -126,10 +117,6 @@ def check_contours(overrides: list[MaterialOverride], rtstruct_file: Optional[Pa
         return
     if rtstruct_file is None:
         raise ValueError("Material overrides need the RTSTRUCT file to check the structures against.")
-    bad = _unsafe(rtstruct_file.as_posix())
-    if bad:
-        raise ValueError(f"--material-override: TOPAS cannot read the RTSTRUCT path {rtstruct_file}, because "
-                         f"a TOPAS file cannot carry {bad!r}. Rename or move the file.")
     ds = pydicom.dcmread(rtstruct_file)
     numbers = {}
     for item in ds.StructureSetROISequence:

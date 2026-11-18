@@ -13,7 +13,7 @@ from dicomexport.import_rtstruct import load_rs
 from dicomexport.import_plan import load_plan
 from dicomexport.material_override import check_contours, resolve_overrides, warn_declared_overrides
 from dicomexport.model_plan import range_shifter_catalog_of
-from dicomexport.export_study_topas import export_study_topas
+from dicomexport.export_study_topas import check_topas_values, export_study_topas
 from dicomexport.parser_config import config_from_args, includes_from_args, range_shifter_catalog_from_args
 from dicomexport.parser_topas_options import check_options, options_from_args
 
@@ -82,10 +82,14 @@ def main(args=None) -> int:
         logger.info("Including %s: %s", "inline" if inc.inline else "by path", inc.path)
 
     study_dir = parsed_args.study_dir
-    # The RTSTRUCT first: checking the override names against it is quick, loading the CT is not.
+    # The RTSTRUCT and the plan first: checking the override names and the range shifters is
+    # quick, loading the CT is not.
     rs = load_rs(study_dir)
     try:
         material_overrides = resolve_overrides(parsed_args.material_overrides, rs)
+        # An unknown RangeShifterID, or another invalid plan, is reported like a configuration
+        # error, with exit code 2 (issue #129).
+        pn = load_plan(study_dir, rs_catalog=rs_catalog)
     except ValueError as e:
         logger.error("%s", e)
         return 2
@@ -102,8 +106,6 @@ def main(args=None) -> int:
     bm = BeamModel(bm_path,
                    beam_model_position=parsed_args.beam_model_position)
 
-    pn = load_plan(study_dir, rs_catalog=rs_catalog)
-
     # -f is a DICOM BeamNumber (issue #96). Check it before exporting anything.
     if parsed_args.field_nr:
         try:
@@ -116,6 +118,13 @@ def main(args=None) -> int:
     pn.apply_beammodel()
 
     rd_path = get_path_dicom_dose(study_dir)
+    # Every path and name the export writes must be readable by TOPAS (issue #130). The
+    # exporter checks again; checking here gives exit code 2 instead of an exception.
+    try:
+        check_topas_values(ct, rs, parsed_args.output_base_path, rd_path, includes, material_overrides)
+    except ValueError as e:
+        logger.error("%s", e)
+        return 2
 
     # export the plan file
     if parsed_args.export_fmt == 'topas':
