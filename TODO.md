@@ -43,6 +43,10 @@ Still to do: review, commit, PR (closes #94). Then answer pregdos#126.
 
 ### 2. Before releasing 2.0.0
 
+- **#129** (branch `129-…`, not committed): an unknown `RangeShifterID`, or an invalid plan,
+  is now a one-line error with exit code 2 in both commands, no longer a traceback (and a
+  silent failure in the Qt GUI). `dicomexport` reads the plan before the CT, so it fails fast.
+
 - **Run the standalone builds from the pre-release.** They have never been run. The Windows
   zip holds `dicomexport.exe`, `dicomexport-cli.exe` and `defaults/`; the GUI lists beam
   models and tables; an exported `includeFile` still exists after the GUI is closed. The
@@ -62,6 +66,14 @@ Still to do: review, commit, PR (closes #94). Then answer pregdos#126.
   reference to the first `StructureSetROISequence` item while searching, so an RTSTRUCT
   whose `ROIContourSequence` lists another ROI first loses that ROI and TOPAS stops.
   dicomexport refuses such an RTSTRUCT for overrides; drop that check once fixed upstream.
+
+### 4. After 2.0.0, not blocking
+
+- **#130: check every path written into a TOPAS file at export.** `DicomDirectory`,
+  `CloneRTDoseGridFrom` and `includeFile` are written unchecked; a path containing
+  `= ' ` ? # "` makes TOPAS stop at startup (checked with 4.3.0: a clear message for `=`,
+  a confusing "extra tokens" one for `#`). Only the RTSTRUCT path of an override is checked
+  now (`material_override._unsafe`); reuse it for all of them, exit code 2 at export.
 
 ## Code pointers
 
@@ -127,9 +139,9 @@ dicomexport `main` but unreleased; material overrides (#94) are on a branch. Che
    `# RANGE_SHIFTER_CATALOG:`. Files picked from the configuration directory have absolute
    paths; paths pregdos typed appear as typed.
 8. **Show dicomexport's errors.** Configuration errors (missing `--config-dir`, ambiguous or
-   unknown `-b`/`-s`/`-S`, malformed `range_shifters.csv`) exit with code 2 and a one-line
-   message on stderr. A plan with an unknown range-shifter ID exits non-zero, with a message
-   naming the ID and the catalog file.
+   unknown `-b`/`-s`/`-S`, malformed `range_shifters.csv`, a plan with an unknown
+   range-shifter ID) exit with code 2 and a one-line message on stderr. The range-shifter
+   message names the ID and the catalog file.
 9. **Spot mode: add a setting.** dicomexport now defaults to `--spot-mode sources`: one
    TOPAS source per spot, the field run as `--batches` identical Geant4 runs (default 10),
    each with 1/10 of every spot's protons. pregdos's present behaviour, one run per spot, is

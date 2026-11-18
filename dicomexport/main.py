@@ -82,10 +82,14 @@ def main(args=None) -> int:
         logger.info("Including %s: %s", "inline" if inc.inline else "by path", inc.path)
 
     study_dir = parsed_args.study_dir
-    # The RTSTRUCT first: checking the override names against it is quick, loading the CT is not.
+    # The RTSTRUCT and the plan first: checking the override names and the range shifters is
+    # quick, loading the CT is not.
     rs = load_rs(study_dir)
     try:
         material_overrides = resolve_overrides(parsed_args.material_overrides, rs)
+        # An unknown RangeShifterID, or an invalid plan, is reported like a configuration
+        # error, not raised: the Qt GUI would lose an exception without a word (issue #129).
+        pn = load_plan(study_dir, rs_catalog=rs_catalog)
     except ValueError as e:
         logger.error("%s", e)
         return 2
@@ -101,8 +105,6 @@ def main(args=None) -> int:
         return 2
     bm = BeamModel(bm_path,
                    beam_model_position=parsed_args.beam_model_position)
-
-    pn = load_plan(study_dir, rs_catalog=rs_catalog)
 
     # -f is a DICOM BeamNumber (issue #96). Check it before exporting anything.
     if parsed_args.field_nr:

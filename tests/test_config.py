@@ -202,6 +202,33 @@ class TestRangeShifters:
             load_plan(plan_path, rs_catalog=range_shifter_catalog_of(site))
 
 
+class TestUnknownRangeShifter:
+    """An unknown RangeShifterID is a one-line error with exit code 2, not a traceback (#129).
+
+    The Qt GUI runs main() in a thread, where a raised exception would end it without a word.
+    """
+
+    MESSAGE = "Unknown RangeShifterID 'RS_NOPE' on beam 1"
+
+    def plan(self, path: Path) -> Path:
+        return make_ccb_style_plan(PLAN, path, ref_order=(1,), with_delivery=(1,), range_shifter_id="RS_NOPE")
+
+    def test_plan_export(self, tmp_path, caplog):
+        assert plan_main([str(self.plan(tmp_path / "rs.dcm")), str(tmp_path / "out.txt")]) == 2
+        assert self.MESSAGE in caplog.text
+        assert not list(tmp_path.glob("out*"))
+
+    def test_study_export_stops_before_loading_the_ct(self, tmp_path, caplog):
+        """The study needs no CT here: the plan is read first, so the error comes quickly."""
+        study = tmp_path / "study"
+        study.mkdir()
+        shutil.copy(next(STUDY.glob("RS*.dcm")), study)
+        self.plan(study / "RP.dcm")
+        assert study_main([str(study), str(tmp_path / "topas.txt")]) == 2
+        assert self.MESSAGE in caplog.text
+        assert not list(tmp_path.glob("topas*"))
+
+
 class TestListConfig:
 
     def test_json(self, capsys):
