@@ -6,6 +6,7 @@ The data dicomexport needs besides the DICOM study:
 beam_models/*.csv       beam models, one is chosen per export (-b)
 ct_to_material/*.txt    CT-number-to-material tables for TOPAS, included with -s or -S
 range_shifters.csv      range shifter catalog, looked up by the plan's RangeShifterID
+materials.txt           TOPAS material definitions, pasted with -S materials.txt
 ```
 
 This README is in two places: in the `defaults/` directory shipped inside the installed
@@ -47,6 +48,12 @@ file; see dicomexport's README for including other TOPAS files. Only in the
 shipped defaults is `DCPT_beam_model__v5.csv` the beam model used without `-b`; a site's
 directory with both DCPT models needs `-b`, so dicomexport never picks a calibration on a
 site's behalf.
+
+**Materials.** `materials.txt` holds the site's own materials in TOPAS syntax (`Ma/…`
+lines), for `--material-override "ROI=MATERIAL"` and for range shifters made of a material
+TOPAS does not know. dicomexport does not read it: pass it with `-S materials.txt`, and TOPAS
+reports any error. Materials TOPAS already knows, such as `G4_WATER`, `Vacuum` or `Lexan`,
+need no definition. The shipped file defines `ImplantSteel` as an example.
 
 Keeping a site's directory under version control (git) gives every revision of a beam model
 or a calibration a history, and a backup.

@@ -11,6 +11,7 @@ from dicomexport.dicom_scan import RTDOSE, scan_study
 from dicomexport.import_ct import load_ct
 from dicomexport.import_rtstruct import load_rs
 from dicomexport.import_plan import load_plan
+from dicomexport.material_override import check_contours, resolve_overrides, warn_declared_overrides
 from dicomexport.model_plan import range_shifter_catalog_of
 from dicomexport.export_study_topas import export_study_topas
 from dicomexport.parser_config import config_from_args, includes_from_args, range_shifter_catalog_from_args
@@ -80,11 +81,24 @@ def main(args=None) -> int:
     for inc in includes:
         logger.info("Including %s: %s", "inline" if inc.inline else "by path", inc.path)
 
-    # load the CT files
     study_dir = parsed_args.study_dir
-    ct = load_ct(study_dir)
-
+    # The RTSTRUCT first: checking the override names against it is quick, loading the CT is not.
     rs = load_rs(study_dir)
+    try:
+        material_overrides = resolve_overrides(parsed_args.material_overrides, rs)
+    except ValueError as e:
+        logger.error("%s", e)
+        return 2
+    warn_declared_overrides(rs, material_overrides)
+    for o in material_overrides:
+        logger.info("Material override: structure %r is %s", o.roi_name, o.material)
+
+    ct = load_ct(study_dir)
+    try:
+        check_contours(material_overrides, rs.file_path, [img.image_position_patient[2] for img in ct.images])
+    except ValueError as e:
+        logger.error("%s", e)
+        return 2
     bm = BeamModel(bm_path,
                    beam_model_position=parsed_args.beam_model_position)
 
@@ -123,7 +137,8 @@ def main(args=None) -> int:
                            dose_path=rd_path,
                            opts=opts,
                            sources=sources,
-                           includes=includes)
+                           includes=includes,
+                           material_overrides=material_overrides)
     elif parsed_args.export_fmt == 'mcpl':
         logger.error(
             "MCPL export is not implemented in the study CLI. Use the plan export "
@@ -173,7 +188,7 @@ def list_config(cfg: ConfigDir, fmt: str) -> int:
     print(f"Range shifters ({rs['path']}{'' if rs['exists'] else ', missing'}):")
     print(f"  {', '.join(rs['ids']) or '(none)'}")
     m = listing["materials"]
-    print(f"Materials: {m['path']}{'' if m['exists'] else ' (missing)'}")
+    print(f"Materials (-S materials.txt): {m['path']}{'' if m['exists'] else ' (missing)'}")
     return 0
 
 

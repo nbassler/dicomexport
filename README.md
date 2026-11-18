@@ -59,9 +59,11 @@ Besides the DICOM study, an export needs:
 - a **CT-number-to-material table** for TOPAS (`-s` or `-S`, see Including TOPAS files),
   which must expect what the CT holds, usually Hounsfield units;
 - for plans with a range shifter, the shifter's **thickness and material**, which DICOM
-  does not contain.
+  does not contain;
+- optionally, a site's own **material definitions** for structure overrides (see Material
+  overrides).
 
-dicomexport ships examples of all three, so it runs straight after installation: DCPT's
+dicomexport ships examples of all of them, so it runs straight after installation: DCPT's
 beam models, the OpenTOPAS example table, and range shifters from four centres. **They are
 not your site's data**, and dicomexport warns whenever it uses them.
 
@@ -127,8 +129,8 @@ configuration directory's only table is included. Any other TOPAS code can be ad
 way, such as extra scorers or material definitions; once you give `-s` or `-S`, name the
 table too.
 
-- **Paths.** A bare name is looked up in `ct_to_material/` of the configuration directory
-  and written as an absolute path. Any other path given to `-s` is written exactly as given,
+- **Paths.** A bare name is looked up in `ct_to_material/` of the configuration directory,
+  then at its top (`materials.txt`), and written as an absolute path. Any other path given to `-s` is written exactly as given,
   so it may name a file that exists only where TOPAS runs. With `-S`, the named file must
   exist at export time. Any nested `includeFile` directives and other file references
   still resolve when TOPAS runs.
@@ -147,6 +149,39 @@ table too.
   stops if two of them set the same parameter, or one sets a parameter that has a TOPAS
   default, unless the generated TOPAS file itself sets it. Use `-S` for such code. A pasted
   file that sets a parameter dicomexport writes makes TOPAS stop at startup, naming it.
+
+### Material overrides
+
+`--material-override "ROI=MATERIAL"` gives a structure of the RTSTRUCT a material in place of
+what the CT numbers convert to, for example a metal implant whose CT numbers are wrong, or a
+marker:
+
+```bash
+dicomexport study/ -S HUtoMaterialSchneider -S materials.txt \
+    --material-override "Hip implant=ImplantSteel" --material-override "BODY=G4_WATER"
+```
+
+- **Structures** must be in the RTSTRUCT, or the export stops and lists the ones there.
+  TOPAS's spelling, with underscores for spaces, also works. Where structures overlap, the
+  first one given wins: name the implant before the body that contains it.
+- **The export stops if TOPAS would build the structure differently** from the RTSTRUCT.
+  TOPAS fills every contour, so a structure with a hole (a contour inside another, or an XOR
+  contour) or an open contour would get the material in the wrong voxels; one with no
+  closed contour, or a contour off the CT slices, would get none there. TOPAS also cannot
+  match a name stored in another encoding than UTF-8, or one containing `= ' ` ? # "` or
+  typographic quotes and dashes; the same characters are refused in the RTSTRUCT's path.
+  OpenTOPAS 4.3.0 also cannot read an RTSTRUCT whose two ROI sequences are in different
+  orders, which dicomexport then refuses.
+- **Materials** are not checked by dicomexport; TOPAS stops at startup on an unknown one.
+  Use a Geant4 or TOPAS material such as `G4_WATER`, or define your own in `materials.txt` of
+  the configuration directory and paste it with `-S materials.txt`. The shipped example
+  defines `ImplantSteel`.
+- **Overrides declared in the RTSTRUCT**, such as a relative electron density set in the
+  treatment planning system, are not applied: dicomexport warns about each one that no
+  `--material-override` covers.
+
+The TOPAS file names the RTSTRUCT that the structures were checked against, and its header
+lists each override as `# MATERIAL_OVERRIDE: ROI=MATERIAL`.
 
 ## Plan-only export
 
