@@ -68,7 +68,7 @@ class TestQtWindow:
 
     def test_comboboxes_populated(self):
         assert self._window.beam_model.count() > 0
-        assert self._window.spr_table.count() > 0
+        assert self._window.ct_table.count() > 0
 
     def test_export_requires_an_explicit_choice_for_ambiguous_files(self, site_config, monkeypatch):
         from dicomexport.gui import qt_app
@@ -77,7 +77,7 @@ class TestQtWindow:
         monkeypatch.setattr(qt_app, "ExportWorker", worker)
         window = qt_app.MainWindow()
         assert window.beam_model.currentIndex() == -1
-        assert window.spr_table.currentIndex() == -1
+        assert window.ct_table.currentIndex() == -1
         window.study_dir.setText(str(site_config.parent))
 
         window.btn_run.click()
@@ -87,7 +87,7 @@ class TestQtWindow:
         window.beam_model.setCurrentText("DCPT_beam_model__v5.csv")
         window.btn_run.click()
         worker.assert_not_called()
-        window.spr_table.setCurrentText("HUtoMaterialSite.txt")
+        window.ct_table.setCurrentText("HUtoMaterialSite.txt")
         window.btn_run.click()
         args = worker.call_args.args[0]
         assert args[args.index("-b") + 1] == str(site_config / "beam_models" / "DCPT_beam_model__v5.csv")

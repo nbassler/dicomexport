@@ -2,9 +2,11 @@ import datetime
 import getpass  # used for recording the user who generated the file
 import logging
 import re
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional, Tuple
 
+from dicomexport.config import Include
 from dicomexport.model_plan import Field
 from dicomexport.model_ct import CTModel
 from dicomexport.model_rtstruct import RTStruct
@@ -75,11 +77,12 @@ class TopasText:
         return "\n".join(lines)
 
     @staticmethod
-    def header2(sources: Optional[dict] = None) -> str:
+    def header2(sources: Optional[Sequence[tuple[str, str]]] = None) -> str:
         """Generation date, user and version, and the data files the export used.
 
-        ``sources`` become "# KEY: value" lines, like those of header(), for downstream tools
-        (issue #112): CONFIG_DIR, BEAM_MODEL, CT_TO_MATERIAL, RANGE_SHIFTER_CATALOG.
+        ``sources`` are (key, value) pairs written as "# KEY: value" lines, like those of
+        header(), for downstream tools (issue #112): CONFIG_DIR, BEAM_MODEL,
+        RANGE_SHIFTER_CATALOG, and one INCLUDE or INCLUDE_INLINE per included file.
         """
 
         lines = [
@@ -87,21 +90,39 @@ class TopasText:
             f"# using dicomexport {__version__}",
             "# https://github.com/nbassler/dicomexport",
         ]
-        lines += [f"# {key}: {value}" for key, value in (sources or {}).items()]
+        lines += [f"# {key}: {value}" for key, value in (sources or [])]
         lines.append("#\n")
 
         return "\n".join(lines)
 
     @staticmethod
-    def spr_to_material(spr_path: Path | str) -> str:
+    def includes(includes: Sequence[Include]) -> str:
+        """The files given with -s (an includeFile line each) and -S (pasted), in that order.
+
+        Between the marker lines are the original UTF-8 bytes and one framing LF before the
+        end marker. The checksum covers the original bytes.
+        """
         lines = [
             "##############################################",
-            "###        SPR TO MATERIAL PATH            ###",
+            "###          INCLUDED FILES                ###",
             "##############################################",
-            f'includeFile                          = {spr_path}',
-            "\n"
         ]
+        for inc in includes:
+            if inc.inline:
+                assert inc.text is not None
+                lines.append(f"# BEGIN INCLUDE_INLINE: {inc.path} sha256={inc.sha256}")
+                lines.append(inc.text)
+                lines.append(f"# END INCLUDE_INLINE: {inc.path}")
+            else:
+                lines.append(f"includeFile                          = {inc.path}")
+        lines.append("\n")
         return "\n".join(lines)
+
+    @staticmethod
+    def include_sources(includes: Sequence[Include]) -> list[tuple[str, str]]:
+        """The header lines naming each included file, as (key, value) pairs for header2()."""
+        return [("INCLUDE_INLINE", f"{inc.path} sha256={inc.sha256}") if inc.inline else ("INCLUDE", inc.path)
+                for inc in includes]
 
     @staticmethod
     def variables(myfield: Field, dicom_origin: Tuple[float, float, float] = (0.0, 0.0, 0.0)) -> str:

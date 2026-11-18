@@ -1,7 +1,9 @@
 import logging
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional
 
+from dicomexport.config import Include
 from dicomexport.model_ct import CTModel
 from dicomexport.model_rtstruct import RTStruct
 from dicomexport.beam_model import BeamModel
@@ -17,12 +19,14 @@ logger = logging.getLogger(__name__)
 def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: Path,
                        field_nr: int = 0, dose_path: Optional[Path] = None,
                        opts: TopasExportOptions = DEFAULTS,
-                       sources: Optional[dict[str, str]] = None) -> None:
+                       sources: Optional[Sequence[tuple[str, str]]] = None,
+                       includes: Optional[Sequence[Include]] = None) -> None:
     """
     Export the CT and RTStruct models to a Topas-compatible geometry file.
 
-    ``sources`` names the data files the export used (configuration directory, beam model,
-    tables), written into the header of every field file (issue #112).
+    ``sources`` are (key, value) pairs naming the data files the export used, written into the
+    header of every field file (issue #112). The exporter also records the files in
+    ``includes``, usually the CT-number-to-material table, as it writes them.
     """
 
     # field_nr is a DICOM BeamNumber; 0 exports every field (issue #96).
@@ -31,7 +35,8 @@ def export_study_topas(ct: CTModel, rs: RTStruct, plan: Plan, output_base_path: 
         logger.info(f'Exporting {field.label} = BeamNumber {field.number} "{field.name}"')
         logger.info("=" * 50)
         _export_study_field_topas(
-            ct, rs, field, plan.beam_model, output_base_path, dose_path, opts=opts, sources=sources)
+            ct, rs, field, plan.beam_model, output_base_path, dose_path, opts=opts, sources=sources,
+            includes=includes)
         logger.info("-" * 50 + "\n")
 
 
@@ -39,7 +44,8 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
                               output_base_path: Optional[Path] = None,
                               dose_path: Optional[Path] = None,
                               opts: TopasExportOptions = DEFAULTS,
-                              sources: Optional[dict[str, str]] = None) -> None:
+                              sources: Optional[Sequence[tuple[str, str]]] = None,
+                              includes: Optional[Sequence[Include]] = None) -> None:
     """
     Export a single field to a Topas-compatible geometry file.
     """
@@ -62,9 +68,10 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     table = TopasPlan.spot_table(fld, bm, opts.nstat, opts.beam_direction) if bm else None
 
     lines.append(TopasPlan.header(fld, table, opts, nstat_scale))
-    lines.append(TopasText.header2(sources))
-    if ct.spr_to_material_path:
-        lines.append(TopasText.spr_to_material(ct.spr_to_material_path))
+    source_lines = [*(sources or ()), *TopasText.include_sources(includes or ())]
+    lines.append(TopasText.header2(source_lines))
+    if includes:
+        lines.append(TopasText.includes(includes))
     lines.append(TopasText.variables(fld, ct.dicom_origin))
     lines.append(TopasText.setup(nr_threads=opts.nr_threads, **TopasPlan._setup_kwargs(table, opts)))
     lines.append(TopasText.world_setup(world_hl))
@@ -73,13 +80,13 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     lines.append(TopasText.geometry_gantry())
     lines.append(TopasText.geometry_couch())
     lines.append(TopasText.geometry_dcm_to_iec())
-    sources = opts.spot_mode == "sources"
-    if not sources:
+    use_sources = opts.spot_mode == "sources"
+    if not use_sources:
         lines.append(TopasText.geometry_beam_position_timefeature(
             bm.beam_model_position if bm else 0.0, beam_direction=opts.beam_direction))
 
     lines.append(TopasText.geometry_range_shifter(fld, beam_direction=opts.beam_direction))
-    if not sources:
+    if not use_sources:
         lines.append(TopasText.field_beam_timefeature(topas_version=opts.topas_version))
     lines.append(TopasText.scorer_setup_dicom(
         topas_output_path=stem,
@@ -90,7 +97,7 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
     # best would be to refactor the code to have a default beam model with basic parameters.
     # and move the load beam model from __init__.py to a new dedicated function in BeamModel class.
     if bm:
-        if sources:
+        if use_sources:
             lines.append(TopasPlan.sources_string(
                 fld, bm, nstat=opts.nstat, beam_direction=opts.beam_direction,
                 topas_version=opts.topas_version, table=table, batches=opts.n_batches))
@@ -107,6 +114,6 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
             "No beam model provided. Limited conversion, TODO: fix this in the future.")
 
     output_path = output_base_path.with_name(f"{stem}.txt")
-    output_path.write_text(topas_string)
+    output_path.write_text(topas_string, encoding="utf-8", newline="")
     logger.info(
         f"Wrote Topas geometry file for field {fld.number}: {output_path.resolve()}")

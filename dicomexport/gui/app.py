@@ -28,7 +28,7 @@ except ConfigError as e:
 st.caption(f"Configuration directory: {cfg}")
 
 beam_models = by_name(cfg.beam_models())
-spr_tables = by_name(cfg.ct_to_material_tables())
+ct_tables = by_name(cfg.ct_to_material_tables())
 st.info("Tip: in Windows Explorer, click the address bar to copy a folder path, then paste it here.")
 
 study_dir = st.text_input("Study directory", placeholder="C:\\path\\to\\study")
@@ -39,11 +39,11 @@ else:
     st.warning(f"No beam model CSVs found in {cfg.path / 'beam_models'}")
     beam_model_path = st.text_input("Beam model CSV", placeholder="C:\\path\\to\\beam_model.csv")
 
-if spr_tables:
-    spr_table_path = pick_file("CT-number-to-material table", spr_tables, cfg.default_ct_to_material_table())
+if ct_tables:
+    ct_table_path = pick_file("CT-number-to-material table", ct_tables, cfg.default_ct_to_material_table())
 else:
     st.warning(f"No CT-number-to-material tables found in {cfg.path / 'ct_to_material'}")
-    spr_table_path = st.text_input("CT-number-to-material table", placeholder="C:\\path\\to\\spr_table.txt")
+    ct_table_path = st.text_input("CT-number-to-material table", placeholder="C:\\path\\to\\table.txt")
 
 with st.expander("Advanced options"):
     output_base = st.text_input("Output filename", value="topas.txt")
@@ -63,10 +63,10 @@ if st.button("Run export", type="primary"):
         errors.append("Select a beam model or enter its path.")
     elif not Path(beam_model_path).is_file():
         errors.append(f"Beam model file not found: {beam_model_path!r}")
-    if not spr_table_path:
+    if not ct_table_path:
         errors.append("Select a CT-number-to-material table or enter its path.")
-    elif isinstance(spr_table_path, Path) and not spr_table_path.is_file():
-        errors.append(f"CT-number-to-material table not found: {spr_table_path!r}")
+    elif isinstance(ct_table_path, Path) and not ct_table_path.is_file():
+        errors.append(f"CT-number-to-material table not found: {ct_table_path!r}")
 
     if errors:
         for e in errors:
@@ -78,7 +78,7 @@ if st.button("Run export", type="primary"):
             str(study_path),
             output_base,
             "-b", str(beam_model_path),
-            "-s", str(spr_table_path),
+            "-s", str(ct_table_path),
             "--config-dir", str(cfg.path),
             "-f", str(int(field_nr)),
             "-N", str(int(nstat)),
