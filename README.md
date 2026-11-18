@@ -116,7 +116,11 @@ older version, pass `--topas-version X.Y`.
 
 `-s FILE` includes a TOPAS parameter file by path, as an `includeFile` line. `-S FILE`
 pastes the UTF-8 file into each TOPAS field file. dicomexport does not read what it
-includes. Both options may be repeated and mixed, and the files keep their command-line order.
+includes. Both options may be repeated and mixed, and the files keep their command-line order:
+
+```bash
+dicomexport study/ -S HUtoMaterialSchneider -S scorers.txt -s /shared/materials.txt
+```
 
 The usual file is the CT-number-to-material table, and without any `-s` or `-S` the
 configuration directory's only table is included. Any other TOPAS code can be added the same
