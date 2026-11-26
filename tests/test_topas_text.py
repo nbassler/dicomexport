@@ -219,3 +219,48 @@ class TestPatientDicomDirectory:
 
         assert 's:Ge/Patient/DicomDirectory          = "../dicom"' in text
         assert 's:Ge/Patient/CloneRTDoseGridFrom     = "../dicom/RD.plan.dcm"' in text
+
+
+class TestLetScorers:
+    """Optional ProtonLET scorers next to the dose scorer, on the same RTDOSE grid."""
+
+    def test_off_by_default(self):
+        assert "ProtonLET" not in TopasText.scorer_setup_dicom(topas_output_path="field1")
+
+    @pytest.mark.parametrize("flag, name, weight", [("dlet", "LETd", "Dose"), ("tlet", "LETt", "Track")])
+    def test_one_scorer_per_flag(self, flag, name, weight):
+        text = TopasText.scorer_setup_dicom(topas_output_path="field1", **{flag: True})
+        assert f's:Sc/{name}/Quantity                   = "ProtonLET"' in text
+        assert f's:Sc/{name}/WeightBy                   = "{weight}"' in text
+        assert f'b:Sc/{name}/UsePreStepLookup           = "True"' in text
+        assert f's:Sc/{name}/Component                  = "Patient/RTDoseGrid"' in text
+        assert f's:Sc/{name}/OutputFile                 = "field1_{name}"' in text
+        other = "LETt" if name == "LETd" else "LETd"
+        assert f"Sc/{other}/" not in text
+
+    def test_both_together(self):
+        text = TopasText.scorer_setup_dicom(topas_output_path="f", dlet=True, tlet=True)
+        assert '"f_LETd"' in text and '"f_LETt"' in text
+        assert 's:Sc/Dose/OutputFile                 = "f"' in text
+
+    def test_settings_topas_rejects_with_prestep_lookup_are_not_written(self):
+        # TsScoreProtonLET aborts on these together with UsePreStepLookup; OutputAfterRun
+        # would break the LET ratio across batches.
+        text = TopasText.scorer_setup_dicom(dlet=True, tlet=True)
+        for key in ("MaxScoredLET", "NeglectSecondariesBelowDensity", "OutputAfterRun"):
+            assert key not in text
+
+    def test_let_cube_is_32_bit_even_with_16_bit_dose(self):
+        text = TopasText.scorer_setup_dicom(dose_cube_16bit=True, dlet=True)
+        assert 'b:Sc/Dose/DICOMOutput32BitsPerPixel  = "F"' in text
+        assert 'b:Sc/LETd/DICOMOutput32BitsPerPixel  = "T"' in text
+
+    def test_no_output_name_gives_bare_scorer_name(self):
+        assert 's:Sc/LETd/OutputFile                 = "LETd"' in TopasText.scorer_setup_dicom(dlet=True)
+
+    @pytest.mark.parametrize("flag, name", [("dlet", "LETd"), ("tlet", "LETt")])
+    def test_series_description_says_it_is_not_dose(self, flag, name):
+        # TOPAS writes no DoseUnits for ProtonLET, so the description is the only label a
+        # planning system shows (TsVBinnedScorer.cc, OpenTOPAS 4.2.3).
+        text = TopasText.scorer_setup_dicom(**{flag: True})
+        assert f's:Sc/{name}/SeriesDescription          = "{name} [keV/um] - not dose"' in text

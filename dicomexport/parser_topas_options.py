@@ -36,6 +36,16 @@ def add_dose_cube_16bit(parser: argparse.ArgumentParser) -> None:
                              "peak dose is written as 0, which can remove low-level out-of-field dose.")
 
 
+def add_let(parser: argparse.ArgumentParser) -> None:
+    common = ("with TOPAS's built-in ProtonLET scorer on the dose grid, written as a separate "
+              "DICOM cube. Protons only, mass LET in the voxel's own material (not converted "
+              "to water), depends on voxel size; see the README for the limitations.")
+    parser.add_argument('--dlet', action='store_true', dest='dlet', default=DEFAULTS.dlet,
+                        help="Also score dose-averaged LET (<output>_LETd) " + common)
+    parser.add_argument('--tlet', action='store_true', dest='tlet', default=DEFAULTS.tlet,
+                        help="Also score track-averaged LET (<output>_LETt) " + common)
+
+
 def add_nozzle_side(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('--nozzle-side', dest='nozzle_side', choices=list(NOZZLE_SIDES.values()),
                         default=DEFAULTS.nozzle_side,
@@ -77,6 +87,8 @@ def options_from_args(args: argparse.Namespace) -> TopasExportOptions:
         nr_threads=getattr(args, 'nr_threads', DEFAULTS.nr_threads),
         topas_version=getattr(args, 'topas_version', DEFAULTS.topas_version),
         dose_cube_16bit=getattr(args, 'dose_cube_16bit', DEFAULTS.dose_cube_16bit),
+        dlet=getattr(args, 'dlet', DEFAULTS.dlet),
+        tlet=getattr(args, 'tlet', DEFAULTS.tlet),
         spot_mode=getattr(args, 'spot_mode', DEFAULTS.spot_mode),
         batches=getattr(args, 'batches', DEFAULTS.batches),
     )

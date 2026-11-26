@@ -532,7 +532,8 @@ class TopasText:
 
     @staticmethod
     def scorer_setup_dicom(dose_to_water: bool = True, topas_output_path: str = "",
-                           dose_cube_16bit: bool = DEFAULTS.dose_cube_16bit) -> str:
+                           dose_cube_16bit: bool = DEFAULTS.dose_cube_16bit,
+                           dlet: bool = DEFAULTS.dlet, tlet: bool = DEFAULTS.tlet) -> str:
         """DICOM dose scorer on the RTDOSE grid.
 
         dose_cube_16bit: write the cube with 16 instead of 32 bits per pixel. TOPAS scales
@@ -540,6 +541,8 @@ class TopasText:
             (TsVBinnedScorer.cc), so at 16 bits every voxel below ~1.5e-5 of the peak is
             written as 0, which can remove low-level out-of-field dose. 32 bits only doubles the file
             size (issue #111).
+        dlet, tlet: also score dose- and track-averaged proton LET on the same grid, see
+            let_scorer_dicom().
         """
         lines = [
             "##############################################",
@@ -562,8 +565,62 @@ class TopasText:
             f's:Sc/Dose/OutputFile                 = "{topas_output_path}"')
         bits32 = "F" if dose_cube_16bit else "T"
         lines.append(f'b:Sc/Dose/DICOMOutput32BitsPerPixel  = "{bits32}"')
+        lines.append('')
+        if dlet:
+            lines.append(TopasText.let_scorer_dicom("LETd", "Dose", topas_output_path))
+        if tlet:
+            lines.append(TopasText.let_scorer_dicom("LETt", "Track", topas_output_path))
         lines.append('\n')
         return "\n".join(lines)
+
+    @staticmethod
+    def let_scorer_dicom(name: str, weight_by: str, topas_output_path: str = "") -> str:
+        """TOPAS's built-in ProtonLET scorer on the RTDOSE grid, written as a DICOM cube.
+
+        The known limits of TsScoreProtonLET (OpenTOPAS 4.2.3) are documented in the README:
+        only proton steps are scored, the value is dE/dx / density of the voxel's own
+        material (MeV/mm/(g/cm3), no conversion to water), and with UsePreStepLookup the
+        electronic stopping power at the pre-step energy is used, so the result depends on
+        the step length and with it on the voxel size.
+
+        UsePreStepLookup is set for both weightings: it is the less noisy variant. TOPAS
+        aborts if MaxScoredLET or NeglectSecondariesBelowDensity is set together with it,
+        so neither is written. OutputAfterRun is not set, so with batches the LET still
+        accumulates over all runs and is written once, correctly weighted.
+
+        The cube is always 32 bits per pixel: LET spikes would set the scale, and at 16
+        bits low values in the field would be written as 0.
+
+        Units and the DICOM header, a deliberate choice: the series is labelled keV/um, not
+        MeV/mm/(g/cm3). The two are numerically the same at density 1 (1 MeV/mm = 1 keV/um),
+        and keV/um is what the clinical users read. dicomexport does not try to make the
+        cube a valid dose: TOPAS writes DoseUnits only for a Gy quantity
+        (TsVBinnedScorer.cc), so the LET cube has no DoseUnits, DoseType or
+        DoseSummationType, and a TOPAS input file cannot set them. Planning systems such as
+        Eclipse load only Gy cubes, so clinics import LET as a "Gy" cube that is read as
+        keV/um. The README describes that import (the clinical RTDOSE as a template, as in
+        PregDos); it is left to the user on purpose, because dicomexport writes TOPAS input
+        and does no postprocessing.
+        SeriesDescription is the one label TOPAS lets us set, so it says "not dose".
+        """
+        out = f"{topas_output_path}_{name}" if topas_output_path else name
+        sc = f"Sc/{name}"
+        return "\n".join([
+            f"# {name}: TOPAS ProtonLET, protons only, mass LET in the voxel's own material,",
+            "# in MeV/mm/(g/cm3), i.e. keV/um at density 1. Not converted to water. See README.",
+            '# TOPAS writes no DoseUnits for a non-dose quantity; the description says what it is.',
+            f's:{sc}/SeriesDescription          = "{name} [keV/um] - not dose"',
+            f's:{sc}/Quantity                   = "ProtonLET"',
+            f's:{sc}/WeightBy                   = "{weight_by}"',
+            f'b:{sc}/UsePreStepLookup           = "True"',
+            f's:{sc}/Component                  = "Patient/RTDoseGrid"',
+            f's:{sc}/ReferencedDicomPatient     = "Patient"',
+            f's:{sc}/IfOutputFileAlreadyExists  = "Overwrite"',
+            f's:{sc}/OutputType                 = "DICOM"',
+            f's:{sc}/OutputFile                 = "{out}"',
+            f'b:{sc}/DICOMOutput32BitsPerPixel  = "T"',
+            '',
+        ])
 
     @staticmethod
     def scoring_box_x(size: float = 300.0) -> str:

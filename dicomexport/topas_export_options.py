@@ -39,6 +39,10 @@ class TopasExportOptions:
     # Identical runs per field in sources mode (issue #121). None: DEFAULT_BATCHES in
     # sources mode, 1 in timefeature mode, which already runs one spot per run.
     batches: Optional[int] = None
+    # Also score dose- and track-averaged proton LET with TOPAS's ProtonLET scorer. Study
+    # export only: geometry export has no Patient/RTDoseGrid to score on.
+    dlet: bool = False
+    tlet: bool = False
 
     def __post_init__(self):
         if self.beam_direction not in NOZZLE_SIDES:

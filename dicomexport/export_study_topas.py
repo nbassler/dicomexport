@@ -123,7 +123,7 @@ def _export_study_field_topas(ct: CTModel, rs: RTStruct, fld: Field, bm: Optiona
         lines.append(TopasText.field_beam_timefeature(topas_version=opts.topas_version))
     lines.append(TopasText.scorer_setup_dicom(
         topas_output_path=stem,
-        dose_cube_16bit=opts.dose_cube_16bit))
+        dose_cube_16bit=opts.dose_cube_16bit, dlet=opts.dlet, tlet=opts.tlet))
 
     # For now, if no beam model is provided, spots and info are not shown.
     # This should be revisited in the future.

@@ -3,7 +3,7 @@ from pathlib import Path
 
 from dicomexport.__version__ import __version__
 from dicomexport.parser_config import add_beam_model, add_config_dir, add_includes, add_range_shifter_catalog
-from dicomexport.parser_topas_options import (add_batches, add_dose_cube_16bit, add_nozzle_side, add_nstat,
+from dicomexport.parser_topas_options import (add_batches, add_dose_cube_16bit, add_let, add_nozzle_side, add_nstat,
                                               add_spot_mode, add_threads, add_topas_version)
 
 
@@ -66,6 +66,7 @@ def create_parser():
     add_topas_version(parser)
 
     add_dose_cube_16bit(parser)
+    add_let(parser)
 
     add_spot_mode(parser)
     add_batches(parser)
