@@ -598,8 +598,9 @@ class TopasText:
         (TsVBinnedScorer.cc), so the LET cube has no DoseUnits, DoseType or
         DoseSummationType, and a TOPAS input file cannot set them. Planning systems such as
         Eclipse load only Gy cubes, so clinics import LET as a "Gy" cube that is read as
-        keV/um. The README shows how to set the tags with pydicom; that step is left to the
-        user on purpose, because dicomexport writes TOPAS input and does no postprocessing.
+        keV/um. The README describes that import (the clinical RTDOSE as a template, as in
+        PregDos); it is left to the user on purpose, because dicomexport writes TOPAS input
+        and does no postprocessing.
         SeriesDescription is the one label TOPAS lets us set, so it says "not dose".
         """
         out = f"{topas_output_path}_{name}" if topas_output_path else name

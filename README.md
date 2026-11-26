@@ -147,25 +147,26 @@ OpenTOPAS 4.2.3), and dicomexport cannot fix them:
   no proton reached are 0. TOPAS warns about them at the end of the run
   ("did not correspond to an entry in the sub-scorer"); that warning is expected.
 - **DICOM header.** The cubes are RTDOSE objects, and pixel value × `DoseGridScaling` is
-  the LET in keV/µm. TOPAS writes `DoseUnits = GY` only for dose quantities, so the LET
-  cubes have no `DoseUnits`. That tag is required, and a planning system such as Eclipse
-  will probably refuse the file without it. dicomexport labels the series
-  `LETd [keV/um] - not dose` (or `LETt ...`) so that it reads correctly in the planning
-  system's lists. To import a cube as a "dose" whose Gy values are keV/µm, set the tag
-  yourself:
+  the LET in keV/µm. dicomexport labels the series `LETd [keV/um] - not dose` (or
+  `LETt ...`). TOPAS writes `DoseUnits = GY` only for dose quantities, so the LET cubes have
+  no `DoseUnits`, and like TOPAS's dose cubes they have no `DoseType` or
+  `DoseSummationType`. Eclipse refuses such a file. Setting the tags is not enough
+  either: Eclipse also checks the plan reference, the frame of reference and the patient's
+  identity. What works for TOPAS dose cubes, as done by
+  [PregDos](https://github.com/Eurados/pregdos) (`pregdos/rtdose.py`), is to start from
+  the study's clinical RTDOSE and replace only its dose grid. The TOPAS cube is cloned from
+  that RTDOSE's grid, so the geometry matches. For LET:
+  - copy the clinical RTDOSE and give it a new SOP Instance UID and Series Instance UID;
+  - write the LET values (keV/µm) as its pixel data and `DoseGridScaling`;
+  - set `DoseUnits = GY`, `DoseType = PHYSICAL` and `DoseSummationType` (`BEAM` with the
+    beam's `ReferencedBeamNumber`, or `PLAN`);
+  - keep the `ReferencedRTPlanSequence` and set a `SeriesDescription` saying it is LET.
 
-  ```python
-  import pydicom
-  ds = pydicom.dcmread("plan_field01_LETd.dcm")
-  ds.DoseUnits, ds.DoseType = "GY", "EFFECTIVE"
-  ds.DoseSummationType = "BEAM"   # one field per file; also required, TOPAS leaves it out
-  ds.save_as("plan_field01_LETd_gy.dcm")
-  ```
-
-  Whatever the planning system displays as Gy is then LET in keV/µm, not dose.
-  `EFFECTIVE` marks the values as already RBE-weighted. With `PHYSICAL`, a system that
-  shows RBE-weighted proton dose may multiply the LET by 1.1. Check with a cube of
-  known values that your system shows the stored numbers unchanged before you rely on it.
+  Eclipse then shows LET in keV/µm as "Gy". Clinical proton RTDOSE files hold Gy(RBE)
+  while declaring `PHYSICAL`, and imported values are shown as stored, so no factor 1.1 is
+  applied (PregDos's experience with Eclipse). Do not apply the RBE or the plan scaling
+  that dose cubes need to LET cubes. Check with a cube of known values that your system
+  shows the stored numbers unchanged before you rely on it.
 
 **Batches.** The LET scorers do not set `OutputAfterRun`. With `--batches B` they add up
 over all B runs and are written once at the end. That result is pooled correctly by
