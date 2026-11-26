@@ -67,3 +67,29 @@ def test_rejects_invalid_beam_direction(bad):
 def test_is_immutable():
     with pytest.raises(AttributeError):
         DEFAULTS.nstat = 5
+
+
+def test_let_flags_reach_the_options():
+    create, positionals = PARSERS["main"]
+    opts = options_from_args(create().parse_args(positionals + ["--dlet", "--tlet"]))
+    assert opts.dlet is True and opts.tlet is True
+    opts = options_from_args(create().parse_args(positionals + ["--tlet"]))
+    assert opts.dlet is False and opts.tlet is True
+
+
+def test_let_is_off_by_default():
+    assert DEFAULTS.dlet is False and DEFAULTS.tlet is False
+
+
+@pytest.mark.parametrize("name", ["plan", "geo"])
+def test_let_flags_only_on_the_study_export(name):
+    # geo-export's patient is a Group without Patient/RTDoseGrid; plan-export has no patient.
+    create, positionals = PARSERS[name]
+    with pytest.raises(SystemExit):
+        create().parse_args(positionals + ["--dlet"])
+
+
+def test_new_option_fields_keep_positional_meaning():
+    # dlet/tlet are appended, so existing positional callers are unaffected.
+    opts = TopasExportOptions(int(1e6), -1, 0, DEFAULTS.topas_version, False, "sources", 2)
+    assert opts.batches == 2 and opts.dlet is False and opts.tlet is False

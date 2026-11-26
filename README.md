@@ -115,9 +115,101 @@ older version, pass `--topas-version X.Y`.
 - **Dose.** Dose to water is scored on the grid of the study's RTDOSE file and written as a
   DICOM dose cube, at 32 bits per pixel (`--dose-cube-16bit` halves the size but zeroes the
   lowest doses).
+- **LET.** `--dlet` and `--tlet` also score dose- and track-averaged proton LET on the same
+  grid, written as `<output>_LETd.dcm` and `<output>_LETt.dcm`. Read the limitations
+  under [LET scoring](#let-scoring) before using the results.
 - **Threads.** `--threads` sets TOPAS's thread count, resolved on the machine that runs the
   file, so exporting on one machine and running on another is safe.
 - **Fields.** `-f N` exports only the field with DICOM BeamNumber N.
+
+### LET scoring
+
+`--dlet` and `--tlet` add TOPAS's built-in `ProtonLET` scorer with `WeightBy` set to
+`Dose` or `Track`. They are meant for fast LET estimates, not for reference LET.
+The limitations come from the scorer itself (checked against `TsScoreProtonLET.cc` in
+OpenTOPAS 4.2.3), and dicomexport cannot fix them:
+
+- **Protons only.** Only steps of protons, primary and secondary, are scored. Heavier
+  fragments (deuterons, alphas, ...) do not contribute.
+- **Mass LET in the voxel's own material, not in water.** The value is the stopping power
+  divided by the density of the voxel's material, in MeV/mm/(g/cm³). Read the numbers as
+  keV/µm at a density of 1 g/cm³ (1 MeV/mm = 1 keV/µm, so no rescaling is needed). In
+  water that is the LET. In other materials it is not LET in water, and TOPAS has no
+  option to convert it.
+- **Depends on voxel size.** `UsePreStepLookup` is switched on for both weightings because
+  it is the less noisy option. It takes the electronic stopping power at the energy before
+  each step. Steps end at voxel boundaries, so the result depends on the dose grid's voxel
+  size. With this option TOPAS does not allow `MaxScoredLET` or
+  `NeglectSecondariesBelowDensity`, so dicomexport writes neither.
+- **Noisy where there is little dose.** Outside the field and beyond the distal edge, few
+  protons reach a voxel, and single steps give LET values up to ~100 keV/µm. Mask the LET
+  cube with a dose threshold, e.g. 1-5 % of the maximum dose, before using it. Voxels that
+  no proton reached are 0. TOPAS warns about them at the end of the run
+  ("did not correspond to an entry in the sub-scorer"); that warning is expected.
+- **DICOM header.** The cubes are RTDOSE objects, and pixel value × `DoseGridScaling` is
+  the LET in keV/µm. TOPAS writes `DoseUnits = GY` only for dose quantities, so the LET
+  cubes have no `DoseUnits`. That tag is required, and a planning system such as Eclipse
+  will probably refuse the file without it. dicomexport labels the series
+  `LETd [keV/um] - not dose` (or `LETt ...`) so that it reads correctly in the planning
+  system's lists. To import a cube as a "dose" whose Gy values are keV/µm, set the tag
+  yourself:
+
+  ```python
+  import pydicom
+  ds = pydicom.dcmread("plan_field01_LETd.dcm")
+  ds.DoseUnits, ds.DoseType = "GY", "EFFECTIVE"
+  ds.DoseSummationType = "BEAM"   # one field per file; also required, TOPAS leaves it out
+  ds.save_as("plan_field01_LETd_gy.dcm")
+  ```
+
+  Whatever the planning system displays as Gy is then LET in keV/µm, not dose.
+  `EFFECTIVE` marks the values as already RBE-weighted. With `PHYSICAL`, a system that
+  shows RBE-weighted proton dose may multiply the LET by 1.1. Check with a cube of
+  known values that your system shows the stored numbers unchanged before you rely on it.
+
+**Batches.** The LET scorers do not set `OutputAfterRun`. With `--batches B` they add up
+over all B runs and are written once at the end. That result is pooled correctly by
+TOPAS and needs no postprocessing. Use it as the LET result.
+
+Do not add `OutputAfterRun` to `Sc/LETd` or `Sc/LETt`. TOPAS would then write only one
+cube per batch and no pooled cube. Batch LET cubes cannot be combined exactly afterwards,
+because TOPAS does not write the weights each one was divided by. A plain mean is wrong
+wherever a batch has few or no protons in a voxel: such a batch writes LET 0 there and
+pulls the mean down.
+
+For a batch uncertainty, add a second, per-batch LET scorer in a file of its own and
+keep dicomexport's scorer for the result. For example, `let-per-batch.txt`:
+
+```text
+s:Sc/LETdBatch/Quantity                  = "ProtonLET"
+s:Sc/LETdBatch/WeightBy                  = "Dose"
+b:Sc/LETdBatch/UsePreStepLookup          = "True"
+s:Sc/LETdBatch/Component                 = "Patient/RTDoseGrid"
+s:Sc/LETdBatch/ReferencedDicomPatient    = "Patient"
+s:Sc/LETdBatch/IfOutputFileAlreadyExists = "Overwrite"
+s:Sc/LETdBatch/OutputType                = "DICOM"
+s:Sc/LETdBatch/OutputFile                = Sc/LETd/OutputFile + "_batch"
+b:Sc/LETdBatch/DICOMOutput32BitsPerPixel = "True"
+b:Sc/LETdBatch/OutputAfterRun            = "True"
+```
+
+The batch scorer takes its file name from `Sc/LETd/OutputFile`, which carries the field
+number, so batch cubes of different fields do not overwrite each other. That reference
+works only if the file is pasted into each field file with `-S`. An `includeFile` (`-s`)
+cannot see parameters that the including file sets, and TOPAS stops. Any `-s` or `-S`
+replaces the default CT-to-material table, so name the table as well:
+
+```bash
+dicomexport study/ --dlet -s HUtoMaterialSchneider -S let-per-batch.txt
+```
+
+TOPAS then writes the pooled `<output>_fieldNN_LETd.dcm` and
+`<output>_fieldNN_LETd_batch_Run_0000.dcm`, `..._Run_0001.dcm`, ... for each field
+(checked with OpenTOPAS 4.2.3). Use the batch cubes only for the spread around the pooled
+result, and only in voxels where every batch has dose.
+
+A proper LET scorer (LET in water, all ions, independent of the voxel size) belongs in
+TOPAS, as a user extension or upstream, not in dicomexport.
 
 ### Including TOPAS files
 
